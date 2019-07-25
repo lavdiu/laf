@@ -1,0 +1,30 @@
+{
+  "name": "lulzim/laf",
+  "description": "LAF Framework",
+  "type": "project",
+  "authors": [
+    {
+      "name": "Lulzim Avdiu",
+      "email": "lulzimavdiu@gmail.com"
+    }
+  ],
+  "config": {
+    "platform": {
+      "php": ">=7.2"
+    },
+    "vendor-dir": "vendor",
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "optimize-autoloader": true
+  },
+  "autoload": {
+        "psr-4": {"Laf\\": "Laf"}
+    },
+  "require": {
+    "ext-mbstring": "*",
+    "ext-json": "*",
+    "ext-pdo": "*",
+    "ext-gd": "*",
+    "monolog/monolog": "^1.23"
+  }
+}

@@ -1,0 +1,11 @@
+*idea/*
+
+
+
+#don't ignore these
+!static.intrepicure.com/uploads/noimage.jpg
+
+
+
+/vendor/
+/document/
