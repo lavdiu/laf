@@ -10,7 +10,7 @@
   ],
   "config": {
     "platform": {
-      "php": ">=7.2"
+      "php": "7.3"
     },
     "vendor-dir": "vendor",
     "preferred-install": "dist",
@@ -21,10 +21,11 @@
         "psr-4": {"Laf\\": "Laf"}
     },
   "require": {
+    "php": ">=7.3",
     "ext-mbstring": "*",
     "ext-json": "*",
     "ext-pdo": "*",
     "ext-gd": "*",
-    "monolog/monolog": "^1.23"
+    "monolog/monolog": "^1.24"
   }
 }

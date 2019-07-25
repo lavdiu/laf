@@ -3,6 +3,7 @@
 namespace Laf\Util;
 
 use Exception;
+use Laf\Exception\MissingConfigParamException;
 
 class Settings
 {
@@ -50,7 +51,7 @@ class Settings
 		if (array_key_exists($key, $this->properties)) {
 			return $this->properties[$key];
 		} else {
-			throw new Exception(sprintf("Error: Setting %s doesnt exist", $key));
+			throw new MissingConfigParamException(sprintf("Error: Setting %s doesnt exist", $key));
 		}
 	}
 
