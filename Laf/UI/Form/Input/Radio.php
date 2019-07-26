@@ -6,6 +6,7 @@ use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
+use Laf\Util\Settings;
 
 
 class Radio extends Text implements FormElementInterface, ComponentInterface
@@ -21,12 +22,13 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 	/**
 	 * Returns the label from the FB table
 	 * @return string
+	 * @throws \Exception
 	 */
 	protected function getSelectedLabel()
 	{
 		$fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-		#@Todo optimize this, remove dependency
-		$fkClass = '\\Intrepicure\\' . Db::convertTableNameToClassName($fkTable);
+		$settings = Settings::getInstance();
+		$fkClass = "\\".$settings->getProperty('project_package_name')."\\" . Db::convertTableNameToClassName($fkTable);
 		$record = new $fkClass($this->getField()->getValue());
 		$field = 'get' . Db::convertTableNameToClassName($record->getTable()->getDisplayField()->getName()) . 'Val';
 		if (method_exists($record, $field))
@@ -85,12 +87,13 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 	/**
 	 * Returns all options from the FK table, to build select element options
 	 * @return array
+	 * @throws \Exception
 	 */
 	protected function getOptions()
 	{
 		$fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-		#@Todo remove dependency
-		$fkClass = '\\Intrepicure\\' . Db::convertTableNameToClassName($fkTable);
+		$settings = Settings::getInstance();
+		$fkClass = "\\".$settings->getProperty('project_package_name')."\\" . Db::convertTableNameToClassName($fkTable);
 		/**
 		 * @var $record BaseObject
 		 */

@@ -8,6 +8,7 @@ use Laf\Exception;
 use Laf\Database\Table;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
+use Laf\Util\Settings;
 use Laf\Util\Util;
 
 class Field
@@ -538,14 +539,13 @@ class Field
 	 */
 	public function getReferencedValue()
 	{
+		$settings = Settings::getInstance();
 		if ($this->isForeignKey()) {
 			$field = $this->getTable()->getField($this->getName());
 			$foreignKey = $this->getTable()->getForeignKey($this->getName());
 
 			$referencedTable = new  Table($foreignKey->getReferencingTable());
-
-			#@TODO replace with package name
-			$referencedObjectName = '\\Intrepicure\\' . $referencedTable->getNameAsClassname();
+			$referencedObjectName = "\\".$settings->getProperty('project_package_name')."\\" . $referencedTable->getNameAsClassname();
 			$referencedTableObject = new $referencedObjectName($this->getValue());
 			$referencedValue = $referencedTableObject->getTable()->getDisplayField()->getValue();
 			return $referencedValue;

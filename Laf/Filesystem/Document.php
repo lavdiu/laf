@@ -76,10 +76,9 @@ class File
 	}
 
 	/**
-	 * @return \Intrepicure\Document
-	 * @todo replace with the correct document class
+	 * @return Document
 	 */
-	public function getDocumentInstance(): ?\Intrepicure\Document
+	public function getDocumentInstance()
 	{
 		return $this->documentInstance;
 	}
