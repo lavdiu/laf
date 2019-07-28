@@ -81,6 +81,11 @@ class Field
 	/**
 	 * @var bool
 	 */
+	private $unique = false;
+
+	/**
+	 * @var bool
+	 */
 	private $autoIncrement = false;
 
 	/**
@@ -138,7 +143,7 @@ class Field
 	 * @param array $attributes
 	 * @param string $invalidValueErrorMessage
 	 */
-	public function __construct(string $name = null, Table $table = null, string $value = null, string $oldValue = null, int $loadedOnTs = null, int $updatedOnTs = null, FieldType $type = null, int $maxLength = null, int $minLength = null, int $incrementStep = null, bool $required = null, bool $autoIncrement = null, string $label = null, string $placeholder = null, string $hint = null, array $attributes = [], string $invalidValueErrorMessage = null)
+	public function __construct(string $name = null, Table $table = null, string $value = null, string $oldValue = null, int $loadedOnTs = null, int $updatedOnTs = null, FieldType $type = null, int $maxLength = null, int $minLength = null, int $incrementStep = null, bool $required = null, bool $unique = null, bool $autoIncrement = null, string $label = null, string $placeholder = null, string $hint = null, array $attributes = [], string $invalidValueErrorMessage = null)
 	{
 		$this->name = $name;
 		$this->table = $table;
@@ -151,6 +156,7 @@ class Field
 		$this->minLength = $minLength;
 		$this->incrementStep = $incrementStep;
 		$this->required = $required;
+		$this->unique = $unique;
 		$this->autoIncrement = $autoIncrement;
 		$this->label = $label;
 		$this->placeholder = $placeholder;
@@ -397,6 +403,26 @@ class Field
 		$this->required = $required;
 		return $this;
 	}
+
+	/**
+	 * @return bool
+	 */
+	public function isUnique(): bool
+	{
+		return $this->unique;
+	}
+
+	/**
+	 * @param bool $unique
+	 * @return Field
+	 */
+	public function setUnique(bool $unique): Field
+	{
+		$this->unique = $unique;
+		return $this;
+	}
+
+
 
 	/**
 	 * Is autoincrement?

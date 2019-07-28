@@ -447,6 +447,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			->setRequired(" . ($column['IS_NULLABLE'] == 'NO' ? 'true' : 'false') . ")
 			->setMaxLength(" . (is_numeric($column['CHARACTER_MAXIMUM_LENGTH']) ? $column['CHARACTER_MAXIMUM_LENGTH'] : '0') . ")
 			->setAutoIncrement(" . (strpos($column['EXTRA'], 'auto_increment') === false ? 'false' : 'true') . ")
+			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true':'false') . ")
 			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
 
             $maxLength = preg_replace("/[^0-9,.]/", "", $column['COLUMN_TYPE']);
