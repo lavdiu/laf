@@ -75,8 +75,6 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
 	#echo \"trying to include Class: {\$className}; file: {\$file}\\n<br />\";
 	if (file_exists(\$file) && is_readable(\$file)) {
 		require_once \$file;
-	} else {
-		error_log('Class does not exist: ' . \$file);
 	}
 }";
         file_put_contents($this->getConfig()['class_dir'] . '/autoload.php', $file);

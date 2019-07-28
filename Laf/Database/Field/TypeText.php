@@ -52,6 +52,6 @@ class TypeText implements FieldType
      */
     public function formatForDb($value)
     {
-        return (string)$value;
+        return (string)trim($value);
     }
 }

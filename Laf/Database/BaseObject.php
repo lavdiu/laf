@@ -4,6 +4,7 @@ namespace Laf\Database;
 
 use Laf\Exception;
 use Laf\Database\Field\Field;
+use Laf\Exception\MissingFieldValueException;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Form\Form;
@@ -370,10 +371,21 @@ class BaseObject
 	 * @return bool
 	 * @throws \PDOException
 	 * @throws \Exception
+	 * @throws MissingFieldValueException
 	 */
 	public function insert()
 	{
 		$this->addLoggerDebug(__METHOD__);
+
+		$msg = [];
+		foreach($this->getTable()->getFields() as $field){
+			if($field->isRequired()){
+				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
+			}
+		}
+		if(count($msg) > 0){
+			throw new MissingFieldValueException(join('; ', $msg));
+		}
 
 		if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
 			$this->setFieldValue('created_on', date('Y-m-d H:i'));
@@ -389,7 +401,12 @@ class BaseObject
 				if (!$field->isAutoIncrement()) {
 					$prepareColumns[] = "`{$field->getName()}`";
 					$prepareValues[] = ":{$field->getName()}";
-					$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
+
+					if($field->getValueForDbInsert() != ''){
+						$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+					}else{
+						$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
+					}
 				}
 			} else {
 				$prepareColumns[] = "`{$field->getName()}`";
@@ -473,10 +490,21 @@ class BaseObject
 	 * @return bool
 	 * @throws \PDOException
 	 * @throws \Exception
+	 * @throws MissingFieldValueException
 	 */
 	public function update()
 	{
 		$this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
+
+		$msg = [];
+		foreach($this->getTable()->getFields() as $field){
+			if($field->isRequired()){
+				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
+			}
+		}
+		if(count($msg) > 0){
+			throw new MissingFieldValueException(join('; ', $msg));
+		}
 
 		if (!$this->isrecordSelected()) {
 			$this->addLoggerDebug('No prior record selected to update. Returning false');
