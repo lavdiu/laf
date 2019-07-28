@@ -253,13 +253,17 @@ class BaseObject
 
 	/**
 	 * Set Db Record id
-	 * @param int $recordId
+	 * @param mixed $recordId
 	 * @return bool
 	 */
-	public function setRecordId($recordId)
+	public function setRecordId($recordId): bool
 	{
 		$this->addLoggerDebug(__METHOD__, [$recordId]);
-		if (filter_var($recordId, FILTER_VALIDATE_INT)) {
+		if (filter_var($recordId, FILTER_VALIDATE_INT) && $this->getTable()->getPrimaryKey()->getFirstField()->isAutoIncrement()) {
+			$this->recordId = $recordId;
+			return true;
+		}
+		if ($recordId != '') {
 			$this->recordId = $recordId;
 			return true;
 		} else {
@@ -272,7 +276,7 @@ class BaseObject
 	 * @alias select()
 	 * @return bool
 	 */
-	public function reload()
+	public function reload(): bool
 	{
 		$this->addLoggerDebug("Reloading object data", [__METHOD__, $this->getRecordId()]);
 		return $this->select($this->getRecordId());
