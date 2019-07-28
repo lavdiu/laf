@@ -379,7 +379,7 @@ class BaseObject
 
 		$msg = [];
 		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired()){
+			if($field->isRequired() && $field->getValueForDbInsert() == '' && !$field->isPrimaryKey()){
 				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
 			}
 		}
@@ -498,7 +498,7 @@ class BaseObject
 
 		$msg = [];
 		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired()){
+			if($field->isRequired() && $field->getValueForDbInsert() == '' && !$field->isPrimaryKey()){
 				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
 			}
 		}
