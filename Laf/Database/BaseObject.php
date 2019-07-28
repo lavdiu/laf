@@ -449,7 +449,7 @@ class BaseObject
 		 * Non-Auto auto-increment fields getInsertId() returns 0
 		 */
 		if ($db->getInsertId() === '0') {
-			$this->setRecordId($this->getTable()->getPrimaryKey()->getFirstField()->getMaxValue());
+			$this->setRecordId($this->getTable()->getPrimaryKey()->getFirstField()->getValue());
 		} else {
 			$this->setRecordId($db->getInsertId());
 		}
