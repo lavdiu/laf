@@ -449,13 +449,7 @@ class BaseObject
 		$this->addLoggerDebug("INSERT Id", [$this->getRecordId()]);
 		$this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
 
-		if (static::getTable()->hasField('id')) {
-			#$primaryField = static::getField('id');
-			$primaryField = static::getTable()->getPrimaryKey()->getFirstField();
-			if ($primaryField->isPrimaryKey()) {
-				$primaryField->setValue($this->getRecordId());
-			}
-		}
+		static::getTable()->getPrimaryKey()->getFirstField()->setValue($this->getRecordId());
 		return true;
 	}
 
