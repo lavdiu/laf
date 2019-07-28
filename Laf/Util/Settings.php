@@ -44,7 +44,7 @@ class Settings
 	 * Get property
 	 * @param $key
 	 * @return mixed
-	 * @throws Exception
+	 * @throws MissingConfigParamException
 	 */
 	public function getProperty($key)
 	{

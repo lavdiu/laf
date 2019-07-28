@@ -4,6 +4,8 @@ namespace Laf\Generator;
 
 use Laf\Database\Table;
 use Laf\Database\Db;
+use Laf\Exception\MissingConfigParamException;
+use Laf\Util\Settings;
 
 class DatabaseGenerator
 {
@@ -22,14 +24,21 @@ class DatabaseGenerator
      */
     private $config = [];
 
-    /**
-     * DatabaseGenerator constructor.
-     * @param array $config
-     */
-    public function __construct(array $config)
-    {
-        $this->config = $config;
-    }
+	/**
+	 * DatabaseGenerator constructor.
+	 * @param string $library_path Relative or absolute path to the folder you want to write the library and generated classes
+	 * @throws MissingConfigParamException
+	 */
+	public function __construct($library_path)
+	{
+		$settings = Settings::getInstance();
+		$ns = $settings->getProperty('project_package_name');
+		$this->config = [
+			'namespace' => $ns,
+			'base_class_dir' => $library_path.'/'.$ns.'/'.'Base',
+			'class_dir' => $library_path.'/'.$ns
+		];
+	}
 
     /**
      * Generate classes for tables
@@ -80,6 +89,11 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
      */
     public function createDirectoryStructure()
     {
+	    if (!is_dir($this->getConfig()['class_dir'])) {
+		    echo "\nCreating directory structure";
+		    mkdir($this->getConfig()['class_dir'], 0777, true);
+	    }
+
         if (!is_dir($this->getConfig()['base_class_dir'])) {
             echo "\nCreating directory structure";
             mkdir($this->getConfig()['base_class_dir'], 0777, true);
