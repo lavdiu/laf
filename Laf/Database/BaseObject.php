@@ -7,6 +7,7 @@ use Laf\Database\Field\Field;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Form\Form;
+use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Grid\SimpleTable;
 use Laf\Util\Settings;
 use Laf\Util\UrlParser;

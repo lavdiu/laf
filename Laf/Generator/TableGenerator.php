@@ -94,7 +94,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	}
 
 	/**
-	 * Select the record by id
+	 * Select the record by primary key
 	 * @param int \$id
 	 * @return void
 	 */
@@ -184,7 +184,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \tpublic function listAllArray(): array
 \t{
 \t\t\$db = Database\Db::getInstance();
-\t\t\$sql = \"SELECT * FROM {\$this->getTable()->getName()} ORDER BY id ASC\";
+\t\t\$sql = \"SELECT * FROM {\$this->getTable()->getName()} ORDER BY {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC\";
 \t\t\$res = \$db->query(\$sql);
 \t\treturn \$res->fetchAll(\PDO::FETCH_ASSOC);
 \t}
@@ -198,7 +198,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \tpublic function listAllObjects(): array
 \t{
 \t\t\$db = Database\Db::getInstance();
-\t\t\$sql = \"SELECT id FROM {\$this->getTable()->getName()} ORDER BY id ASC\";
+\t\t\$sql = \"SELECT {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {\$this->getTable()->getName()} ORDER BY {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC\";
 \t\t\$res = \$db->query(\$sql);
 
 \t\t\$objects = [];
