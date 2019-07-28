@@ -379,7 +379,7 @@ class BaseObject
 
 		$msg = [];
 		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired() && $field->getValueForDbInsert() == '' && !$field->isPrimaryKey()){
+			if($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()){
 				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
 			}
 		}
@@ -402,8 +402,8 @@ class BaseObject
 					$prepareColumns[] = "`{$field->getName()}`";
 					$prepareValues[] = ":{$field->getName()}";
 
-					if($field->getValueForDbInsert() != ''){
-						$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+					if(((string)$field->getValueForDbInsert()) != ''){
+						$executeValues[':' . $field->getName()] = ((string)$field->getValueForDbInsert());
 					}else{
 						$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
 					}
@@ -411,7 +411,7 @@ class BaseObject
 			} else {
 				$prepareColumns[] = "`{$field->getName()}`";
 				$prepareValues[] = ":{$field->getName()}";
-				$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+				$executeValues[':' . $field->getName()] = ((string)$field->getValueForDbInsert());
 			}
 		}
 
@@ -498,7 +498,7 @@ class BaseObject
 
 		$msg = [];
 		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired() && $field->getValueForDbInsert() == '' && !$field->isPrimaryKey()){
+			if($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()){
 				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
 			}
 		}
@@ -547,8 +547,8 @@ class BaseObject
 					$type = $field->getType()->getPdoType();
 					if (mb_strlen($field->getValue()) == 0)
 						$type = \PDO::PARAM_NULL;
-					$stmt->bindValue(':' . $field->getName(), $field->getValueForDbInsert(), $type);
-					$this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValueForDbInsert()]);
+					$stmt->bindValue(':' . $field->getName(), ((string)$field->getValueForDbInsert()), $type);
+					$this->addLoggerDebug("Store bindValue", [$field->getName(), ((string)$field->getValueForDbInsert())]);
 				}
 			}
 			$stmt->bindValue(':primaryKeyField', $this->getRecordId(), \PDO::PARAM_INT);
