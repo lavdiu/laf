@@ -198,7 +198,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \tpublic function listAllObjects(): array
 \t{
 \t\t\$db = Database\Db::getInstance();
-\t\t\$primaryKeyField = \$this->getTable()->getPrimaryKey()->getFirstField()->getName()
+\t\t\$primaryKeyField = \$this->getTable()->getPrimaryKey()->getFirstField()->getName();
 \t\t\$sql = \"SELECT {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {\$this->getTable()->getName()} ORDER BY {\$primaryKeyField} ASC\";
 \t\t\$res = \$db->query(\$sql);
 
