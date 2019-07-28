@@ -905,7 +905,7 @@ class BaseObject
 	private function checkUniqueFieldsForDuplicateValues(): void
 	{
 		#@TODO implement
-		throw new UniqueFieldDuplicateValueException();
+		#throw new UniqueFieldDuplicateValueException();
 	}
 
 }
