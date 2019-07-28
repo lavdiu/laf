@@ -10,275 +10,317 @@ use Laf\Database\Field\Field;
  */
 class Table
 {
-    /**
-     * @var string
-     */
-    private $name;
+	/**
+	 * @var string
+	 */
+	private $name;
 
-    /**
-     * @var string[]
-     */
-    private $fields = [];
+	/**
+	 * @var string[]
+	 */
+	private $fields = [];
 
-    /**
-     * @var PrimaryKey
-     */
-    private $primaryKey = null;
+	/**
+	 * @var PrimaryKey
+	 */
+	private $primaryKey = null;
 
-    /**
-     * @var ForeignKey[]
-     */
-    private $foreignKey = [];
+	/**
+	 * @var ForeignKey[]
+	 */
+	private $foreignKey = [];
 
-    /**
-     * @var string
-     */
-    private $displayField = null;
+	/**
+	 * @var Field[]
+	 */
+	private $uniqueFields = [];
 
-    /**
-     * Table constructor.
-     * @param $name
-     * @param array $fields
-     * @param PrimaryKey $primaryKey
-     * @param string[] $foreignKey
-     * @param Field $displayField
-     */
-    public function __construct($name = null, array $fields = null, PrimaryKey $primaryKey = null, array $foreignKey = null, ?Field $displayField = null)
-    {
-        $this->name = $name;
-        $this->fields = $fields;
-        $this->primaryKey = $primaryKey;
-        $this->foreignKey = $foreignKey;
-        $this->displayField = $displayField;
-    }
+	/**
+	 * @var string
+	 */
+	private $displayField = null;
 
-    /**
-     * Set Table Name
-     * @param mixed $name
-     * @return Table
-     */
-    public function setName($name): Table
-    {
-        $this->name = $name;
-        return $this;
-    }
+	/**
+	 * Table constructor.
+	 * @param $name
+	 * @param array $fields
+	 * @param PrimaryKey $primaryKey
+	 * @param string[] $foreignKey
+	 * @param Field $displayField
+	 */
+	public function __construct($name = null, array $fields = null, PrimaryKey $primaryKey = null, array $foreignKey = null, ?Field $displayField = null)
+	{
+		$this->name = $name;
+		$this->fields = $fields;
+		$this->primaryKey = $primaryKey;
+		$this->foreignKey = $foreignKey;
+		$this->displayField = $displayField;
+	}
 
-    /**
-     * Get Table Name
-     * @return string
-     */
-    public function getName()
-    {
-        return $this->name;
-    }
+	/**
+	 * Set Table Name
+	 * @param mixed $name
+	 * @return Table
+	 */
+	public function setName($name): Table
+	{
+		$this->name = $name;
+		return $this;
+	}
 
-    /**
-     * Get Table name in Rot13
-     * @return string
-     */
-    public function getNameRot13()
-    {
-        return ($this->getName());
-    }
+	/**
+	 * Get Table Name
+	 * @return string
+	 */
+	public function getName()
+	{
+		return $this->name;
+	}
 
-    public function getNameAsClassname()
-    {
-        return Util::tableNameToClassName($this->getName());
-    }
+	/**
+	 * Get Table name in Rot13
+	 * @return string
+	 */
+	public function getNameRot13()
+	{
+		return ($this->getName());
+	}
 
-    /**
-     * Add Field to the table
-     * @param Field $field
-     * @return Table
-     */
-    public function addField(Field $field)
-    {
-        $this->setField($field);
-        return $this;
-    }
+	public function getNameAsClassname()
+	{
+		return Util::tableNameToClassName($this->getName());
+	}
 
-    /**
-     * Set a specific field in the table
-     * @param Field $field
-     * @return Table
-     */
-    public function setField(Field $field): Table
-    {
-        $field->setTable($this);
-        $this->fields[$field->getName()] = $field;
-        return $this;
-    }
+	/**
+	 * Add Field to the table
+	 * @param Field $field
+	 * @return Table
+	 */
+	public function addField(Field $field)
+	{
+		$this->setField($field);
+		return $this;
+	}
 
-    /**
-     * Get table field by name
-     * @param string $fieldName
-     * @return Field
-     */
-    public function getField(?string $fieldName)
-    {
-        if (isset($this->fields[$fieldName])) {
-            return $this->fields[$fieldName];
-        } else {
-            return null;
-        }
-    }
+	/**
+	 * Set a specific field in the table
+	 * @param Field $field
+	 * @return Table
+	 */
+	public function setField(Field $field): Table
+	{
+		$field->setTable($this);
+		$this->fields[$field->getName()] = $field;
+		return $this;
+	}
 
-    /**
-     * Check if field exists in the table
-     * @param string $fieldName
-     * @return bool
-     */
-    public function hasField(string $fieldName)
-    {
-        if (isset($this->fields[$fieldName])) {
-            return true;
-        } else {
-            return false;
-        }
-    }
+	/**
+	 * Get table field by name
+	 * @param string $fieldName
+	 * @return Field
+	 */
+	public function getField(?string $fieldName)
+	{
+		if (isset($this->fields[$fieldName])) {
+			return $this->fields[$fieldName];
+		} else {
+			return null;
+		}
+	}
 
-    /**
-     * Get all table fields
-     * @return Field[]
-     */
-    public function getFields()
-    {
-        return $this->fields;
-    }
+	/**
+	 * Check if field exists in the table
+	 * @param string $fieldName
+	 * @return bool
+	 */
+	public function hasField(string $fieldName)
+	{
+		if (isset($this->fields[$fieldName])) {
+			return true;
+		} else {
+			return false;
+		}
+	}
 
-    /**
-     * Returns number of fields per table
-     * @return int
-     */
-    public function getFieldCount()
-    {
-        return sizeof($this->fields);
-    }
+	/**
+	 * Get all table fields
+	 * @return Field[]
+	 */
+	public function getFields()
+	{
+		return $this->fields;
+	}
 
-    /**
-     * Set primary key
-     * @param PrimaryKey $key
-     * @return Table
-     */
-    public function setPrimaryKey(PrimaryKey $key): Table
-    {
-        $key->setTable($this);
-        $this->primaryKey = $key;
-        return $this;
-    }
+	/**
+	 * Returns number of fields per table
+	 * @return int
+	 */
+	public function getFieldCount()
+	{
+		return sizeof($this->fields);
+	}
 
-    /**
-     * Get table Primary Key
-     * @return PrimaryKey
-     */
-    public function getPrimaryKey()
-    {
-        return $this->primaryKey;
-    }
+	/**
+	 * Set primary key
+	 * @param PrimaryKey $key
+	 * @return Table
+	 */
+	public function setPrimaryKey(PrimaryKey $key): Table
+	{
+		$key->setTable($this);
+		$this->primaryKey = $key;
+		return $this;
+	}
 
-    /**
-     * Return number of primary keys per table
-     * @return int
-     */
-    public function getPrimaryKeyCount(){
-        return sizeof($this->getPrimaryKey()->getFields());
-    }
+	/**
+	 * Get table Primary Key
+	 * @return PrimaryKey
+	 */
+	public function getPrimaryKey()
+	{
+		return $this->primaryKey;
+	}
 
-    /**
-     * Check by fieldname is a field is primary key
-     * @param $fieldName
-     * @return bool
-     */
-    public function isPrimaryKey($fieldName)
-    {
-        if ($this->getPrimaryKey()->hasField($fieldName)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
+	/**
+	 * Return number of primary keys per table
+	 * @return int
+	 */
+	public function getPrimaryKeyCount()
+	{
+		return sizeof($this->getPrimaryKey()->getFields());
+	}
 
-    /**
-     * Add Table Foreign Key
-     * @param ForeignKey $key
-     * @return Table
-     */
-    public function addForeignKey(ForeignKey $key)
-    {
-        $key->setTable($this);
-        $this->foreignKey[$key->getField()->getName()] = $key;
-        return $this;
-    }
+	/**
+	 * Check by fieldname is a field is primary key
+	 * @param $fieldName
+	 * @return bool
+	 */
+	public function isPrimaryKey($fieldName)
+	{
+		if ($this->getPrimaryKey()->hasField($fieldName)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
 
-    /**
-     * Get table foreign key
-     * @param string $name
-     * @return ForeignKey
-     */
-    public function getForeignKey(string $name)
-    {
-        if (isset($this->foreignKey[$name])) {
-            return $this->foreignKey[$name];
-        } else {
-            return null;
-        }
-    }
+	/**
+	 * Add Table Foreign Key
+	 * @param ForeignKey $key
+	 * @return Table
+	 */
+	public function addForeignKey(ForeignKey $key)
+	{
+		$key->setTable($this);
+		$this->foreignKey[$key->getField()->getName()] = $key;
+		return $this;
+	}
 
-    /**
-     * Check if a field is a foreign key
-     * @param string $name
-     * @return bool
-     */
-    public function isForeignKey(string $name)
-    {
-        return isset($this->foreignKey[$name]);
-    }
+	/**
+	 * Get table foreign key
+	 * @param string $name
+	 * @return ForeignKey
+	 */
+	public function getForeignKey(string $name)
+	{
+		if (isset($this->foreignKey[$name])) {
+			return $this->foreignKey[$name];
+		} else {
+			return null;
+		}
+	}
 
-    /**
-     * Get all foreign keys
-     * @return array
-     */
-    public function getForeignKeys()
-    {
-        return $this->foreignKey;
-    }
+	/**
+	 * Check if a field is a foreign key
+	 * @param string $name
+	 * @return bool
+	 */
+	public function isForeignKey(string $name)
+	{
+		return isset($this->foreignKey[$name]);
+	}
 
-    /**
-     * Set display field name
-     * @param Field $displayField
-     * @return Table
-     */
-    public function setDisplayField(?Field $displayField): Table
-    {
-        $this->displayField = $displayField;
-        return $this;
-    }
+	/**
+	 * Get all foreign keys
+	 * @return array
+	 */
+	public function getForeignKeys()
+	{
+		return $this->foreignKey;
+	}
 
-    /**
-     * Returns the instance of displayField
-     * @return Field
-     */
-    public function getDisplayField(): ?Field
-    {
-        if (is_object($this->displayField))
-            return $this->displayField;
-        else {
-            $keys = array_keys($this->fields);
-            if(array_key_exists(1, $keys))
-                return $this->fields[$keys[1]];
-            else if(array_key_exists(0, $keys))
-                return $this->fields[$keys[0]];
-        }
-        return null;
-    }
+	/**
+	 * Set display field name
+	 * @param Field $displayField
+	 * @return Table
+	 */
+	public function setDisplayField(?Field $displayField): Table
+	{
+		$this->displayField = $displayField;
+		return $this;
+	}
 
-    /**
-     * @return string
-     */
-    public function __toString()
-    {
-        return $this->getName();
-    }
+	/**
+	 * Returns the instance of displayField
+	 * @return Field
+	 */
+	public function getDisplayField(): ?Field
+	{
+		if (is_object($this->displayField))
+			return $this->displayField;
+		else {
+			$keys = array_keys($this->fields);
+			if (array_key_exists(1, $keys))
+				return $this->fields[$keys[1]];
+			else if (array_key_exists(0, $keys))
+				return $this->fields[$keys[0]];
+		}
+		return null;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function __toString()
+	{
+		return $this->getName();
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function hasUniqueFields(): bool
+	{
+		return count($this->getUniqueFields()) > 0;
+	}
+
+	/**
+	 * @return Field[]
+	 */
+	public function getUniqueFields(): array
+	{
+		return $this->uniqueFields;
+	}
+
+	/**
+	 * @param Field[] $uniqueFields
+	 * @return Table
+	 */
+	public function setUniqueFields(array $uniqueFields): Table
+	{
+		$this->uniqueFields = $uniqueFields;
+		return $this;
+	}
+
+	/**
+	 * @param Field $field
+	 * @return Table
+	 */
+	public function addUniqueField(Field $field): Table
+	{
+		$this->uniqueFields[] = $field;
+		return $this;
+	}
 
 
 }

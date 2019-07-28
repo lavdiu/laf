@@ -5,6 +5,7 @@ namespace Laf\Database;
 use Laf\Exception;
 use Laf\Database\Field\Field;
 use Laf\Exception\MissingFieldValueException;
+use Laf\Exception\UniqueFieldDuplicateValueException;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Form\Form;
@@ -376,16 +377,8 @@ class BaseObject
 	public function insert()
 	{
 		$this->addLoggerDebug(__METHOD__);
-
-		$msg = [];
-		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()){
-				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
-			}
-		}
-		if(count($msg) > 0){
-			throw new MissingFieldValueException(join('; ', $msg));
-		}
+		$this->checkFieldsForMissingRequiredValues();
+		$this->checkUniqueFieldsForDuplicateValues();
 
 		if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
 			$this->setFieldValue('created_on', date('Y-m-d H:i'));
@@ -402,9 +395,9 @@ class BaseObject
 					$prepareColumns[] = "`{$field->getName()}`";
 					$prepareValues[] = ":{$field->getName()}";
 
-					if(((string)$field->getValueForDbInsert()) != ''){
+					if (((string)$field->getValueForDbInsert()) != '') {
 						$executeValues[':' . $field->getName()] = ((string)$field->getValueForDbInsert());
-					}else{
+					} else {
 						$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
 					}
 				}
@@ -495,16 +488,8 @@ class BaseObject
 	public function update()
 	{
 		$this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
-
-		$msg = [];
-		foreach($this->getTable()->getFields() as $field){
-			if($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()){
-				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
-			}
-		}
-		if(count($msg) > 0){
-			throw new MissingFieldValueException(join('; ', $msg));
-		}
+		$this->checkFieldsForMissingRequiredValues();
+		$this->checkUniqueFieldsForDuplicateValues();
 
 		if (!$this->isrecordSelected()) {
 			$this->addLoggerDebug('No prior record selected to update. Returning false');
@@ -891,8 +876,36 @@ class BaseObject
 	 * @return FormElementInterface[]
 	 *
 	 */
-	public function getAllFieldsAsFormElements() : array{
+	public function getAllFieldsAsFormElements(): array
+	{
 		return static::getAllFieldsAsFormElements();
+	}
+
+	/**
+	 * Check if any field is required and has no value
+	 * @throws MissingFieldValueException
+	 */
+	private function checkFieldsForMissingRequiredValues(): void
+	{
+		$msg = [];
+		foreach ($this->getTable()->getFields() as $field) {
+			if ($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()) {
+				$msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
+			}
+		}
+		if (count($msg) > 0) {
+			throw new MissingFieldValueException(join('; ', $msg));
+		}
+	}
+
+	/**
+	 * * Check for any fields that are unique if the value already exists in the database
+	 * @throws UniqueFieldDuplicateValueException
+	 */
+	private function checkUniqueFieldsForDuplicateValues(): void
+	{
+		#@TODO implement
+		throw new UniqueFieldDuplicateValueException();
 	}
 
 }

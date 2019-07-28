@@ -473,6 +473,9 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
             if ($column['COLUMN_KEY'] == 'PRI') {
                 $tmp .= "\n\t\t\$pk->addField(\$field);";
             }
+	        if ($column['COLUMN_KEY'] == 'UNI') {
+		        $tmp .= "\n\t\t\$this->addUniqueField(\$field);";
+	        }
             $tmp .= "\n\t\t\$this->getTable()->addField(\$field);
 		\$field = null;\n";
 
