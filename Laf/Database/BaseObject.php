@@ -445,7 +445,14 @@ class BaseObject
 		}
 
 		$this->setAffectedRows($stmt->rowCount());
-		$this->setRecordId($db->getInsertId());
+		/**
+		 * Non-Auto auto-increment fields getInsertId() returns 0
+		 */
+		if ($db->getInsertId() !== '0') {
+			$this->setRecordId($this->getTable()->getPrimaryKey()->getFirstField()->getMaxValue());
+		} else {
+			$this->setRecordId($db->getInsertId());
+		}
 		$this->addLoggerDebug("INSERT Id", [$this->getRecordId()]);
 		$this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
 
