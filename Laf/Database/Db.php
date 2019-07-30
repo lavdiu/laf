@@ -43,16 +43,17 @@ class Db
     /**
      * Get Instance
      * @return Db
+     * @throws \Exception
      */
     public static function getInstance(): Db
     {
         if (!is_a(self::$instance, 'Db')) {
             $settings = Settings::getInstance();
             self::$instance = new Db();
-            self::$instance->hostName = $settings->getProperty('db_hostname');
-            self::$instance->database = $settings->getProperty('db_databasename');
-            self::$instance->userName = $settings->getProperty('db_username');
-            self::$instance->password = $settings->getProperty('db_password');
+            self::$instance->hostName = $settings->getProperty('database.hostname');
+            self::$instance->database = $settings->getProperty('database.database_name');
+            self::$instance->userName = $settings->getProperty('database.username');
+            self::$instance->password = $settings->getProperty('database.password');
             self::$instance->connect();
         }
         return self::$instance;
@@ -61,6 +62,7 @@ class Db
     /**
      * Connect
      * @return \PDO
+     * @throws \Exception
      */
     public function connect()
     {

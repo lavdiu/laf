@@ -4,7 +4,7 @@ namespace Laf\Util;
 /**
  * Class Url
  * Parses the pretty-url and breaks it down to main parts
- * module, submodule, action and id
+ * module, submodule, action and id: /module/submodule/action/id
  */
 class UrlParser
 {
@@ -51,6 +51,15 @@ class UrlParser
 	 */
 	private function __construct()
 	{
+		/**
+		 * Check if the use_pretty_url is set in settings
+		 */
+		$settings = Settings::getInstance();
+		try {
+			$this->usePrettyUrl = (bool) $settings->getProperty('settings.use_pretty_url');
+		} catch (\Exception $ex) {
+		}
+
 		$this->buildFromUri();
 	}
 

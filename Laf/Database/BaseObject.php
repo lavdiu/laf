@@ -778,11 +778,14 @@ class BaseObject
 	 */
 	public function recordExists()
 	{
-		if (!$this->getTable()->hasField('id')) {
+		if (!$this->getTable()->getPrimaryKey()->getFirstField())
 			return false;
+
+		if (is_numeric($this->getTable()->getPrimaryKey()->getFirstField()->getValue())) {
+			return true;
 		}
 
-		if (is_numeric($this->getFieldValue('id'))) {
+		if (trim($this->getTable()->getPrimaryKey()->getFirstField()->getValue()) != '') {
 			return true;
 		}
 		return false;

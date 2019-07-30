@@ -27,16 +27,19 @@ class DatabaseGenerator
 	/**
 	 * DatabaseGenerator constructor.
 	 * @param string $library_path Relative or absolute path to the folder you want to write the library and generated classes
+	 * @param bool $force_rewrite_class_files Set to true if you want to force rewrite existing class files
 	 * @throws MissingConfigParamException
 	 */
-	public function __construct($library_path)
+	public function __construct($library_path, $force_rewrite_class_files = false)
 	{
 		$settings = Settings::getInstance();
-		$ns = $settings->getProperty('project_package_name');
+		$ns = $settings->getProperty('project.package_name');
 		$this->config = [
 			'namespace' => $ns,
 			'base_class_dir' => $library_path.'/'.$ns.'/'.'Base',
-			'class_dir' => $library_path.'/'.$ns
+			'class_dir' => $library_path.'/'.$ns,
+			'page_dir' => $library_path.'/'.$ns.'/pages',
+			'rewrite_class' => $force_rewrite_class_files
 		];
 	}
 
@@ -46,7 +49,7 @@ class DatabaseGenerator
      */
     public function processTables()
     {
-        echo "\nStarting to process tables";
+        echo "\nStarting to generate Classes";
         foreach ($this->getTables() as $table) {
             $tg = new TableGenerator(new Table($table['table_name']), $this->getConfig());
             $tg->saveBaseClassToFile()
@@ -55,6 +58,17 @@ class DatabaseGenerator
             ob_flush();
         }
         return $this;
+    }
+
+    public function processPages(){
+	    echo "\nStarting to generate Pages";
+	    foreach ($this->getTables() as $table) {
+		    $tg = new PageGenerator(new Table($table['table_name']), $this->getConfig());
+		    $tg->savePageToFile();
+		    echo "\nProcessed page: " . $table['table_name'];
+		    ob_flush();
+	    }
+	    return $this;
     }
 
     /**
