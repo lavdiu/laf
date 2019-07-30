@@ -110,6 +110,11 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
             echo "\nCreating directory structure";
             mkdir($this->getConfig()['base_class_dir'], 0777, true);
         }
+
+	    if (!is_dir($this->getConfig()['page_dir'])) {
+		    echo "\nCreating directory structure";
+		    mkdir($this->getConfig()['page_dir'], 0777, true);
+	    }
         return $this;
     }
 
@@ -177,7 +182,8 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
         if ($this->checkConfig()) {
             $this->createDirectoryStructure()
                 ->generateAutoLoader();
-            $this->processTables();
+            $this->processTables()
+	            ->processPages();
         }
 
     }
