@@ -42,9 +42,8 @@ class PageGenerator
 		$tableName = $this->getTable()->getName();
 		$instanceName = strtolower($className);
 		$file = "<?php
-<?php
 
-use {$namespace}\${$className};
+use {$namespace}\\{$className};
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
@@ -54,7 +53,7 @@ use Laf\UI\Page\AdminPage;
 use Laf\Util\UrlParser;
 
 \$id = UrlParser::getId();
-\{$instanceName} = new {$className}(\$id);
+\${$instanceName} = new {$className}(\$id);
 \$form = \${$instanceName}->getForm();
 
 \$page = new AdminPage();
