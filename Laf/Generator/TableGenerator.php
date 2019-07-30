@@ -390,7 +390,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			information_schema.key_column_usage
 		WHERE
 			table_name = '{$this->table->getName()}'
-				AND CONSTRAINT_SCHEMA='{$settings->getProperty('db_databasename')}'
+				AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
 				AND referenced_table_name IS NOT NULL
 		";
         $res = $db->query($sql);
