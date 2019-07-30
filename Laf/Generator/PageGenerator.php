@@ -44,7 +44,7 @@ class PageGenerator
 		$file = "<?php
 <?php
 
-use {$namespace}}\{$className};
+use {$namespace}\${$className};
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
@@ -55,10 +55,10 @@ use Laf\Util\UrlParser;
 
 \$id = UrlParser::getId();
 \{$instanceName} = new {$className}(\$id);
-\$form = \{$instanceName}->getForm();
+\$form = \${$instanceName}->getForm();
 
 \$page = new AdminPage();
-\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\{$instanceName}->getTable()->getNameAsClassname()) . '</a>');
+\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
 \$page->setTitleIcon('far fa-list-alt');
 
 
@@ -82,11 +82,11 @@ switch (UrlParser::getAction()) {
 		\$page->addLink(new Link('Cancel', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
 		break;
 	case 'delete':
-		if (\{$instanceName}->recordExists()) {
-			if (\{$instanceName}->canSoftDelete()) {
-				\{$instanceName}->softDelete();
+		if (\${$instanceName}->recordExists()) {
+			if (\${$instanceName}->canSoftDelete()) {
+				\${$instanceName}->softDelete();
 			} else {
-				\{$instanceName}->hardDelete();
+				\${$instanceName}->hardDelete();
 			}
 		}
 		UrlParser::redirectToListPage();
@@ -109,7 +109,7 @@ switch (UrlParser::getAction()) {
 		break;
 	case 'list':
 	default:
-		\$table = \{$instanceName}->getListAllSimpleTableObject();
+		\$table = \${$instanceName}->getListAllSimpleTableObject();
 		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
 		\$table->setRowsPerPage(2);
 		\$page->addLink(new Link('Add New', UrlParser::getNewLink(), 'fa fa-plus-square', ['class' => 'btn btn-sm btn-outline-success']));
