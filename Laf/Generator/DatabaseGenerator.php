@@ -185,7 +185,5 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
             $this->processTables()
 	            ->processPages();
         }
-
     }
-
 }
