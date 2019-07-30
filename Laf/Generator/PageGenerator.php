@@ -209,8 +209,12 @@ echo \$page->draw();
 	 * @return string
 	 * @throws \Exception
 	 */
-	public function getColumnsAsCSV(){
-		$cols = $this->getTableColumns();
+	public function getColumnsAsCSV()
+	{
+		$cols = [];
+		foreach ($this->getTableColumns() as $col) {
+			$cols[] = $col['COLUMN_NAME'];
+		}
 		return join(', ', $cols);
 	}
 
