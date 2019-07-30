@@ -131,7 +131,7 @@ echo \$page->draw();
 	public function savePageToFile()
 	{
 		$this->processClass();
-		$file = $this->getConfig()['page_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.inc';
+		$file = $this->getConfig()['page_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.page';
 		file_put_contents($file, $this->getpageFile());
 		return $this;
 	}
