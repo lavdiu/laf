@@ -86,8 +86,8 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	public function __construct(\$id = null)
 	{
 		parent::__construct(\$id);
-		\$this->setRecordId(\$id);
 		\$this->buildClass();
+		\$this->setRecordId(\$id);
 		if (is_numeric(\$id)) {
 			self::select(\$id);
 		}

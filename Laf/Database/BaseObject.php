@@ -94,7 +94,7 @@ class BaseObject
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
 		}
-		$sql = "SELECT id FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		foreach ($params as $fieldK => $fieldV) {
