@@ -28,7 +28,7 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 	{
 		$fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
 		$settings = Settings::getInstance();
-		$fkClass = "\\".$settings->getProperty('project_package_name')."\\" . Db::convertTableNameToClassName($fkTable);
+		$fkClass = "\\".$settings->getProperty('project.package_name')."\\" . Db::convertTableNameToClassName($fkTable);
 		$record = new $fkClass($this->getField()->getValue());
 		$field = 'get' . Db::convertTableNameToClassName($record->getTable()->getDisplayField()->getName()) . 'Val';
 		if (method_exists($record, $field))
@@ -93,7 +93,7 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 	{
 		$fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
 		$settings = Settings::getInstance();
-		$fkClass = "\\".$settings->getProperty('project_package_name')."\\" . Db::convertTableNameToClassName($fkTable);
+		$fkClass = "\\".$settings->getProperty('project.package_name')."\\" . Db::convertTableNameToClassName($fkTable);
 		/**
 		 * @var $record BaseObject
 		 */

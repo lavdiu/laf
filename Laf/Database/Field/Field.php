@@ -571,7 +571,7 @@ class Field
 			$foreignKey = $this->getTable()->getForeignKey($this->getName());
 
 			$referencedTable = new  Table($foreignKey->getReferencingTable());
-			$referencedObjectName = "\\".$settings->getProperty('project_package_name')."\\" . $referencedTable->getNameAsClassname();
+			$referencedObjectName = "\\".$settings->getProperty('project.package_name')."\\" . $referencedTable->getNameAsClassname();
 			$referencedTableObject = new $referencedObjectName($this->getValue());
 			$referencedValue = $referencedTableObject->getTable()->getDisplayField()->getValue();
 			return $referencedValue;
