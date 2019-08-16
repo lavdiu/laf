@@ -7,12 +7,9 @@ use Laf\Util\Settings;
 
 /**
  * Class Document
- * @package Intrepicure
- * Main Class for Table document
- * This class inherits functionality from BaseDocument.
- * It is generated only once, please include all logic and code here
+ * @package Laf\Filesystem
  */
-class File
+class Document
 {
 	private $document_id = null;
 	private $documentInstance = null;
@@ -20,11 +17,14 @@ class File
 	/**
 	 * Instructors constructor.
 	 * @param int $id
+	 * @throws \Exception
 	 */
 	public function __construct($id = null)
 	{
 		$this->document_id = $id;
-		$this->documentInstance = new \Intrepicure\Document($id);
+		$settings = Settings::getInstance();
+		$documentClass = '\\'.$settings->getProperty('project.package_name').'\\Document';
+		$this->documentInstance = new $documentClass($id);
 	}
 
 	/**
@@ -36,15 +36,16 @@ class File
 	public static function upload($fieldName)
 	{
 		$settings = Settings::getInstance();
-		$user = \Intrepicure\Person::getLoggedUserInstance();
+		$user = getLoggedUserInstance();
+		$documentClass = $settings->getProperty('project.package_name').'\\Document';
 
 		if (isset($_FILES[$fieldName])) {
 			if (
 				$_FILES[$fieldName]['size'] > 0
 				&& $_FILES[$fieldName]['error'] == 0
-				&& in_array($_FILES[$fieldName]['type'], $settings->getProperty('allowed_upload_images'))
+				&& in_array($_FILES[$fieldName]['type'], $settings->getProperty('upload.allowed_mime_types'))
 			) {
-				$document = new Document();
+				$document = new $documentClass();
 				$randomName = microtime(true);
 				$document->setFileNameOriginalVal($_FILES[$fieldName]['name']);
 				$document->setFileExtensionVal(strtolower(pathinfo($_FILES[$fieldName]['name'], PATHINFO_EXTENSION)));
@@ -52,9 +53,6 @@ class File
 				$document->setThumbnailNameVal($randomName . '_thumb.' . $document->getFileExtensionVal());
 				$document->setFileSizeVal($_FILES[$fieldName]['size']);
 				$document->setMimeTypeVal($_FILES[$fieldName]['type']);
-				if ($user->hasSchool()) {
-					$document->setSchoolIdVal($user->getSchoolObject()->getIdVal());
-				}
 				try {
 					$i = new SimpleImage();
 					$i->fromFile($_FILES[$fieldName]['tmp_name'])
@@ -76,16 +74,9 @@ class File
 	}
 
 	/**
-	 * @return Document
-	 */
-	public function getDocumentInstance()
-	{
-		return $this->documentInstance;
-	}
-
-	/**
 	 * Check if file exists in the filesystem
 	 * @return bool
+	 * @throws \Exception
 	 */
 	public function fileFullSizeExists()
 	{
@@ -98,6 +89,7 @@ class File
 	/**
 	 * Get file name including the full path
 	 * @return string
+	 * @throws \Exception
 	 */
 	public function getFullPathFullSize()
 	{
@@ -108,10 +100,12 @@ class File
 	 * Path to documents directory
 	 * Does not include a trailing /
 	 * @return string
+	 * @throws \Exception
 	 */
 	public function getDocumentsDirectory()
 	{
-		return __DIR__ . '/../../../document/';
+		$settings = Settings::getInstance();
+		return $settings->getProperty('upload.documents_directory');
 	}
 
 	/**
@@ -137,17 +131,24 @@ class File
 	public function isImage()
 	{
 		$settings = Settings::getInstance();
-		if (in_array($this->documentInstance->getMimeTypeVal(), $settings->getProperty('allowed_upload_images')))
+		if (in_array($this->documentInstance->getMimeTypeVal(), [
+			'image/png',
+			'image/jpeg',
+			'image/jpg',
+			'image/pjpeg',
+			'image/gif',
+		]))
 			return true;
 		return false;
 	}
 
 	/**
 	 * @return bool
+	 * @throws \Exception
 	 */
 	public function hardDelete()
 	{
-		$ok = parent::hardDelete();
+		$ok = $this->documentInstance->hardDelete();
 		if ($ok) {
 			if (file_exists($this->documentInstance->getFullPathFullSize()))
 				unlink($this->getFullPathFullSize());
@@ -209,12 +210,4 @@ class File
 
 	}
 
-	/**
-	 * Returns the lowest level class in the inheritance tree
-	 * Used with late static binding to get the lowest level class
-	 */
-	protected function returnLeafClass()
-	{
-		return $this;
-	}
 }

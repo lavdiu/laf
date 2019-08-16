@@ -22,10 +22,11 @@
     },
   "require": {
     "php": ">=7.3",
-    "ext-mbstring": "*",
-    "ext-json": "*",
-    "ext-pdo": "*",
     "ext-gd": "*",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "claviska/simpleimage": "^3.3",
     "monolog/monolog": "^1.24"
   }
 }
