@@ -2,7 +2,7 @@
 
 namespace Laf\UI\Form;
 
-use Intrepicure\Document;
+use Laf\Filesystem\Document;
 use Laf\Database\BaseObject;
 use Laf\Database\Field\Field;
 use Laf\UI\ComponentInterface;

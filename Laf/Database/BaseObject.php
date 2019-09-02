@@ -380,6 +380,9 @@ class BaseObject
 	 */
 	public function insert()
 	{
+		$settings = Settings::getInstance();
+		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+
 		$this->addLoggerDebug(__METHOD__);
 		$this->checkFieldsForMissingRequiredValues();
 		$this->checkUniqueFieldsForDuplicateValues();
@@ -388,7 +391,7 @@ class BaseObject
 			$this->setFieldValue('created_on', date('Y-m-d H:i'));
 		}
 		if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()) < 1) {
-			$this->setFieldValue('created_by', \Intrepicure\Person::getLoggedUserId());
+			$this->setFieldValue('created_by', $personClass::getLoggedUserId());
 		}
 
 		$this->insertSql = "INSERT INTO `{$this->getTable()->getName()}` (";
@@ -496,6 +499,9 @@ class BaseObject
 		$this->checkFieldsForMissingRequiredValues();
 		$this->checkUniqueFieldsForDuplicateValues();
 
+		$settings = Settings::getInstance();
+		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+
 		if (!$this->isrecordSelected()) {
 			$this->addLoggerDebug('No prior record selected to update. Returning false');
 			return false;
@@ -505,7 +511,7 @@ class BaseObject
 			$this->setFieldValue('updated_on', date('Y-m-d H:i'));
 		}
 		if ($this->getTable()->hasField('updated_by')) {
-			$this->setFieldValue('updated_by', \Intrepicure\Person::getLoggedUserId());
+			$this->setFieldValue('updated_by', $personClass::getLoggedUserId());
 		}
 
 		$this->updateSql = "UPDATE `{$this->getTable()->getName()}` ";

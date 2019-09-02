@@ -2,7 +2,7 @@
 
 namespace Laf\UI\Form\Input;
 
-use Intrepicure\Document;
+use Laf\Filesystem\Document;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;

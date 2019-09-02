@@ -2,9 +2,6 @@
 
 namespace Laf\UI\Page;
 
-
-use Intrepicure\Person;
-
 class AdminPage extends GenericPage
 {
 
@@ -16,7 +13,9 @@ class AdminPage extends GenericPage
 		if (!$this->isEnabled())
 			return "";
 
-		$user = Person::getLoggedUserInstance();
+		$settings = Settings::getInstance();
+		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+		$user = $personClass::getLoggedUserInstance();
 		if ($user->getSchoolObject()->needsVerification()) {
 			$this->setNotification($user->getSchoolObject()->getVerificationAlert()->draw());
 		}

@@ -4,7 +4,7 @@
 namespace Laf\UI\Grid;
 
 
-use Intrepicure\Grid;
+use Grid\Grid;
 use Laf\Database\Db;
 use Laf\Util\Util;
 

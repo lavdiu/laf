@@ -90,8 +90,8 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 	protected function getOptions()
 	{
 		$fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-		#@Todo remove dependency
-		$fkClass = '\\Intrepicure\\' . Db::convertTableNameToClassName($fkTable);
+		$settings = Settings::getInstance();
+		$fkClass = '\\'.$settings->getProperty('project.package_name').'\\' . Db::convertTableNameToClassName($fkTable);
 		$record = new $fkClass($this->getField()->getValue());
 		$field = $record->getTable()->getDisplayField()->getName();
 
