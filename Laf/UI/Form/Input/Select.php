@@ -5,6 +5,7 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\Database\Db;
+use Laf\Util\Settings;
 
 class Select extends Text implements FormElementInterface, ComponentInterface
 {
