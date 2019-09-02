@@ -66,8 +66,9 @@ class DatabaseGenerator
 	    foreach ($this->getTables() as $table) {
 		    $tg = new PageGenerator(new Table($table['table_name']), $this->getConfig());
 		    $tg->savePageToFile();
-		    echo "\nProcessed page: " . $table['table_name'];
-		    ob_flush();
+            echo "\nProcessed page: " . $table['table_name'];
+            if(PHP_SAPI == 'cli')
+		        ob_flush();
 	    }
 	    return $this;
     }
