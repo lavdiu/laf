@@ -2,7 +2,7 @@
 
 namespace Laf\Database\Field;
 
-use Laf\UI\Form\Text;
+use Laf\UI\Form\Input\Text;
 
 class TypeFloat implements FieldType
 {
