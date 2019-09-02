@@ -17,9 +17,6 @@ class AdminPage extends GenericPage
 		$settings = Settings::getInstance();
 		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
 		$user = $personClass::getLoggedUserInstance();
-		if ($user->getSchoolObject()->needsVerification()) {
-			$this->setNotification($user->getSchoolObject()->getVerificationAlert()->draw());
-		}
 
 		if (!$this->hasLinks()) {
 			$this->setHeader("<div>");
