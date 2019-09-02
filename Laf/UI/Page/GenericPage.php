@@ -5,6 +5,7 @@ namespace Laf\UI\Page;
 
 use Laf\UI\ComponentInterface;
 use Laf\UI\Traits\ComponentTrait;
+use Laf\Util\Settings;
 
 class GenericPage implements ComponentInterface
 {
