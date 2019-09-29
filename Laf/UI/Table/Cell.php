@@ -12,6 +12,10 @@ class Cell
 	private $styles = [];
 	private $params = [];
 
+	private $columnId = null;
+	private $columnIndex = 0;
+	private $rowIndex = 0;
+
 	/**
 	 * Cell constructor.
 	 * @param string $data
