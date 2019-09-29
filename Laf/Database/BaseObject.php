@@ -816,19 +816,24 @@ class BaseObject
 	public function getListAllSimpleTableObject()
 	{
 		$table = new SimpleTable();
+		$parser = UrlParser::getInstance();
 		$table->setSql(sprintf("
             SELECT * FROM `%s` 
         ", $this->returnLeafClass()->getTable()->getName()))
 			->setRowsPerPage('10');
 		$viewLink = new Link();
+
+		$viewLinkURL = sprintf('?module=%s&submodule=%s&action=view&id={id}', $parser->_getModule(), $parser->_getSubmodule(), $parser->_getId());
+		if($parser->isUsePrettyUrl())
+			$viewLinkURL = '/instructor/list/view/{id}';
+
 		$viewLink->setValue('')
-			->setHref('/instructor/list/view/{id}')
+			->setHref($viewLinkURL)
 			->setIcon('fa fa-eye')
 			->addCssClass('btn')
 			->addCssClass('btn-outline-secondary')
 			->addCssClass('btn-sm');
 
-		$parser = UrlParser::getInstance();
 		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&id={id}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
 			$updateUrl = sprintf("/%s/%s/update/{id}", $parser->_getModule(), $parser->_getSubmodule());
