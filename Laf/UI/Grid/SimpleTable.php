@@ -298,8 +298,8 @@ class SimpleTable implements ComponentInterface
 		}
 
 		$html = "\n\n<!-- STARTOF SimpleTable -->\n";
-		$html .= "\n<div>";
-		$html .= "<table 
+		#$html .= "\n<div>";
+		$html .= "\n<table 
                 id='{$this->getId()}'
                 " . ($this->isJsDynamic() ? $this->getDataTableOptionsForHtml() : '') . "
                 class='" . ($this->isJsDynamic() ? 'DataTable ' : "") . " Laf-SimpleTable-Table-Class table table-striped table-hover table-responsive table-sm table-bordered {$this->getTableCssClass()}' >\n";
@@ -340,7 +340,8 @@ class SimpleTable implements ComponentInterface
 			$html .= "\t</tbody>\n";
 			$html .= $this->getFooterRow();
 			$html .= "</table>\n";
-			$html .= "</div>\n<!-- ENDOF SimpleTable {$this->getId()} -->\n\n";
+			#$html .= "</div>\n<!-- ENDOF SimpleTable {$this->getId()} -->\n\n";
+			$html .= "\n<!-- ENDOF SimpleTable {$this->getId()} -->\n\n";
 		}
 		return $html;
 	}
