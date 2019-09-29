@@ -544,7 +544,7 @@ class SimpleTable implements ComponentInterface
 	{
 		if ($this->hasActionButtons())
 			$this->addColumn([
-				'actions' => [
+				'_actions' => [
 					'label' => "Actions"
 				]
 			]);
