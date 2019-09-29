@@ -309,7 +309,7 @@ class SimpleTable implements ComponentInterface
 		$html .= "\n<table 
                 id='{$this->getId()}'
                 " . ($this->isJsDynamic() ? $this->getDataTableOptionsForHtml() : '') . "
-	                class='" . ($this->isJsDynamic() ? 'DataTable ' : "") . " Laf-SimpleTable-Table-Class table table-striped table-hover table-responsive table-sm table-bordered {$this->getTableCssClass()}' >\n";
+	                class='" . ($this->isJsDynamic() ? 'DataTable ' : "") . " Laf-SimpleTable-Table-Class table table-striped table-hover table-responsive-sm table-sm table-bordered {$this->getTableCssClass()}' >\n";
 		$html .= ($this->getTitle() ? "\n<caption>{$this->getTitle()}</caption>" : "");
 		$html .= $this->getHeaderRow();
 		$html .= "\n\t<tbody class='Laf-SimpleTable-TBody-Class'>\n";
