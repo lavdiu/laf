@@ -1,4 +1,6 @@
 <?php
+require '../vendor/autoload.php';
+
 use Laf\UI\Table\Tr;
 use Laf\UI\Table\Table;
 use Laf\UI\Table\Td;
