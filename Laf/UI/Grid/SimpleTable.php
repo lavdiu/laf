@@ -648,9 +648,10 @@ class SimpleTable implements ComponentInterface
 
 		if ($this->getTotalPages() > 10) {
 			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
-				if($this->getCurrentPage() <= 3 || $this->getCurrentPage() >= ($this->getTotalPages()) || $this->getCurrentPage() <= ($i+2) || $this->getCurrentPage() >= ($i-2))
-				$active = $i == $this->getCurrentPage() ? " active " : "";
-				$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
+				if ($this->getCurrentPage() <= 3 || $this->getCurrentPage() >= ($this->getTotalPages()) || $this->getCurrentPage() <= ($i + 2) || $this->getCurrentPage() >= ($i - 2)) {
+					$active = $i == $this->getCurrentPage() ? " active " : "";
+					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
+				}
 			}
 		} else {
 			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
