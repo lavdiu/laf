@@ -78,7 +78,7 @@ class UrlParser
 		}
 
 		if (!$this->isUsePrettyUrl()) {
-			$this->module = coalesce(filter_input(INPUT_GET, 'module'), filter_input(INPUT_GET, 'mod'));
+			$this->module = $_GET['module']??($_GET['mod']??'');
 			$this->submodule = filter_input(INPUT_GET, 'submodule');
 			$this->action = filter_input(INPUT_GET, 'action');
 			$this->id = filter_input(INPUT_GET, 'id');
