@@ -307,6 +307,7 @@ class SimpleTable implements ComponentInterface
 				$manualColumns[$name] = $value;
 			}
 		}
+		$this->setColumns($manualColumns);
 
 		$html = "\n\n<!-- STARTOF SimpleTable -->\n";
 		#$html .= "\n<div>";
