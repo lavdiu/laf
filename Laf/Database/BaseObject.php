@@ -824,9 +824,9 @@ class BaseObject
 			->setRowsPerPage('10');
 		$viewLink = new Link();
 
-		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={$primaryKeyField}", $parser->_getModule(), $parser->_getSubmodule());
+		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={{$primaryKeyField}", $parser->_getModule(), $parser->_getSubmodule());
 		if($parser->isUsePrettyUrl())
-			$viewLinkURL = "/instructor/list/view/{$primaryKeyField}";
+			$viewLinkURL = "/instructor/list/view/{{$primaryKeyField}}";
 
 		$viewLink->setValue('')
 			->setHref($viewLinkURL)
