@@ -648,26 +648,7 @@ class SimpleTable implements ComponentInterface
 
 		if ($this->getTotalPages() > 10) {
 			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
-				if ($i <= 3) {
-					$active = $i == $this->getCurrentPage() ? " active " : "";
-					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
-				}
-
-				if($this->getTotalPages() > 6){
-					echo ' ... ';
-				}
-
-				if (($this->getCurrentPage() <= ($i + 2) && $this->getCurrentPage() >= ($i - 2))) {
-					$active = $i == $this->getCurrentPage() ? " active " : "";
-					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
-				}
-
-
-				if($this->getTotalPages() > 6){
-					echo ' ... ';
-				}
-
-				if ($i >= ($this->getTotalPages()-3)) {
+				if ($i <= 3 || $i >= ($this->getTotalPages()-3) || ($this->getCurrentPage() <= ($i + 2) && $this->getCurrentPage() >= ($i - 2))) {
 					$active = $i == $this->getCurrentPage() ? " active " : "";
 					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
 				}
