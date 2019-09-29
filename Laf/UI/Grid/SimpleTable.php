@@ -111,7 +111,7 @@ class SimpleTable implements ComponentInterface
 		 * if the user is trying to view a page further than the last page
 		 * set it back to the last page
 		 */
-		if($this->getCurrentPage() > $this->getTotalPages())
+		if ($this->getCurrentPage() > $this->getTotalPages())
 			$this->setCurrentPage($this->getTotalPages());
 		return $this;
 	}
@@ -302,11 +302,11 @@ class SimpleTable implements ComponentInterface
 			$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
 		}
 		$manualColumns = $this->getColumns();
-		foreach($columnsFromDb as $name=>$value){
-			if(is_array($manualColumns) && !array_key_exists($name, $manualColumns)){
-					$manualColumns[$name] = $value;
-			}else{
-				if(array_key_exists('visible', $manualColumns[$name]) && !$manualColumns[$name]['visible']){
+		foreach ($columnsFromDb as $name => $value) {
+			if (is_array($manualColumns) && !array_key_exists($name, $manualColumns)) {
+				$manualColumns[$name] = ['label' => $value];
+			} else {
+				if (array_key_exists('visible', $manualColumns[$name]) && !$manualColumns[$name]['visible']) {
 					unset($manualColumns[$name]);
 				}
 			}
@@ -553,7 +553,7 @@ class SimpleTable implements ComponentInterface
 
 		$header = "\t<thead class='Laf-SimpleTable-THead-Class thead-dark'>
 \t\t<tr class='Laf-SimpleTable-Tr-Class {$this->getTrCssClass()}'>
-\t\t\t<th class='Laf-SimpleTable-Th-Class {$this->getTdCssClass()}'>" . join("</th>\n\t\t\t<th class='Laf-SimpleTable-Th-Class {$this->getTdCssClass()}'>", $this->getColumns()) . "</th>
+\t\t\t<th class='Laf-SimpleTable-Th-Class {$this->getTdCssClass()}'>" . join("</th>\n\t\t\t<th class='Laf-SimpleTable-Th-Class {$this->getTdCssClass()}'>", array_column($this->getColumns(), 'label')) . "</th>
 \t\t</tr>
 \t</thead>";
 		return $header;
