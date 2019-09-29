@@ -291,12 +291,6 @@ class SimpleTable implements ComponentInterface
 		}
 
 		$rows = $this->stmt->fetchAll(\PDO::FETCH_ASSOC);
-		/*if (!$this->hasColumns()) {
-			for ($i = 0; $i < $this->stmt->columnCount(); $i++) {
-				$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
-			}
-			$this->setColumns($columnsFromDb);
-		}*/
 
 		for ($i = 0; $i < $this->stmt->columnCount(); $i++) {
 			$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
@@ -549,7 +543,11 @@ class SimpleTable implements ComponentInterface
 	public function getHeaderRow()
 	{
 		if ($this->hasActionButtons())
-			$this->addColumn("Actions");
+			$this->addColumn([
+				'actions' => [
+					'label' => "Actions"
+				]
+			]);
 
 		$header = "\t<thead class='Laf-SimpleTable-THead-Class thead-dark'>
 \t\t<tr class='Laf-SimpleTable-Tr-Class {$this->getTrCssClass()}'>
@@ -568,10 +566,10 @@ class SimpleTable implements ComponentInterface
 	}
 
 	/**
-	 * @param string $column
+	 * @param string[] $column
 	 * @return SimpleTable
 	 */
-	public function addColumn($column)
+	public function addColumn(array $column)
 	{
 		$this->columns[] = $column;
 		return $this;
