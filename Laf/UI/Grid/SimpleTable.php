@@ -106,6 +106,13 @@ class SimpleTable implements ComponentInterface
 			$totalPages++;
 		}
 		$this->setTotalPages($totalPages);
+
+		/**
+		 * if the user is trying to view a page further than the last page
+		 * set it back to the last page
+		 */
+		if($this->getCurrentPage() > $this->getTotalPages())
+			$this->setCurrentPage($this->getTotalPages());
 		return $this;
 	}
 
@@ -418,8 +425,6 @@ class SimpleTable implements ComponentInterface
 	 */
 	protected function getRecordsetOffset()
 	{
-		if($this->getCurrentPage() > $this->getTotalPages())
-			$this->setCurrentPage($this->getTotalPages());
 		$offset = $this->getRowsPerPage() * $this->getCurrentPage() - $this->getRowsPerPage();
 		return (int)$offset;
 	}
