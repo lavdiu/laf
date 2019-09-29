@@ -813,6 +813,9 @@ class BaseObject
 		}
 	}
 
+	/**
+	 * @return SimpleTable
+	 */
 	public function getListAllSimpleTableObject()
 	{
 		$table = new SimpleTable();
