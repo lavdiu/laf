@@ -112,9 +112,9 @@ switch (UrlParser::getAction()) {
 		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
 		\$table->setRowsPerPage(2);
 		\$page->addLink(new Link('Add New', UrlParser::getNewLink(), 'fa fa-plus-square', ['class' => 'btn btn-sm btn-outline-success']));
-
+		\$table->setCurrentPage(\$_GET['page']??1);
 		\$page->addComponent(\$table);
-		\$page->setContainerType(ContainerType::TYPE_DEFAULT);
+		#\$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		break;
 }
 echo \$page->draw();
