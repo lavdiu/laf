@@ -571,7 +571,7 @@ class SimpleTable implements ComponentInterface
 	 */
 	public function addColumn(array $column)
 	{
-		$this->columns[] = $column;
+		$this->columns = array_merge($this->columns, $column);
 		return $this;
 	}
 
