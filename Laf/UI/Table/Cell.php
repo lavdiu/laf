@@ -7,12 +7,11 @@ class Cell
 	private $data = null;
 	private $colSpan = 0;
 	private $rowSpan = 0;
-	private $tagName = 'td';
+	protected $tagName = 'td';
 	private $classes = [];
 	private $styles = [];
 	private $params = [];
 
-	private $columnId = null;
 	private $columnIndex = 0;
 	private $rowIndex = 0;
 
@@ -160,6 +159,43 @@ class Cell
 		return $this;
 	}
 
+
+	/**
+	 * @return int
+	 */
+	public function getColumnIndex(): int
+	{
+		return $this->columnIndex;
+	}
+
+	/**
+	 * @param int $columnIndex
+	 * @return Cell
+	 */
+	public function setColumnIndex(int $columnIndex): Cell
+	{
+		$this->columnIndex = $columnIndex;
+		return $this;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getRowIndex(): int
+	{
+		return $this->rowIndex;
+	}
+
+	/**
+	 * @param int $rowIndex
+	 * @return Cell
+	 */
+	public function setRowIndex(int $rowIndex): Cell
+	{
+		$this->rowIndex = $rowIndex;
+		return $this;
+	}
+
 	/**
 	 * @return string
 	 */
@@ -174,14 +210,19 @@ class Cell
 			$_params[] = "{$k}='{$v}'";
 		}
 
-		return sprintf('<%s %s %s %s %s>%s</%s>',
-			$this->tagName
-			, ($this->getColSpan() > 0 ? "colspan='{$this->getColSpan()}'" : '') . ' ' . ($this->getRowSpan() > 0 ? "colspan='{$this->getRowSpan()}'" : '')
-			, (count($this->getClasses() > 0 ? "class='" . join(' ', $this->getClasses()) . "'" : ''))
-			, (count($this->getStyles() > 0 ? "style='" . join(';', $_style) . "'" : ''))
-			, (count($this->getParams() > 0 ? join(' ', $_params) : ''))
-			, $this->getData()
-			, $this->tagName
-		);
+		return "<"
+			. $this->tagName
+			. " id='cell{$this->getColumnIndex()}_{$this->getRowIndex()}'"
+			. ($this->getColSpan() > 0 ? " colspan='{$this->getColSpan()}'" : '')
+			. ($this->getRowSpan() > 0 ? " rowspan='{$this->getRowSpan()}'" : '')
+			. (count($this->getClasses() > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : ''))
+			. (count($this->getStyles() > 0 ? " style='" . join(';', $_style) . "'" : ''))
+			. (count($this->getParams() > 0 ? ' '.join(' ', $_params) : ''))
+			. '>'
+			. $this->getData()
+			. '</'
+			. $this->tagName
+			. '>'
+		;
 	}
 }
