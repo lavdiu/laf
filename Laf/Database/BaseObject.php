@@ -817,15 +817,16 @@ class BaseObject
 	{
 		$table = new SimpleTable();
 		$parser = UrlParser::getInstance();
+		$primaryKeyField = static::getTable()->getPrimaryKey()->getFirstField()->getName();
 		$table->setSql(sprintf("
             SELECT * FROM `%s` 
         ", $this->returnLeafClass()->getTable()->getName()))
 			->setRowsPerPage('10');
 		$viewLink = new Link();
 
-		$viewLinkURL = sprintf('?module=%s&submodule=%s&action=view&id={id}', $parser->_getModule(), $parser->_getSubmodule(), $parser->_getId());
+		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={$primaryKeyField}", $parser->_getModule(), $parser->_getSubmodule());
 		if($parser->isUsePrettyUrl())
-			$viewLinkURL = '/instructor/list/view/{id}';
+			$viewLinkURL = "/instructor/list/view/{$primaryKeyField}";
 
 		$viewLink->setValue('')
 			->setHref($viewLinkURL)
