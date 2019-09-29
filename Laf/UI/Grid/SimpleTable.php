@@ -302,7 +302,7 @@ class SimpleTable implements ComponentInterface
 		$html .= "\n<table 
                 id='{$this->getId()}'
                 " . ($this->isJsDynamic() ? $this->getDataTableOptionsForHtml() : '') . "
-                class='" . ($this->isJsDynamic() ? 'DataTable ' : "") . " Laf-SimpleTable-Table-Class table table-striped table-hover table-responsive table-sm table-bordered {$this->getTableCssClass()}' >\n";
+	                class='" . ($this->isJsDynamic() ? 'DataTable ' : "") . " Laf-SimpleTable-Table-Class table table-striped table-hover table-responsive table-sm table-bordered {$this->getTableCssClass()}' >\n";
 		$html .= ($this->getTitle() ? "\n<caption>{$this->getTitle()}</caption>" : "");
 		$html .= $this->getHeaderRow();
 		$html .= "\n\t<tbody class='Laf-SimpleTable-TBody-Class'>\n";
@@ -646,9 +646,9 @@ class SimpleTable implements ComponentInterface
 		$questionMark = strpos($this->getTableUrl(), '?') === false ? "?" : '';
 		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasPreviousPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=" . ($this->getCurrentPage() - 1) . "' class='page-link'>Previous</a></li>";
 
-		if ($this->getTotalPages() > 10) {
+		if ($this->getTotalPages() > 9) {
 			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
-				if ($i <= 3 || $i >= ($this->getTotalPages()-3) || ($this->getCurrentPage() <= ($i + 2) && $this->getCurrentPage() >= ($i - 2))) {
+				if ($i <= 3 || $i >= ($this->getTotalPages()-3) || ($this->getCurrentPage() < ($i + 2) && $this->getCurrentPage() > ($i - 2))) {
 					$active = $i == $this->getCurrentPage() ? " active " : "";
 					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
 				}
