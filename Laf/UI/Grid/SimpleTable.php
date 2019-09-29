@@ -418,6 +418,8 @@ class SimpleTable implements ComponentInterface
 	 */
 	protected function getRecordsetOffset()
 	{
+		if($this->getCurrentPage() > $this->getTotalPages())
+			$this->setCurrentPage($this->getTotalPages());
 		$offset = $this->getRowsPerPage() * $this->getCurrentPage() - $this->getRowsPerPage();
 		return (int)$offset;
 	}
