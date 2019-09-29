@@ -291,17 +291,21 @@ class SimpleTable implements ComponentInterface
 		}
 
 		$rows = $this->stmt->fetchAll(\PDO::FETCH_ASSOC);
-		#echo $this->stmt->getColumnMeta(0)['name'];
-		if (!$this->hasColumns()) {
+		/*if (!$this->hasColumns()) {
 			for ($i = 0; $i < $this->stmt->columnCount(); $i++) {
 				$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
 			}
-			#$columnsFromDb = array_map(array('Laf\Util\Util', 'tableFieldNameToLabel'), array_keys($rows[0]));
-
-			/*if ($this->getColumnCount() == 0 && $this->hasActionButtons()) {
-				$columnsFromDb[] = "&nbsp;";
-			}*/
 			$this->setColumns($columnsFromDb);
+		}*/
+
+		for ($i = 0; $i < $this->stmt->columnCount(); $i++) {
+			$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
+		}
+		$manualColumns = $this->getColumns();
+		foreach($columnsFromDb as $name=>$value){
+			if(is_array($manualColumns) && !array_key_exists($name, $manualColumns)){
+				$manualColumns[$name] = $value;
+			}
 		}
 
 		$html = "\n\n<!-- STARTOF SimpleTable -->\n";
