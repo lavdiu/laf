@@ -644,22 +644,11 @@ class SimpleTable implements ComponentInterface
 		$html .= "\n\t\t\t\t<nav aria-label='Navigation'>";
 		$html .= "\n\t\t\t\t<ul class='Laf-SimpleTable-Pagination pagination justify-content-end'>";
 		$questionMark = strpos($this->getTableUrl(), '?') === false ? "?" : '';
-		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasPreviousPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=" . ($this->getCurrentPage() - 1) . "' class='page-link'>Previous</a></li>";
-
-		if ($this->getTotalPages() > 9) {
-			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
-				if ($i <= 3 || $i >= ($this->getTotalPages()-3) || ($this->getCurrentPage() < ($i + 2) && $this->getCurrentPage() > ($i - 2))) {
-					$active = $i == $this->getCurrentPage() ? " active " : "";
-					$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
-				}
-			}
-		} else {
-			for ($i = 1; $i <= $this->getTotalPages(); $i++) {
-				$active = $i == $this->getCurrentPage() ? " active " : "";
-				$html .= "\n\t\t\t\t<li class='page-item{$active}'><a href='{$this->getTableUrl()}{$questionMark}&page={$i}' class='page-link'>{$i}</a></li>";
-			}
-		}
-		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasNextPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=" . ($this->getCurrentPage() + 1) . "' class='page-link'>Next</a></li>";
+		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasPreviousPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=1' class='page-link'><i class='fa angle-double-left'></a></li>";
+		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasPreviousPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=" . ($this->getCurrentPage() - 1) . "' class='page-link'><i class='fa angle-left'></a></li>";
+		$html .= "\n\t\t\t\t<li class='page-item active'><a href='{$this->getTableUrl()}{$questionMark}&page={$this->getCurrentPage()}' class='page-link'>{$this->getCurrentPage()}</a></li>";
+		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasNextPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page=" . ($this->getCurrentPage() + 1) . "' class='page-link'><li class='fa arrow-double-right'></a></a></li>";
+		$html .= "\n\t\t\t\t<li class='page-item " . ($this->hasNextPage() ? '' : 'disabled') . "'><a href='{$this->getTableUrl()}{$questionMark}&page={$this->getTotalPages()}' class='page-link'><li class='fa arrow-double-right'></a></li>";
 		$html .= "\n\t\t\t\t</ul>";
 		$html .= "\n\t\t\t\t</nav>";
 		$html .= "\n\t\t\t</td>\n\t\t</tr>";
