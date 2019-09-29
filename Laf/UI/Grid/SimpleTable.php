@@ -304,7 +304,8 @@ class SimpleTable implements ComponentInterface
 		$manualColumns = $this->getColumns();
 		foreach($columnsFromDb as $name=>$value){
 			if(is_array($manualColumns) && !array_key_exists($name, $manualColumns)){
-				$manualColumns[$name] = $value;
+				if(array_key_exists('visible', $manualColumns[$name]['visible']) && $manualColumns[$name]['visible'])
+					$manualColumns[$name] = $value;
 			}
 		}
 		$this->setColumns($manualColumns);
