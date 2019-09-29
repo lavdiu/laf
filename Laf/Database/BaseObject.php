@@ -819,8 +819,7 @@ class BaseObject
 		$table->setSql(sprintf("
             SELECT * FROM `%s` 
         ", $this->returnLeafClass()->getTable()->getName()))
-			->setRowsPerPage('10')
-			->enableJsDynamic();
+			->setRowsPerPage('10');
 		$viewLink = new Link();
 		$viewLink->setValue('')
 			->setHref('/instructor/list/view/{id}')
