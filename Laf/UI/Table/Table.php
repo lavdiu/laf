@@ -11,16 +11,18 @@ class Table
 	private $tfoot = null;
 	private $caption = "";
 	private $id = "";
+	private $prettyPrint = false;
 
 
 	private $classes = [];
 	private $styles = [];
 	private $params = [];
 
-	public function __construct()
+	public function __construct(string $id = null)
 	{
 		$this->thead = new Tr;
-		$this->tbody = new Tr;
+		$this->tfoot = new Tr;
+		$this->setId($id);
 	}
 
 	/**
@@ -33,9 +35,9 @@ class Table
 
 	/**
 	 * @param string $class
-	 * @return Tr
+	 * @return Table
 	 */
-	public function addClass(string $class): Tr
+	public function addClass(string $class): Table
 	{
 		$this->classes[] = $class;
 		return $this;
@@ -43,9 +45,9 @@ class Table
 
 	/**
 	 * @param array $classes
-	 * @return Tr
+	 * @return Table
 	 */
-	public function setClasses(array $classes): Tr
+	public function setClasses(array $classes): Table
 	{
 		$this->classes = $classes;
 		return $this;
@@ -62,9 +64,9 @@ class Table
 	/**
 	 * @param string $property
 	 * @param string $value
-	 * @return Tr
+	 * @return Table
 	 */
-	public function addStyle(string $property, string $value): Tr
+	public function addStyle(string $property, string $value): Table
 	{
 		$this->styles[$property] = $value;
 		return $this;
@@ -72,15 +74,15 @@ class Table
 
 	/**
 	 * @param array $styles
-	 * @return Tr
+	 * @return Table
 	 */
-	public function setStyles(array $styles): Tr
+	public function setStyles(array $styles): Table
 	{
 		$this->styles = $styles;
 		return $this;
 	}
 
-	public function addParam(string $property, string $value): Tr
+	public function addParam(string $property, string $value): Table
 	{
 		$this->params[$property] = $value;
 		return $this;
@@ -96,9 +98,9 @@ class Table
 
 	/**
 	 * @param array $params
-	 * @return Tr
+	 * @return Table
 	 */
-	public function setParams(array $params): Tr
+	public function setParams(array $params): Table
 	{
 		$this->params = $params;
 		return $this;
@@ -208,7 +210,7 @@ class Table
 	public function draw(): string
 	{
 		$_style = [];
-		foreach ($this->getCssStyles() as $k => $v) {
+		foreach ($this->getStyles() as $k => $v) {
 			$_style[] = $k . ':' . $v;
 		}
 		$_params = [];
@@ -216,30 +218,91 @@ class Table
 			$_params[] = "{$k}='{$v}'";
 		}
 
-		$html = "<table"
+		$html = "";
+		if ($this->isPrettyPrint()) {
+			$html .= "\n\t";
+		}
+		$html
+			.= "<table"
 			. " id='{$this->getId()}'"
-			. (count($this->getClasses() > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : ''))
-			. (count($this->getStyles() > 0 ? " style='" . join(';', $_style) . "'" : ''))
-			. (count($this->getParams() > 0 ? ' ' . join(' ', $_params) : ''))
+			. (count($this->getClasses()) > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : '')
+			. (count($this->getStyles()) > 0 ? " style='" . join(';', $_style) . "'" : '')
+			. (count($this->getParams()) > 0 ? ' ' . join(' ', $_params) : '')
 			. '>';
 
-		$html .= '<thead>';
-		$html .= $this->getThead()->draw();
-		$html .= '</thead>';
+		if ($this->getThead()->hasCells()) {
+			$this->getThead()->setTable($this)
+				->setPrettyPrint($this->isPrettyPrint());
 
+			if($this->isPrettyPrint()){
+				$html .= "\n\t\t";
+			}
+
+			$html .= '<thead>';
+			$html .= $this->getThead()->draw();
+			if($this->isPrettyPrint()){
+				$html .= "\n\t\t";
+			}
+			$html .= '</thead>';
+		}
+
+		if($this->isPrettyPrint()){
+			$html .= "\n\t\t";
+		}
 		$html .= '<tbody>';
 		foreach ($this->getTbodyRows() as $row) {
+			$row->setTable($this)
+				->setPrettyPrint($this->isPrettyPrint());
 			$html .= $row->draw();
+		}
+		if($this->isPrettyPrint()){
+			$html .= "\n\t\t";
 		}
 		$html .= '</tbody>';
 
-		$html .= '<tfoot>';
-		$html .= $this->getTfoot()->draw();
-		$html .= '</tfoot>';
+		if ($this->getTfoot()->hasCells()) {
+			$this->getTfoot()->setTable($this)
+				->setPrettyPrint($this->isPrettyPrint());
+			if($this->isPrettyPrint()){
+				$html .= "\n\t\t";
+			}
+			$html .= '<tfoot>';
+			$html .= $this->getTfoot()->draw();
+			if($this->isPrettyPrint()){
+				$html .= "\n\t\t";
+			}
+			$html .= '</tfoot>';
+		}
 
+		if($this->isPrettyPrint()){
+			$html .= "\n\t";
+		}
 		$html .= '</table>';
+
+		if($this->isPrettyPrint()){
+			$html .= "\n\t<!-- ENDOF Table {$this->getId()}-->\n\n";
+		}
 
 		return $html;
 	}
+
+	/**
+	 * @return bool
+	 */
+	public function isPrettyPrint(): bool
+	{
+		return $this->prettyPrint;
+	}
+
+	/**
+	 * @param bool $prettyPrint
+	 * @return Table
+	 */
+	public function setPrettyPrint(bool $prettyPrint): Table
+	{
+		$this->prettyPrint = $prettyPrint;
+		return $this;
+	}
+
 
 }

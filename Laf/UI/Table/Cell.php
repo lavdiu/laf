@@ -11,6 +11,8 @@ class Cell
 	private $classes = [];
 	private $styles = [];
 	private $params = [];
+	private $table = null;
+	private $prettyPrint = false;
 
 	private $columnIndex = 0;
 	private $rowIndex = 0;
@@ -202,27 +204,71 @@ class Cell
 	public function draw(): string
 	{
 		$_style = [];
-		foreach ($this->getCssStyles() as $k => $v) {
+		foreach ($this->getStyles() as $k => $v) {
 			$_style[] = $k . ':' . $v;
 		}
 		$_params = [];
 		foreach ($this->getParams() as $k => $v) {
 			$_params[] = "{$k}='{$v}'";
 		}
+		$html = '';
 
-		return "<"
+		if($this->isPrettyPrint()){
+			$html .= "\n\t\t\t\t";
+		}
+
+		$html
+			.= "<"
 			. $this->tagName
-			. " id='cell{$this->getColumnIndex()}_{$this->getRowIndex()}'"
+			. " id='{$this->getTable()->getId()}_{$this->getRowIndex()}_{$this->getColumnIndex()}'"
 			. ($this->getColSpan() > 0 ? " colspan='{$this->getColSpan()}'" : '')
 			. ($this->getRowSpan() > 0 ? " rowspan='{$this->getRowSpan()}'" : '')
-			. (count($this->getClasses() > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : ''))
-			. (count($this->getStyles() > 0 ? " style='" . join(';', $_style) . "'" : ''))
-			. (count($this->getParams() > 0 ? ' '.join(' ', $_params) : ''))
+			. (count($this->getClasses()) > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : '')
+			. (count($this->getStyles()) > 0 ? " style='" . join(';', $_style) . "'" : '')
+			. (count($this->getParams()) > 0 ? ' ' . join(' ', $_params) : '')
 			. '>'
 			. $this->getData()
 			. '</'
 			. $this->tagName
-			. '>'
-		;
+			. '>';
+		return $html;
 	}
+
+	/**
+	 * @param Table $table
+	 * @return Cell
+	 */
+	public function setTable(Table $table): Cell
+	{
+		$this->table = $table;
+		return $this;
+	}
+
+	/**
+	 * @return Table
+	 */
+	public function getTable(): ?Table
+	{
+		return $this->table;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isPrettyPrint(): bool
+	{
+		return $this->prettyPrint;
+	}
+
+	/**
+	 * @param bool $prettyPrint
+	 * @return Cell
+	 */
+	public function setPrettyPrint(bool $prettyPrint): Cell
+	{
+		$this->prettyPrint = $prettyPrint;
+		return $this;
+	}
+
+
 }

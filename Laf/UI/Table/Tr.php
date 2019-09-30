@@ -10,8 +10,9 @@ class Tr
 	private $classes = [];
 	private $styles = [];
 	private $params = [];
-
+	private $table = null;
 	private $rowIndex = 0;
+	private $prettyPrint = false;
 
 	/**
 	 * Cell constructor.
@@ -27,9 +28,10 @@ class Tr
 	 */
 	public function addCell(Cell $cell): Tr
 	{
-		$cell->setRowIndex($this->getRowIndex());
-		$cell->setColumnIndex(count($this->cells));
+		$cell->setRowIndex($this->getRowIndex())
+			->setColumnIndex(count($this->cells));
 		$this->cells[] = $cell;
+		return $this;
 	}
 
 	/**
@@ -175,24 +177,94 @@ class Tr
 	 */
 	public function draw(): string
 	{
+		/*if(!$this->hasCells()){
+			return "";
+		}*/
+
+
 		$_style = [];
-		foreach ($this->getCssStyles() as $k => $v) {
+		foreach ($this->getStyles() as $k => $v) {
 			$_style[] = $k . ':' . $v;
 		}
 		$_params = [];
 		foreach ($this->getParams() as $k => $v) {
 			$_params[] = "{$k}='{$v}'";
 		}
-
-		$html = "<tr"
-			. " id='tr{$this->getColumnIndex()}_{$this->getRowIndex()}'"
-			. (count($this->getClasses() > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : ''))
-			. (count($this->getStyles() > 0 ? " style='" . join(';', $_style) . "'" : ''))
-			. (count($this->getParams() > 0 ? ' ' . join(' ', $_params) : ''));
+		$html = "";
+		if($this->isPrettyPrint()){
+			$html .= "\n\t\t\t";
+		}
+		$html
+			.= "<tr"
+			. " id='{$this->getTable()->getId()}_{$this->getRowIndex()}'"
+			. (count($this->getClasses()) > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : '')
+			. (count($this->getStyles()) > 0 ? " style='" . join(';', $_style) . "'" : '')
+			. (count($this->getParams()) > 0 ? ' ' . join(' ', $_params) : '')
+			. '>';
 
 		foreach ($this->getCells() as $cell) {
+			$cell->setTable($this->getTable())
+				->setPrettyPrint($this->isPrettyPrint());
 			$html .= $cell->draw();
 		}
 		$html .= '</tr>';
+		if($this->isPrettyPrint()){
+			$html .= "\n";
+		}
+		return $html;
 	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function hasCells(): bool
+	{
+		return $this->getCellCount() > 0;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getCellCount(): int
+	{
+		return count($this->cells);
+	}
+
+	/**
+	 * @param Table $table
+	 * @return Tr
+	 */
+	public function setTable(Table $table): Tr
+	{
+		$this->table = $table;
+		return $this;
+	}
+
+	/**
+	 * @return Table
+	 */
+	public function getTable(): ?Table
+	{
+		return $this->table;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isPrettyPrint(): bool
+	{
+		return $this->prettyPrint;
+	}
+
+	/**
+	 * @param bool $prettyPrint
+	 * @return Tr
+	 */
+	public function setPrettyPrint(bool $prettyPrint): Tr
+	{
+		$this->prettyPrint = $prettyPrint;
+		return $this;
+	}
+
 }
