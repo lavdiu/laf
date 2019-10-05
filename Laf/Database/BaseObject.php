@@ -381,7 +381,7 @@ class BaseObject
 	public function insert()
 	{
 		$settings = Settings::getInstance();
-		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+		$personClass = '\\' . $settings->getProperty('project.package_name') . '\\Person';
 
 		$this->addLoggerDebug(__METHOD__);
 		$this->checkFieldsForMissingRequiredValues();
@@ -500,7 +500,7 @@ class BaseObject
 		$this->checkUniqueFieldsForDuplicateValues();
 
 		$settings = Settings::getInstance();
-		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+		$personClass = '\\' . $settings->getProperty('project.package_name') . '\\Person';
 
 		if (!$this->isrecordSelected()) {
 			$this->addLoggerDebug('No prior record selected to update. Returning false');
@@ -828,7 +828,7 @@ class BaseObject
 		$viewLink = new Link();
 
 		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={{$primaryKeyField}}", $parser->_getModule(), $parser->_getSubmodule());
-		if($parser->isUsePrettyUrl())
+		if ($parser->isUsePrettyUrl())
 			$viewLinkURL = "/instructor/list/view/{{$primaryKeyField}}}";
 
 		$viewLink->setValue('')
@@ -928,6 +928,14 @@ class BaseObject
 	{
 		#@TODO implement
 		#throw new UniqueFieldDuplicateValueException();
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function canSoftDelete(): bool
+	{
+		return $this->getTable()->hasField('deleted');
 	}
 
 }
