@@ -331,7 +331,7 @@ class Db
 	public static function getOne(string $sql, $params = [], $columnIndex = 0): string
 	{
 		$db = self::getInstance();
-		$stmt = $db->prepare("SELECT * FROM ({$sql})foo LIMIT 1");
+		$stmt = $db->prepare($sql);
 		$stmt->execute($params);
 		$value = $stmt->fetchColumn($columnIndex);
 		if ($value === false) {
