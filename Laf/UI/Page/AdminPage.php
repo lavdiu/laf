@@ -8,6 +8,7 @@ class AdminPage extends GenericPage
 
 	/**
 	 * @return string
+	 * @throws \Laf\Exception\MissingConfigParamException
 	 */
 	public function draw(): string
 	{
