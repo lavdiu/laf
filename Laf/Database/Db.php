@@ -246,10 +246,10 @@ class Db
 	/**
 	 * @param string $sql
 	 * @param array $params
-	 * @return string[]
+	 * @return mixed
 	 * @throws \Exception
 	 */
-	public static function getRowAssoc(string $sql, $params = []): array
+	public static function getRowAssoc(string $sql, $params = [])
 	{
 		$db = self::getInstance();
 		$stmt = $db->prepare($sql);
@@ -325,20 +325,19 @@ class Db
 	 * @param string $sql
 	 * @param array $params
 	 * @param int $columnIndex default 0
-	 * @param int $fetchType default is assoc
-	 * @return string[]
+	 * @return string
 	 * @throws \Exception
 	 */
-	public static function getColumn(string $sql, $params = [], $columnIndex = 0,  $fetchType = 2): array
+	public static function getOne(string $sql, $params = [], $columnIndex = 0): string
 	{
 		$db = self::getInstance();
-		$stmt = $db->prepare($sql);
+		$stmt = $db->prepare("SELECT * FROM ({$sql})foo LIMIT 1");
 		$stmt->execute($params);
-		$row = $stmt->fetchColumn($columnIndex);
-		if ($row === false) {
-			return [];
+		$value = $stmt->fetchColumn($columnIndex);
+		if ($value === false) {
+			return null;
 		} else {
-			return $row;
+			return $value;
 		}
 	}
 
@@ -557,28 +556,13 @@ class Db
 	}
 
 	/**
-	 * Run mysql_real_escape_string on the given string
 	 * @param $value
-	 * @return string
+	 * @return false|string
+	 * @throws \Exception
 	 */
 	public static function escape($value)
 	{
 		return self::getInstance()->getConnection()->quote($value);
 	}
 
-	/**
-	 * Get only one result and return it
-	 * @param $sql
-	 * @return string
-	 */
-	public static function getOne($sql)
-	{
-		$db = self::getInstance();
-		$res = $db->query($sql);
-		$retval = null;
-		foreach ($res as $r) {
-			$retval = $r[0];
-		}
-		return $retval;
-	}
 }
