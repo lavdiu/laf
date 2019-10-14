@@ -207,7 +207,7 @@ class Fancygrid
 		if (Util::isJSON($gridInfo['columns']))
 			$this->setColumns(json_decode($gridInfo['columns'], true));
 		$this->setId($gridInfo['id']);
-		$this->setGridName($gridInfo['grid_name']);
+		#$this->setGridName($gridInfo['grid_name']);
 		$this->setSql($gridInfo['sql']);
 		$this->setParamsCount(count($this->getParams()));
 
@@ -272,7 +272,7 @@ class Fancygrid
 			return json_encode($data);
 		}
 
-		$sql = $this->generateSql($this->getParams());
+		$sql = $this->generateSql($this->getFilters());
 
 
 		$db = Db::getInstance();
