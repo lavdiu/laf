@@ -23,6 +23,13 @@ class Fancygrid
 	private $paramsCount = 0;
 	private $filters = [];
 
+	public function __construct(string $gridName, $filters = [], $params = [])
+	{
+		$this->setGridName($gridName);
+		$this->setFilters($filters);
+		$this->setParams($params);
+	}
+
 	/**
 	 * @return mixed
 	 */
@@ -35,7 +42,7 @@ class Fancygrid
 	 * @param mixed $id
 	 * @return Fancygrid
 	 */
-	public function setId($id)
+	protected function setId($id)
 	{
 		$this->id = $id;
 		return $this;
@@ -161,13 +168,17 @@ class Fancygrid
 	}
 
 
-	private function initialize(array $gridInfo)
+	private function initialize(): Fancygrid
 	{
+		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
+			':grid_name' => $this->getGridName()
+		]);
+
 		if (count($gridInfo) < 4) {
 			throw new \Exception('Missing Grid info');
 		}
 		if (Util::isJSON($gridInfo['params']))
-			$this->setParams(json_decode($gridInfo['params'], true));
+			$this->setParams(array_merge($this->getParams(), json_decode($gridInfo['params'], true)));
 		if (Util::isJSON($gridInfo['columns']))
 			$this->setColumns(json_decode($gridInfo['columns'], true));
 		$this->setId($gridInfo['id']);
@@ -184,23 +195,20 @@ class Fancygrid
 			throw new \Exception("Missing Grid fiilters for " . join(', ', $diff));
 		}
 
-
+		return $this;
 	}
 
 	/**
 	 * Parses the Grid's resposne and sends it to the browser, clearing any output coming before this
-	 * @param string $grid_name
-	 * @param array $filters
-	 * @param array $params
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function handleJsonRequest(string $grid_name, $filters = [], $params = []): void
+	public function handleJsonRequest(): void
 	{
 		ob_clean();
 		header('Content-Type: application/json');
 		try {
-			echo $this->getJsonResponse($grid_name, $filters, $params);
+			echo $this->getJsonResponse();
 		} catch (\Exception $ex) {
 			$data = [
 				'success' => false,
@@ -214,19 +222,12 @@ class Fancygrid
 
 	/**
 	 * Parses the grid response and returns it
-	 * @param string $grid_name
-	 * @param string[] $filters
-	 * @param string[] $params
 	 * @return string
 	 * @throws \Exception
 	 */
-	public function getJsonResponse(string $grid_name, $filters = [], $params = []): string
+	public function getJsonResponse(): string
 	{
-		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
-			':grid_name' => $grid_name
-		]);
-
-		if (!is_numeric($gridInfo['id'])) {
+		if (!is_numeric($this->getId())) {
 			$data = [
 				'success' => false,
 				'message' => 'Grid not found',
@@ -235,9 +236,8 @@ class Fancygrid
 			return json_encode($data);
 		}
 
-		$this->setFilters(Util::coalesce($filters, []));
 		try {
-			$this->initialize($gridInfo);
+			$this->initialize();
 		} catch (\Exception $ex) {
 			$data = [
 				'success' => false,
@@ -246,7 +246,7 @@ class Fancygrid
 			];
 			return json_encode($data);
 		}
-		$sql = $this->generateSql($params);
+		$sql = $this->generateSql($this->getParams());
 
 
 		$db = Db::getInstance();
@@ -255,11 +255,9 @@ class Fancygrid
 			foreach ($this->getFilters() as $k => $v) {
 				$stmt->bindValue($k, $v);
 			}
-
 			$stmt->execute();
-
 			$results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-			if(!is_array($results)){
+			if (!is_array($results)) {
 				$results = [];
 			}
 
@@ -274,7 +272,6 @@ class Fancygrid
 				'data' => []
 			];
 		}
-
 		return json_encode($data);
 	}
 
@@ -380,6 +377,10 @@ class Fancygrid
 	 */
 	public function getJavaScriptSettings(): string
 	{
+
+	}
+
+	public function exportToExcel(){
 
 	}
 }
