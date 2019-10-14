@@ -258,9 +258,14 @@ class Fancygrid
 
 			$stmt->execute();
 
+			$results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+			if(!is_array($results)){
+				$results = [];
+			}
+
 			$data = [
 				'success' => true,
-				'data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)
+				'data' => $results
 			];
 		} catch (\Exception $ex) {
 			$data = [
@@ -316,7 +321,7 @@ class Fancygrid
 				if (!in_array($property, array_keys($this->getColumns())))
 					continue;
 
-				$sqlWhere .= "\n\tAND`" . $property . "` " . $operator . ":" . $property;
+				$sqlWhere .= "\n\tAND`" . $property . "` " . $operator . " :" . $property;
 				if ($operator == 'LIKE') {
 					$this->addFilter(':' . $property, '%' . $value . '%');
 				} else {
