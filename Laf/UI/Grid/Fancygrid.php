@@ -197,7 +197,16 @@ class Fancygrid
 	{
 		ob_clean();
 		header('Content-Type: application/json');
-		echo $this->getJsonResponse($grid_name, $filters, $params);
+		try {
+			echo $this->getJsonResponse($grid_name, $filters, $params);
+		} catch (\Exception $ex) {
+			$data = [
+				'success' => false,
+				'message' => 'Error has occurred',
+				'data' => []
+			];
+			echo json_encode($data);
+		}
 		ob_flush();
 	}
 
@@ -215,7 +224,16 @@ class Fancygrid
 			':grid_name' => $grid_name
 		]);
 		$this->setFilters($filters);
-		$this->initialize($gridInfo);
+		try {
+			$this->initialize($gridInfo);
+		} catch (\Exception $ex) {
+			$data = [
+				'success' => false,
+				'message' => 'Error has occurred',
+				'data' => []
+			];
+			return json_encode($data);
+		}
 		$sql = $this->generateSql($params);
 
 
