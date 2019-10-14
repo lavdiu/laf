@@ -278,7 +278,7 @@ class Fancygrid
 		$page = 0;
 		$sort = array_keys($this->getColumns())[0];
 		$dir = 'ASC';
-		$limit = 10;
+		$limit = 0;
 		$sqlWhere = '';
 
 
@@ -290,7 +290,7 @@ class Fancygrid
 			$start = $params['start'];
 		}
 
-		if (isset($params['limit']) && is_numeric($params['limit'])) {
+		if (isset($params['limit']) && is_numeric($params['limit']) && $params['limit'] > 0) {
 			$limit = $params['limit'] ?? 10;
 		}
 
@@ -329,7 +329,8 @@ class Fancygrid
 
 
 		$sqlWhere .= " ORDER BY `$sort` $dir \n";
-		$sqlWhere .= " LIMIT {$start}, {$limit} \n";
+		if ($limit > 0)
+			$sqlWhere .= " LIMIT {$start}, {$limit} \n";
 
 		$sql = "SELECT * FROM (\n {$this->getSql()} \n) {$this->getGridName()} \n{$sqlWhere}\n";
 		return $sql;
