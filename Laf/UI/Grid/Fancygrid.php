@@ -164,8 +164,10 @@ class Fancygrid
 
 	private function initialize(array $gridInfo)
 	{
-		$this->setParams(json_decode($gridInfo['params'], true));
-		$this->setColumns(json_decode($gridInfo['columns'], true));
+		if (Util::isJSON($gridInfo['params']))
+			$this->setParams(json_decode($gridInfo['params'], true));
+		if (Util::isJSON($gridInfo['columns']))
+			$this->setColumns(json_decode($gridInfo['columns'], true));
 		$this->setId($gridInfo['id']);
 		$this->setGridName($gridInfo['grid_name']);
 		$this->setSql($gridInfo['sql']);
