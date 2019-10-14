@@ -22,6 +22,7 @@ class Fancygrid
 	private $params = [];
 	private $paramsCount = 0;
 	private $filters = [];
+	private $requiredParams = [];
 
 	public function __construct(string $gridName, $filters = [], $params = [])
 	{
@@ -121,6 +122,24 @@ class Fancygrid
 	}
 
 	/**
+	 * @return array
+	 */
+	public function getRequiredParams(): array
+	{
+		return $this->requiredParams;
+	}
+
+	/**
+	 * @param array $requiredParams
+	 * @return Fancygrid
+	 */
+	public function setRequiredParams(array $requiredParams): Fancygrid
+	{
+		$this->requiredParams = $requiredParams;
+		return $this;
+	}
+
+	/**
 	 * @return int
 	 */
 	public function getParamsCount(): int
@@ -178,7 +197,7 @@ class Fancygrid
 			throw new \Exception('Missing Grid info');
 		}
 		if (Util::isJSON($gridInfo['params']))
-			$this->setParams(array_merge($this->getParams(), json_decode($gridInfo['params'], true)));
+			$this->setRequiredParams(json_decode($gridInfo['params'], true));
 		if (Util::isJSON($gridInfo['columns']))
 			$this->setColumns(json_decode($gridInfo['columns'], true));
 		$this->setId($gridInfo['id']);
