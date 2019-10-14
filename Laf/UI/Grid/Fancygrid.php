@@ -188,8 +188,8 @@ class Fancygrid
 	 * @param string $grid_name
 	 * @param array $filters
 	 * @param array $params
-	 * @throws \Exception
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function handleJsonRequest(string $grid_name, $filters = [], $params = []): void
 	{
@@ -229,18 +229,20 @@ class Fancygrid
 
 				$data = [
 					'success' => true,
-					'items' => $stmt->fetchAll(\PDO::FETCH_ASSOC)
+					'data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)
 				];
 			} catch (\Exception $ex) {
 				$data = [
 					'success' => false,
-					'message' => 'Failed to retrieve the data'
+					'message' => 'Failed to retrieve the data',
+					'data' => []
 				];
 			}
 		} else {
 			$data = [
 				'success' => false,
-				'message' => 'Table does not exist'
+				'message' => 'Table does not exist',
+				'data' => []
 			];
 		}
 		return json_encode($data);
