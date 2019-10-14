@@ -15,45 +15,185 @@ use Laf\Util\Util;
 class Fancygrid
 {
 
+	private $id;
+	private $gridName;
+	private $sql;
+	private $columns = [];
+	private $params = [];
+	private $paramsCount = 0;
+	private $filtes = [];
+
 	/**
-	 * @param string $grid_name
-	 * @param array $params
-	 * @return string
+	 * @return mixed
 	 */
-	public function initialize(string $grid_name, array $params)
+	public function getId()
 	{
-		$rows = Grid::find(['name' => $grid_name]);
-		if (isset($rows[0])) {
-			/**
-			 * @var Grid
-			 */
-			$grid = $rows[0];
-			if ($grid->recordExists()) {
-				$grid->setHashVal(Util::uuid());
-				$grid->setHashExpirationVal(date('Y-m-d H:i', (time() + 1200)));
-				$grid->setParamCountVal(json_encode($params));
-				$grid->store();
-				return $grid->getHashVal();
-			}
-			return "";
-		}
-		return "";
+		return $this->id;
 	}
 
 	/**
-	 * @param string $hash
-	 * @return string
+	 * @param mixed $id
+	 * @return Fancygrid
 	 */
-	public function handleJsonRequest(string $hash)
+	public function setId($id)
 	{
-		$gridId = Factory::findGridByHash($hash);
-		if (is_numeric($gridId)) {
-			$grid = new Grid($gridId);
+		$this->id = $id;
+		return $this;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getGridName()
+	{
+		return $this->gridName;
+	}
+
+	/**
+	 * @param mixed $gridName
+	 * @return Fancygrid
+	 */
+	public function setGridName($gridName)
+	{
+		$this->gridName = $gridName;
+		return $this;
+	}
+
+	/**
+	 * @return mixed
+	 */
+	public function getSql()
+	{
+		return $this->sql;
+	}
+
+	/**
+	 * @param mixed $sql
+	 * @return Fancygrid
+	 */
+	public function setSql($sql)
+	{
+		$this->sql = $sql;
+		return $this;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getColumns(): array
+	{
+		return $this->columns;
+	}
+
+	/**
+	 * @param array $columns
+	 * @return Fancygrid
+	 */
+	public function setColumns(array $columns): Fancygrid
+	{
+		$this->columns = $columns;
+		return $this;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getParams(): array
+	{
+		return $this->params;
+	}
+
+	/**
+	 * @param array $params
+	 * @return Fancygrid
+	 */
+	public function setParams(array $params): Fancygrid
+	{
+		$this->params = $params;
+		return $this;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getParamsCount(): int
+	{
+		return $this->paramsCount;
+	}
+
+	/**
+	 * @param int $paramsCount
+	 * @return Fancygrid
+	 */
+	public function setParamsCount(int $paramsCount): Fancygrid
+	{
+		$this->paramsCount = $paramsCount;
+		return $this;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getFiltes(): array
+	{
+		return $this->filtes;
+	}
+
+	/**
+	 * @param array $filtes
+	 * @return Fancygrid
+	 */
+	public function setFiltes(array $filtes): Fancygrid
+	{
+		$this->filtes = $filtes;
+		return $this;
+	}
+
+	/**
+	 * @param string $key
+	 * @param string $value
+	 * @return Fancygrid
+	 */
+	public function addFilter(string $key, string $value): Fancygrid
+	{
+		$this->filters[$key] = $value;
+		return $this;
+	}
+
+
+	private function initialize(array $gridInfo)
+	{
+		$this->setParams(json_decode($gridInfo['params'], true));
+		$this->setColumns(json_decode($gridInfo['columns'], true));
+		$this->setId($gridInfo['id']);
+		$this->setGridName($gridInfo['grid_name']);
+		$this->setSql($gridInfo['sql']);
+		$this->setParamsCount(count($this->getParams()));
+	}
+
+
+	/**
+	 * @param string $grid_name
+	 * @param string[] $params
+	 * @return false|string
+	 * @throws \Exception
+	 */
+	public function handleJsonRequest(string $grid_name, $filters = [], $params = [])
+	{
+		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
+			':grid_name' => $grid_name
+		]);
+		$this->initialize($gridInfo);
+		$this->setFiltes($filters);
+		$sql = $this->generateSql($params);
+
+
+		if (is_numeric($gridInfo['id'])) {
 			$db = Db::getInstance();
 			try {
-				$stmt = $db->prepare($grid->getSqlVal());
-				foreach (json_decode($grid->getParamsCacheVal(), true) as $k => $v) {
-					$stmt->bindValue(':' . $k, $v);
+				$stmt = $db->prepare($gridInfo['sql']);
+				foreach ($this->getFiltes() as $k => $v) {
+					$stmt->bindValue($k, $v);
 				}
 
 				$stmt->execute();
@@ -75,5 +215,98 @@ class Fancygrid
 			];
 		}
 		return json_encode($data);
+	}
+
+	private function generateSql($params = []): string
+	{
+		$page = 0;
+		$sort = array_keys($this->getColumns())[0];
+		$dir = 'ASC';
+		$limit = 10;
+		$sqlWhere = '';
+
+
+		if (isset($params['page']) && is_numeric($params['page'])) {
+			$page = $params['page'];
+		}
+
+		if (isset($params['start']) && is_numeric($params['start'])) {
+			$start = $params['start'];
+		}
+
+		if (isset($params['limit']) && is_numeric($params['limit'])) {
+			$limit = $params['limit'] ?? 10;
+		}
+
+		if (isset($params['sort']) && in_array($params['sort'], array_keys($this->getColumns()))) {
+			$sort = $params['sort'];
+		}
+
+		if (isset($params['dir']) && in_array(strtolower($params['dir']), ['asc', 'desc'])) {
+			$dir = $params['dir'];
+		}
+
+		if (isset($params['filter'])) {
+			$sqlWhere .= " WHERE \n\t1=1 ";
+			$_filter = urldecode($params['filter']);
+			$_filter = json_decode($_filter);
+
+			for ($i = 0; $i < count($_filter); $i++) {
+				$filterItem = $_filter[$i];
+				$operator = $this->getOperator($filterItem->operator);
+				$value = $filterItem->value;
+				$property = $filterItem->property;
+
+				if (!in_array($property, array_keys($this->getColumns())))
+					continue;
+
+				$sqlWhere .= "\n\tAND`" . $property . "` " . $operator . ":" . $property;
+				if ($operator == 'LIKE') {
+					$this->addFilter(':' . $property, '%' . $value . '%');
+				} else {
+					$this->addFilter('.' . $property, $value);
+				}
+			}
+		}
+
+		$start = $page * $limit;
+
+
+		$sqlWhere .= " ORDER BY `$sort` $dir \n";
+		$sqlWhere .= " LIMIT {$start}, {$limit} \n";
+
+		$sql = "SELECT * FROM (\n {$this->getSql()} \n) {$this->getGridName()} \n{$sqlWhere}\n";
+		return $sql;
+	}
+
+
+	private function getOperator($operator)
+	{
+		switch ($operator) {
+			case 'lt':
+				return '<';
+				break;
+			case 'gt':
+				return '>';
+				break;
+			case '<=':
+				return 'lteq';
+				break;
+			case '>=':
+				return 'gteq';
+				break;
+			case 'eq':
+			case 'stricteq':
+				return '=';
+				break;
+				break;
+			case 'noteq':
+			case 'notstricteq':
+				return '!=';
+				break;
+			case 'like':
+				return 'LIKE';
+				break;
+		}
 	}
 }
