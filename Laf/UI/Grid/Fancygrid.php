@@ -186,9 +186,9 @@ class Fancygrid
 	 * @param string $value
 	 * @return Fancygrid
 	 */
-	public function addFilter(string $key, string $value): Fancygrid
+	public function addParam(string $key, string $value): Fancygrid
 	{
-		$this->filters[$key] = $value;
+		$this->params[$key] = $value;
 		return $this;
 	}
 
@@ -278,7 +278,7 @@ class Fancygrid
 		$db = Db::getInstance();
 		try {
 			$stmt = $db->prepare($sql);
-			foreach ($this->getFilters() as $k => $v) {
+			foreach ($this->getParams() as $k => $v) {
 				$stmt->bindValue($k, $v);
 			}
 			$stmt->execute();
@@ -346,9 +346,9 @@ class Fancygrid
 
 				$sqlWhere .= "\n\tAND`" . $property . "` " . $operator . " :" . $property;
 				if ($operator == 'LIKE') {
-					$this->addFilter(':' . $property, '%' . $value . '%');
+					$this->addParam(':' . $property, '%' . $value . '%');
 				} else {
-					$this->addFilter(':' . $property, $value);
+					$this->addParam(':' . $property, $value);
 				}
 			}
 		}
