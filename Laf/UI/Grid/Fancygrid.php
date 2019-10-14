@@ -164,6 +164,9 @@ class Fancygrid
 
 	private function initialize(array $gridInfo)
 	{
+		if(count($gridInfo) < 4){
+			throw new Exception('Missing Grid info');
+		}
 		if (Util::isJSON($gridInfo['params']))
 			$this->setParams(json_decode($gridInfo['params'], true));
 		if (Util::isJSON($gridInfo['columns']))
