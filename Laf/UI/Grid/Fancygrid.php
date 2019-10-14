@@ -227,15 +227,6 @@ class Fancygrid
 	 */
 	public function getJsonResponse(): string
 	{
-		if (!is_numeric($this->getId())) {
-			$data = [
-				'success' => false,
-				'message' => 'Grid not found',
-				'data' => []
-			];
-			return json_encode($data);
-		}
-
 		try {
 			$this->initialize();
 		} catch (\Exception $ex) {
@@ -246,6 +237,16 @@ class Fancygrid
 			];
 			return json_encode($data);
 		}
+
+		if (!is_numeric($this->getId())) {
+			$data = [
+				'success' => false,
+				'message' => 'Grid not found',
+				'data' => []
+			];
+			return json_encode($data);
+		}
+
 		$sql = $this->generateSql($this->getParams());
 
 
