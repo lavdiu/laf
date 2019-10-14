@@ -7,7 +7,6 @@ namespace Laf\UI\Grid;
 use Grid\Grid;
 use Laf\Database\Db;
 use Laf\Util\Util;
-use mysql_xdevapi\Exception;
 
 /**
  * Class Fancygrid
@@ -165,7 +164,7 @@ class Fancygrid
 	private function initialize(array $gridInfo)
 	{
 		if(count($gridInfo) < 4){
-			throw new Exception('Missing Grid info');
+			throw new \Exception('Missing Grid info');
 		}
 		if (Util::isJSON($gridInfo['params']))
 			$this->setParams(json_decode($gridInfo['params'], true));
