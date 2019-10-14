@@ -24,7 +24,13 @@ class Fancygrid
 	private $filters = [];
 	private $requiredParams = [];
 
-	public function __construct(string $gridName, $filters = [], $params = [])
+	/**
+	 * Fancygrid constructor.
+	 * @param string $gridName
+	 * @param array $params
+	 * @param array $filters Just put $_GET here
+	 */
+	public function __construct(string $gridName, $params = [], $filters = [])
 	{
 		$this->setGridName($gridName);
 		$this->setFilters($filters);
@@ -207,9 +213,9 @@ class Fancygrid
 
 
 		/**
-		 * if the grid requires a filter and it wasn't supplied, throw an error
+		 * if the grid requires a parameter and it wasn't supplied, throw an error
 		 */
-		$diff = array_diff($this->getParams(), array_keys($this->getFilters()));
+		$diff = array_diff($this->getRequiredParams(), array_keys($this->getParams()));
 		if (count($diff) > 0) {
 			throw new \Exception("Missing Grid fiilters for " . join(', ', $diff));
 		}
