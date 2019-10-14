@@ -7,6 +7,7 @@ namespace Laf\UI\Grid;
 use Grid\Grid;
 use Laf\Database\Db;
 use Laf\Util\Util;
+use mysql_xdevapi\Exception;
 
 /**
  * Class Fancygrid
@@ -169,11 +170,23 @@ class Fancygrid
 		$this->setGridName($gridInfo['grid_name']);
 		$this->setSql($gridInfo['sql']);
 		$this->setParamsCount(count($this->getParams()));
+
+
+		/**
+		 * if the grid requires a filter and it wasn't supplied, throw an error
+		 */
+		$diff = array_diff($this->getParams(), array_keys($this->getFiltes()));
+		if (count($diff) > 0) {
+			throw new \Exception("Missing Grid fiilters for " . join(', ', $diff));
+		}
+
+
 	}
 
 
 	/**
 	 * @param string $grid_name
+	 * @param string[] $filters
 	 * @param string[] $params
 	 * @return false|string
 	 * @throws \Exception
@@ -183,8 +196,8 @@ class Fancygrid
 		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
 			':grid_name' => $grid_name
 		]);
-		$this->initialize($gridInfo);
 		$this->setFiltes($filters);
+		$this->initialize($gridInfo);
 		$sql = $this->generateSql($params);
 
 
