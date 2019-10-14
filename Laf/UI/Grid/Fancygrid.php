@@ -235,7 +235,7 @@ class Fancygrid
 			return json_encode($data);
 		}
 
-		$this->setFilters(coalesce($filters, []));
+		$this->setFilters(Util::coalesce($filters, []));
 		try {
 			$this->initialize($gridInfo);
 		} catch (\Exception $ex) {

@@ -106,7 +106,7 @@ class Carousel implements ComponentInterface
 			$this->addImage("/document/view/{$document}/1.jpg");
 		}
 
-		$carouselId = coalesce($this->getId(), ('a' . uniqid()));
+		$carouselId = Util::coalesce($this->getId(), ('a' . uniqid()));
 
 		$html = "\n<div id='{$carouselId}' class='carousel slide' data-ride='carousel'>";
 

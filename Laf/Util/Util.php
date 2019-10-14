@@ -65,4 +65,14 @@ class Util
 
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
+
+	public function coalesce()
+	{
+		foreach (func_get_args() as $arg) {
+			if (!(empty($arg) && !is_array($arg)) || $arg === 0 || $arg === '0') { // allow zero as string or int
+				return $arg;
+			}
+		}
+		return null;
+	}
 }
