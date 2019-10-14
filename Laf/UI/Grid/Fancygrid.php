@@ -163,7 +163,7 @@ class Fancygrid
 
 	private function initialize(array $gridInfo)
 	{
-		if(count($gridInfo) < 4){
+		if (count($gridInfo) < 4) {
 			throw new \Exception('Missing Grid info');
 		}
 		if (Util::isJSON($gridInfo['params']))
@@ -225,13 +225,23 @@ class Fancygrid
 		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
 			':grid_name' => $grid_name
 		]);
-		$this->setFilters($filters);
+
+		if (!is_numeric($gridInfo['id'])) {
+			$data = [
+				'success' => false,
+				'message' => 'Grid not found',
+				'data' => []
+			];
+			return json_encode($data);
+		}
+
+		$this->setFilters(coalesce($filters, []);
 		try {
 			$this->initialize($gridInfo);
 		} catch (\Exception $ex) {
 			$data = [
 				'success' => false,
-				'message' => 'Error has occurred',
+				'message' => 'Error has occurred while initializing grid',
 				'data' => []
 			];
 			return json_encode($data);
@@ -239,34 +249,27 @@ class Fancygrid
 		$sql = $this->generateSql($params);
 
 
-		if (is_numeric($gridInfo['id'])) {
-			$db = Db::getInstance();
-			try {
-				$stmt = $db->prepare($gridInfo['sql']);
-				foreach ($this->getFilters() as $k => $v) {
-					$stmt->bindValue($k, $v);
-				}
-
-				$stmt->execute();
-
-				$data = [
-					'success' => true,
-					'data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)
-				];
-			} catch (\Exception $ex) {
-				$data = [
-					'success' => false,
-					'message' => 'Failed to retrieve the data',
-					'data' => []
-				];
+		$db = Db::getInstance();
+		try {
+			$stmt = $db->prepare($gridInfo['sql']);
+			foreach ($this->getFilters() as $k => $v) {
+				$stmt->bindValue($k, $v);
 			}
-		} else {
+
+			$stmt->execute();
+
+			$data = [
+				'success' => true,
+				'data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)
+			];
+		} catch (\Exception $ex) {
 			$data = [
 				'success' => false,
-				'message' => 'Table does not exist',
+				'message' => 'Failed to retrieve the data',
 				'data' => []
 			];
 		}
+
 		return json_encode($data);
 	}
 
