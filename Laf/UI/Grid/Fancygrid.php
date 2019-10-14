@@ -22,7 +22,7 @@ class Fancygrid
 	private $columns = [];
 	private $params = [];
 	private $paramsCount = 0;
-	private $filtes = [];
+	private $filters = [];
 
 	/**
 	 * @return mixed
@@ -135,18 +135,18 @@ class Fancygrid
 	/**
 	 * @return array
 	 */
-	public function getFiltes(): array
+	public function getFilters(): array
 	{
-		return $this->filtes;
+		return $this->filters;
 	}
 
 	/**
-	 * @param array $filtes
+	 * @param array $filters
 	 * @return Fancygrid
 	 */
-	public function setFiltes(array $filtes): Fancygrid
+	public function setFilters(array $filters): Fancygrid
 	{
-		$this->filtes = $filtes;
+		$this->filters = $filters;
 		return $this;
 	}
 
@@ -175,7 +175,7 @@ class Fancygrid
 		/**
 		 * if the grid requires a filter and it wasn't supplied, throw an error
 		 */
-		$diff = array_diff($this->getParams(), array_keys($this->getFiltes()));
+		$diff = array_diff($this->getParams(), array_keys($this->getFilters()));
 		if (count($diff) > 0) {
 			throw new \Exception("Missing Grid fiilters for " . join(', ', $diff));
 		}
@@ -190,7 +190,7 @@ class Fancygrid
 	 * @param array $params
 	 * @throws \Exception
 	 */
-	public function handleJsonResponse(string $grid_name, $filters = [], $params = [])
+	public function handleJsonRequest(string $grid_name, $filters = [], $params = [])
 	{
 		ob_clean();
 		echo $this->getJsonResponse($grid_name, $filters, $params);
@@ -210,7 +210,7 @@ class Fancygrid
 		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
 			':grid_name' => $grid_name
 		]);
-		$this->setFiltes($filters);
+		$this->setFilters($filters);
 		$this->initialize($gridInfo);
 		$sql = $this->generateSql($params);
 
@@ -219,7 +219,7 @@ class Fancygrid
 			$db = Db::getInstance();
 			try {
 				$stmt = $db->prepare($gridInfo['sql']);
-				foreach ($this->getFiltes() as $k => $v) {
+				foreach ($this->getFilters() as $k => $v) {
 					$stmt->bindValue($k, $v);
 				}
 
