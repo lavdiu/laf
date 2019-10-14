@@ -183,15 +183,29 @@ class Fancygrid
 
 	}
 
+	/**
+	 * Parses the Grid's resposne and sends it to the browser, clearing any output coming before this
+	 * @param string $grid_name
+	 * @param array $filters
+	 * @param array $params
+	 * @throws \Exception
+	 */
+	public function handleJsonResponse(string $grid_name, $filters = [], $params = [])
+	{
+		ob_clean();
+		echo $this->getJsonResponse($grid_name, $filters, $params);
+		ob_flush();
+	}
 
 	/**
+	 * Parses the grid response and returns it
 	 * @param string $grid_name
 	 * @param string[] $filters
 	 * @param string[] $params
 	 * @return false|string
 	 * @throws \Exception
 	 */
-	public function handleJsonRequest(string $grid_name, $filters = [], $params = [])
+	public function getJsonResponse(string $grid_name, $filters = [], $params = [])
 	{
 		$gridInfo = Db::getRowAssoc("SELECT * FROM grid WHERE grid_name=:grid_name", [
 			':grid_name' => $grid_name
