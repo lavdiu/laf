@@ -325,7 +325,7 @@ class Fancygrid
 				if ($operator == 'LIKE') {
 					$this->addFilter(':' . $property, '%' . $value . '%');
 				} else {
-					$this->addFilter('.' . $property, $value);
+					$this->addFilter(':' . $property, $value);
 				}
 			}
 		}
