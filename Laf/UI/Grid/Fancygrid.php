@@ -251,7 +251,7 @@ class Fancygrid
 
 		$db = Db::getInstance();
 		try {
-			$stmt = $db->prepare($gridInfo['sql']);
+			$stmt = $db->prepare($sql);
 			foreach ($this->getFilters() as $k => $v) {
 				$stmt->bindValue($k, $v);
 			}
