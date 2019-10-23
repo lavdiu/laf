@@ -300,7 +300,7 @@ class SimpleTable implements ComponentInterface
 			if (is_array($manualColumns) && !array_key_exists($name, $manualColumns)) {
 				$manualColumns[$name] = ['label' => $value];
 			} else {
-				if (array_key_exists('visible', $manualColumns[$name]) && !$manualColumns[$name]['visible']) {
+				if (array_key_exists('visible', $manualColumns) && !$manualColumns['visible']) {
 					unset($manualColumns[$name]);
 				}
 			}
