@@ -4,6 +4,7 @@ namespace Laf\UI\Component;
 
 use Laf\UI\ComponentInterface;
 use Laf\UI\Traits\ComponentTrait;
+use Laf\Util\Util;
 
 class Carousel implements ComponentInterface
 {
