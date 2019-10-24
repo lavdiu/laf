@@ -889,6 +889,11 @@ class BaseObject
 	{
 		$form = new Form($this);
 		$form->setComponents($this->getAllFieldsAsFormElements());
+		foreach($this->getTable()->getFields() as $field){
+			if($field->isDocumentField()){
+				$form->setHasFiles(true);
+			}
+		}
 		return $form;
 	}
 
