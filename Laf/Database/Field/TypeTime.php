@@ -57,7 +57,7 @@ class TypeTime implements FieldType
 	 */
 	public function formatForDb($value)
 	{
-		$dt = \DateTime::createFromFormat('H:i A', $value);
+		$dt = \DateTime::createFromFormat('H:i', $value);
 		if ($dt === false) return null;
 		return $dt->format('H:i:s');
 	}
