@@ -720,7 +720,7 @@ class SimpleTable implements ComponentInterface
 				if ($key == 'uriRewrite') {
 					$this->tableUrl = '/' . $_GET['uriRewrite'] . $this->tableUrl;
 				} else {
-					$this->tableUrl .= $key . '=' . $value;
+					$this->tableUrl .= '&' . $key . '=' . $value;
 				}
 			}
 		}
