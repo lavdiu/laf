@@ -87,6 +87,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 	/**
 	 * Returns all options from the FK table, to build select element options
 	 * @return array
+	 * @throws \Exception
 	 */
 	protected function getOptions()
 	{
@@ -95,6 +96,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 		$fkClass = '\\'.$settings->getProperty('project.package_name').'\\' . Db::convertTableNameToClassName($fkTable);
 		$record = new $fkClass($this->getField()->getValue());
 		$field = $record->getTable()->getDisplayField()->getName();
+		$pkFieldName = $record->getTable()->getPrimaryKey()->getFirstField()->getName();
 
 		#@TODO optimize and add values as prepared statement parameters
 		$where = '';
@@ -104,13 +106,13 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 			}
 		}
 
-		$sql = "SELECT id, {$field} FROM $fkTable WHERE 1=1 {$where} ORDER BY {$field} ASC";
+		$sql = "SELECT {$pkFieldName}, {$field} FROM $fkTable WHERE 1=1 {$where} ORDER BY {$field} ASC";
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		$stmt->execute();
 		$options = [];
 		while ($res = $stmt->fetchObject()) {
-			$options[$res->id] = $res->$field;
+			$options[$res->$pkFieldName] = $res->$field;
 		}
 		return $options;
 	}
