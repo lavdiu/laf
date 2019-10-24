@@ -291,9 +291,9 @@ class SimpleTable implements ComponentInterface
 		}
 
 		$rows = $this->stmt->fetchAll(\PDO::FETCH_ASSOC);
-
+		$columnsFromDb = [];
 		for ($i = 0; $i < $this->stmt->columnCount(); $i++) {
-			$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name']);
+			$columnsFromDb[$this->stmt->getColumnMeta($i)['name']] = ['label' => Util::tableFieldNameToLabel($this->stmt->getColumnMeta($i)['name'])];
 		}
 		$manualColumns = $this->getColumns();
 		foreach ($columnsFromDb as $name => $value) {
