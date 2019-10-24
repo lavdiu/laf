@@ -403,7 +403,7 @@ class BaseObject
 					$prepareValues[] = ":{$field->getName()}";
 
 					if (((string)$field->getValueForDbInsert()) != '') {
-						$executeValues[':' . $field->getName()] = ((string)$field->getValueForDbInsert());
+						$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
 					} else {
 						$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
 					}
@@ -411,7 +411,7 @@ class BaseObject
 			} else {
 				$prepareColumns[] = "`{$field->getName()}`";
 				$prepareValues[] = ":{$field->getName()}";
-				$executeValues[':' . $field->getName()] = ((string)$field->getValueForDbInsert());
+				$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
 			}
 		}
 
@@ -543,8 +543,8 @@ class BaseObject
 					$type = $field->getType()->getPdoType();
 					if (mb_strlen($field->getValue()) == 0)
 						$type = \PDO::PARAM_NULL;
-					$stmt->bindValue(':' . $field->getName(), ((string)$field->getValueForDbInsert()), $type);
-					$this->addLoggerDebug("Store bindValue", [$field->getName(), ((string)$field->getValueForDbInsert())]);
+					$stmt->bindValue(':' . $field->getName(), $field->getValueForDbInsert(), $type);
+					$this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValueForDbInsert()]);
 				}
 			}
 			$stmt->bindValue(':primaryKeyField', $this->getRecordId(), \PDO::PARAM_INT);
