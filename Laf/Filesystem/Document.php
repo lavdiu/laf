@@ -36,7 +36,8 @@ class Document
 	public static function upload($fieldName)
 	{
 		$settings = Settings::getInstance();
-		$user = getLoggedUserInstance();
+		$personClass = '\\'.$settings->getProperty('project.package_name').'\\Person';
+		$user = $personClass::getLoggedUserInstance();
 		$documentClass = $settings->getProperty('project.package_name').'\\Document';
 
 		if (isset($_FILES[$fieldName])) {
