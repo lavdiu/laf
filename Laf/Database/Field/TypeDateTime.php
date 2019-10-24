@@ -15,7 +15,7 @@ class TypeDateTime implements FieldType
     {
         if (is_null($value))
             return true;
-        $f = \DateTime::createFromFormat('Y-m-d H:i', $value);
+        $f = \DateTime::createFromFormat('Y-m-d H:i:s', $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
     }
