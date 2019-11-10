@@ -3,8 +3,6 @@
 
 namespace Laf\UI\Grid;
 
-
-use Grid\Grid;
 use Laf\Database\Db;
 use Laf\Util\Util;
 
@@ -17,9 +15,9 @@ class Fancygrid
 
 	private $id;
 	private $gridName;
-	private $sql;
-	private $columns = [];
-	private $params = [];
+	private $sql_query;
+	private $columns_list = [];
+	private $params_list = [];
 	private $paramsCount = 0;
 	private $filters = [];
 	private $requiredParams = [];
@@ -76,54 +74,54 @@ class Fancygrid
 	/**
 	 * @return mixed
 	 */
-	public function getSql()
+	public function getSqlQuery()
 	{
-		return $this->sql;
+		return $this->sql_query;
 	}
 
 	/**
-	 * @param mixed $sql
+	 * @param mixed $sql_query
 	 * @return Fancygrid
 	 */
-	public function setSql($sql)
+	public function setSqlQuery($sql_query)
 	{
-		$this->sql = $sql;
+		$this->sql_query = $sql_query;
 		return $this;
 	}
 
 	/**
 	 * @return array
 	 */
-	public function getColumns(): array
+	public function getColumnsList(): array
 	{
-		return $this->columns;
+		return $this->columns_list;
 	}
 
 	/**
-	 * @param array $columns
+	 * @param array $columns_list
 	 * @return Fancygrid
 	 */
-	public function setColumns(array $columns): Fancygrid
+	public function setColumnsList(array $columns_list): Fancygrid
 	{
-		$this->columns = $columns;
+		$this->columns_list = $columns_list;
 		return $this;
 	}
 
 	/**
 	 * @return array
 	 */
-	public function getParams(): array
+	public function getParamsList(): array
 	{
-		return $this->params;
+		return $this->params_list;
 	}
 
 	/**
-	 * @param array $params
+	 * @param array $params_list
 	 * @return Fancygrid
 	 */
-	public function setParams(array $params): Fancygrid
+	public function setParamsList(array $params_list): Fancygrid
 	{
-		$this->params = $params;
+		$this->params_list = $params_list;
 		return $this;
 	}
 
@@ -202,22 +200,22 @@ class Fancygrid
 		if (count($gridInfo) < 4) {
 			throw new \Exception('Missing Grid info');
 		}
-		if (Util::isJSON($gridInfo['params']))
-			$this->setRequiredParams(json_decode($gridInfo['params'], true));
-		if (Util::isJSON($gridInfo['columns']))
-			$this->setColumns(json_decode($gridInfo['columns'], true));
+		if (Util::isJSON($gridInfo['params_list']))
+			$this->setParamsList(json_decode($gridInfo['params_list'], true));
+		if (Util::isJSON($gridInfo['columns_list']))
+			$this->setColumnsList(json_decode($gridInfo['columns_list'], true));
 		$this->setId($gridInfo['id']);
-		#$this->setGridName($gridInfo['grid_name']);
-		$this->setSql($gridInfo['sql']);
-		$this->setParamsCount(count($this->getParams()));
-
+		$this->setGridName($gridInfo['grid_name']);
+		$this->setSqlQuery($gridInfo['sql_query']);
+		$this->setParamsCount(count($this->getParamsList()));
 
 		/**
 		 * if the grid requires a parameter and it wasn't supplied, throw an error
 		 */
-		$diff = array_diff($this->getRequiredParams(), array_keys($this->getParams()));
+
+		$diff = array_diff($this->getParamsList(), array_keys($this->getFilters()));
 		if (count($diff) > 0) {
-			throw new \Exception("Missing Grid fiilters for " . join(', ', $diff));
+			throw new \Exception("Missing Grid filters for " . join(', ', $diff));
 		}
 
 		return $this;
@@ -304,7 +302,7 @@ class Fancygrid
 	private function generateSql($params = []): string
 	{
 		$page = 0;
-		$sort = array_keys($this->getColumns())[0];
+		$sort = array_keys($this->getColumnsList())[0];
 		$dir = 'ASC';
 		$limit = 0;
 		$sqlWhere = '';
@@ -322,7 +320,7 @@ class Fancygrid
 			$limit = $params['limit'] ?? 10;
 		}
 
-		if (isset($params['sort']) && in_array($params['sort'], array_keys($this->getColumns()))) {
+		if (isset($params['sort']) && in_array($params['sort'], array_keys($this->getColumnsList()))) {
 			$sort = $params['sort'];
 		}
 
@@ -341,7 +339,7 @@ class Fancygrid
 				$value = $filterItem->value;
 				$property = $filterItem->property;
 
-				if (!in_array($property, array_keys($this->getColumns())))
+				if (!in_array($property, array_keys($this->getColumnsList())))
 					continue;
 
 				$sqlWhere .= "\n\tAND`" . $property . "` " . $operator . " :" . $property;
@@ -360,7 +358,7 @@ class Fancygrid
 		if ($limit > 0)
 			$sqlWhere .= " LIMIT {$start}, {$limit} \n";
 
-		$sql = "SELECT * FROM (\n {$this->getSql()} \n) {$this->getGridName()} \n{$sqlWhere}\n";
+		$sql = "SELECT * FROM (\n {$this->getSqlQuery()} \n) {$this->getGridName()} \n{$sqlWhere}\n";
 		return $sql;
 	}
 
