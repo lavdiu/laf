@@ -71,8 +71,53 @@ class BaseObject
 	}
 
 	/**
+	 * Find one row by using the first result
+	 * @param array $keyValuePairs
+	 * @return static
+	 * @throws \Exception
+	 */
+	public static function findOne($keyValuePairs) : BaseObject
+	{
+		$object = new static();
+		$params = [];
+
+		foreach ($keyValuePairs as $fieldName => $fieldValue) {
+			if (preg_match('/[^a-zA-Z_\-0-9]/', $fieldName)) {
+				return null;
+			}
+			if (!$object->getTable()->hasField($fieldName)) {
+				return null;
+			}
+			$params[$fieldName] = $fieldValue;
+		}
+
+		$filters = [];
+		foreach ($params as $k => $v) {
+			$filters[] = $k . ' = :' . $k;
+		}
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+		$db = Db::getInstance();
+		$stmt = $db->prepare($sql);
+		foreach ($params as $fieldK => $fieldV) {
+			$stmt->bindValue(':' . $fieldK, $fieldV);
+		}
+		$return = [];
+		if ($stmt->execute()) {
+			$res = $stmt->fetch(\PDO::FETCH_NUM);
+			if (is_array($res) && count($res) > 0) {
+					return new static($res[0]);
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
+	/**
 	 * @param array $keyValuePairs
 	 * @return static[]
+	 * @throws \Exception
 	 */
 	public static function find($keyValuePairs)
 	{
