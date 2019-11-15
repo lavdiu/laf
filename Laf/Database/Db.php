@@ -265,6 +265,25 @@ class Db
 	/**
 	 * @param string $sql
 	 * @param array $params
+	 * @return mixed
+	 * @throws \Exception
+	 */
+	public static function getAllAssoc(string $sql, $params = [])
+	{
+		$db = self::getInstance();
+		$stmt = $db->prepare($sql);
+		$stmt->execute($params);
+		$row = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+		if ($row === false) {
+			return [];
+		} else {
+			return $row;
+		}
+	}
+
+	/**
+	 * @param string $sql
+	 * @param array $params
 	 * @return string[]
 	 * @throws \Exception
 	 */
@@ -274,6 +293,25 @@ class Db
 		$stmt = $db->prepare($sql);
 		$stmt->execute($params);
 		$row = $stmt->fetch(\PDO::FETCH_NUM);
+		if ($row === false) {
+			return [];
+		} else {
+			return $row;
+		}
+	}
+
+	/**
+	 * @param string $sql
+	 * @param array $params
+	 * @return string[]
+	 * @throws \Exception
+	 */
+	public static function getAllNum(string $sql, $params = []): array
+	{
+		$db = self::getInstance();
+		$stmt = $db->prepare($sql);
+		$stmt->execute($params);
+		$row = $stmt->fetchAll(\PDO::FETCH_NUM);
 		if ($row === false) {
 			return [];
 		} else {
