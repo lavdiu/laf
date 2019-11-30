@@ -7,7 +7,7 @@ class Page extends GenericPage
     /**
      * @return string
      */
-    public function draw()
+    public function draw() : string
     {
         if (!$this->isEnabled())
             return "";
