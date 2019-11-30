@@ -52,6 +52,16 @@ class Html
 	}
 
 	/**
+	 * @param string $file
+	 * @return Html
+	 */
+	public function addCssFile(string $file): Html
+	{
+		$this->cssFiles[] = $file;
+		return $this;
+	}
+
+	/**
 	 * @return array
 	 */
 	public function getJsFiles(): array
@@ -66,6 +76,16 @@ class Html
 	public function setJsFiles(array $jsFiles): Html
 	{
 		$this->jsFiles = $jsFiles;
+		return $this;
+	}
+
+	/**
+	 * @param string $file
+	 * @return Html
+	 */
+	public function addJsFile(string $file): Html
+	{
+		$this->jsFiles[] = $file;
 		return $this;
 	}
 
