@@ -13,6 +13,7 @@ class Html
 	protected $inlineJs = "";
 	protected $pageTitle = "";
 	protected $components = [];
+	protected $menu = "";
 
 	/**
 	 * @return string
@@ -174,15 +175,35 @@ class Html
 		if ($this->getInlineCss() != '') {
 			echo "\n\t<script type='text/javascript'>{$this->getInlineJs()}</script>";
 		}
+		$html .= $this->getHtmlHeader();
+		$html .= "\n</head>";
 
-		$html .= "<body>";
+		$html .= "\n\n<body>";
+		$html .= $this->getMenu();
 		foreach ($this->getComponents() as $component) {
 			$html .= $component->draw();
 		}
 
-		$html .= "</body>\n</html>";
+		$html .= "\n</body>\n</html>";
 
 	}
 
+	/**
+	 * @return string
+	 */
+	public function getMenu(): string
+	{
+		return $this->menu;
+	}
+
+	/**
+	 * @param string $menu
+	 * @return Html
+	 */
+	public function setMenu(string $menu): Html
+	{
+		$this->menu = $menu;
+		return $this;
+	}
 
 }
