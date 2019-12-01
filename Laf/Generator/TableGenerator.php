@@ -237,7 +237,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
     public function saveBaseClassToFile()
     {
         $this->processBaseClass();
-        $file = $this->getConfig()['base_class_dir'] . '/Base' . $this->getTable()->getNameAsClassname() . '.inc';
+        $file = $this->getConfig()['base_class_dir'] . '/Base' . $this->getTable()->getNameAsClassname() . '.php';
         $ok = file_put_contents($file, $this->getBaseClassFile());
         return $this;
     }
@@ -285,7 +285,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
     public function saveClassToFile()
     {
         $this->processClass();
-        $file = $this->getConfig()['class_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.inc';
+        $file = $this->getConfig()['class_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.php';
         if (!file_exists($file) || (isset($this->getConfig()['rewrite_class']) && $this->getConfig()['rewrite_class']))
             file_put_contents($file, $this->getClassFile());
         return $this;
