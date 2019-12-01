@@ -205,7 +205,7 @@ class Html
 		}
 
 		$html .= "\n</body>\n</html>";
-
+		return $html;
 	}
 
 	/**
