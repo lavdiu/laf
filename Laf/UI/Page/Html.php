@@ -185,14 +185,14 @@ class Html
 		foreach ($this->getJsFiles() as $file) {
 			$html .= "\n\t<script type='text/javascript' src='{$file}'></script>";
 		}
-		foreach ($this->getJsFiles() as $file) {
+		foreach ($this->getCssFiles() as $file) {
 			$html .= "\n\t<link rel='stylesheet' href='{$file}'></link>";
 		}
 
 		if ($this->getInlineCss() != '') {
 			echo "\n\t<style type'text/css'>{$this->getInlineCss()}</style>";
 		}
-		if ($this->getInlineCss() != '') {
+		if ($this->getInlineJs() != '') {
 			echo "\n\t<script type='text/javascript'>{$this->getInlineJs()}</script>";
 		}
 		$html .= $this->getHtmlHeader();
