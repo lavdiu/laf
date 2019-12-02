@@ -58,7 +58,7 @@ use Laf\Util\UrlParser;
 
 \$page = new AdminPage();
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
-\$page->setTitleIcon('far fa-list-alt');
+\$page->setTitleIcon('far fa-list');
 
 
 if (\$form->isSubmitted()) {
