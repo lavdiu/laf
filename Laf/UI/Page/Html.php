@@ -186,7 +186,7 @@ class Html
 			$html .= "\n\t<script type='text/javascript' src='{$file}'></script>";
 		}
 		foreach ($this->getCssFiles() as $file) {
-			$html .= "\n\t< rel='stylesheet' href='{$file}' >";
+			$html .= "\n\t<link rel='stylesheet' href='{$file}' />";
 		}
 
 		if ($this->getInlineCss() != '') {
