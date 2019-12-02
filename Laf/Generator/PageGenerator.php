@@ -58,7 +58,7 @@ use Laf\Util\UrlParser;
 
 \$page = new AdminPage();
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
-\$page->setTitleIcon('far fa-list');
+\$page->setTitleIcon('fa fa-list');
 
 
 if (\$form->isSubmitted()) {
@@ -93,7 +93,7 @@ switch (UrlParser::getAction()) {
 	case 'view':
 		\$form->setDrawMode(DrawMode::VIEW);
 		\$page->addComponent(\$form);
-		\$page->addLink(new Link('List', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$page->addLink(new Link('List', UrlParser::getListLink(), 'fa fa-list', [], ['btn', 'btn-sm', 'btn-outline-success']));
 
 		\$dd = new Dropdown('Options', '', 'fa fa-cogs');
 		\$dd->addCssClass('btn-outline-success')
