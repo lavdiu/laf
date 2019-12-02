@@ -874,7 +874,7 @@ class BaseObject
 
 		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={{$primaryKeyField}}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl())
-			$viewLinkURL = "/instructor/list/view/{{$primaryKeyField}}}";
+			$viewLinkURL = sprintf("/%s/%s/view/%s", $parser->_getModule(), $parser->_getSubmodule(), $primaryKeyField);
 
 		$viewLink->setValue('')
 			->setHref($viewLinkURL)
