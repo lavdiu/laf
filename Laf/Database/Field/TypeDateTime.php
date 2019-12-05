@@ -26,7 +26,7 @@ class TypeDateTime implements FieldType
      */
     public function getValueDbSanitized($value)
     {
-        $dt = \DateTime::createFromFormat('Y-m-d H:i', $value);
+        $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $value);
         if ($dt === false) return null;
         return $dt->format('Y-m-d H:i');
     }
