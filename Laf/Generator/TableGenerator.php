@@ -96,12 +96,12 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	/**
 	 * Select the record by primary key
 	 * @param int \$id
-	 * @return void
+	 * @return bool
 	 */
-	public function select(\$id)
+	public function select(\$id) : bool
 	{
 		\$this->setRecordId(\$id);
-		parent::select(\$id);
+		return parent::select(\$id);
 	}
 
 	/**
