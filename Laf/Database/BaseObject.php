@@ -481,12 +481,12 @@ class BaseObject
 			$this->addLoggerError("INSERT SQL failed", [$this->insertSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception($ex->getMessage());
 		} catch (\Exception $ex) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->insertSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception($ex->getMessage());
 		}
 
 		if ($count === false) {
@@ -601,12 +601,12 @@ class BaseObject
 			$this->addLoggerError("INSERT SQL failed", [$this->updateSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception(throw new \Exception($ex->getMessage()););
 		} catch (\Exception $ex) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->updateSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception(throw new \Exception($ex->getMessage()););
 		}
 
 		if ($count === false) {
@@ -688,12 +688,12 @@ class BaseObject
 			$this->addLoggerError("INSERT SQL failed", [$this->deleteSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception(throw new \Exception($ex->getMessage()););
 		} catch (\Exception $ex) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->deleteSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception();
+			throw new \Exception(throw new \Exception($ex->getMessage()););
 		}
 
 		if ($count === false) {
