@@ -383,7 +383,7 @@ class BaseObject
 
 			if ($field->isForeignKey()) {
 				if (!$this->getTable()->getForeignKey($fieldName)->isValidValue($value)) {
-					throw new Exception\InvalidForeignKeyValue();
+					throw new Exception\InvalidForeignKeyValue("Foreign key not found ".$fieldName);
 				}
 			}
 
@@ -491,7 +491,7 @@ class BaseObject
 
 		if ($count === false) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->insertSql, json_encode($executeValues)]);
-			throw new \Exception();
+			throw new \Exception("INSERT SQL failed with an unknown Exception");
 		}
 
 		$this->setAffectedRows($stmt->rowCount());
@@ -601,17 +601,17 @@ class BaseObject
 			$this->addLoggerError("INSERT SQL failed", [$this->updateSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception(throw new \Exception($ex->getMessage()););
+			throw new \Exception($ex->getMessage());
 		} catch (\Exception $ex) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->updateSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception(throw new \Exception($ex->getMessage()););
+			throw new \Exception($ex->getMessage());
 		}
 
 		if ($count === false) {
 			$this->addLoggerError("UPDATE SQL failed", [$this->updateSql, json_encode($executeValues)]);
-			throw new \Exception();
+			throw new \Exception("UPDATE SQL failed");
 		}
 
 		$this->setAffectedRows($stmt->rowCount());
@@ -688,17 +688,17 @@ class BaseObject
 			$this->addLoggerError("INSERT SQL failed", [$this->deleteSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception(throw new \Exception($ex->getMessage()););
+			throw new \Exception($ex->getMessage());
 		} catch (\Exception $ex) {
 			$this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->deleteSql, json_encode($executeValues)]);
 			$this->addLoggerError("Error Message", [$ex->getMessage()]);
 			$this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-			throw new \Exception(throw new \Exception($ex->getMessage()););
+			throw new \Exception($ex->getMessage());
 		}
 
 		if ($count === false) {
 			$this->addLoggerError("Delete method failed: Query:%s Params:%s", [$this->deleteSql, json_encode($executeValues)]);
-			throw new \Exception();
+			throw new \Exception("Delete method failed");
 		}
 
 		$this->setAffectedRows($stmt->rowCount());
