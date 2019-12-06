@@ -76,7 +76,7 @@ class BaseObject
 	 * @return static
 	 * @throws \Exception
 	 */
-	public static function findOne($keyValuePairs) : ?BaseObject
+	public static function findOne($keyValuePairs): ?BaseObject
 	{
 		$object = new static();
 		$params = [];
@@ -105,7 +105,7 @@ class BaseObject
 		if ($stmt->execute()) {
 			$res = $stmt->fetch(\PDO::FETCH_NUM);
 			if (is_array($res) && count($res) > 0) {
-					return new static($res[0]);
+				return new static($res[0]);
 			} else {
 				return null;
 			}
@@ -383,19 +383,11 @@ class BaseObject
 
 			if ($field->isForeignKey()) {
 				if (!$this->getTable()->getForeignKey($fieldName)->isValidValue($value)) {
-					throw new Exception\InvalidForeignKeyValue("Foreign key not found ".$fieldName);
+					throw new Exception\InvalidForeignKeyValue("Foreign key not found " . $fieldName);
 				}
 			}
 
-			try {
-				$field->setValue($value);
-			} catch (Exception\InvalidValueException $ex) {
-				$this->addLoggerError("Invalid Value", [$fieldName, $value]);
-				return false;
-			} catch (\Exception $ex) {
-				$this->addLoggerError("Error while setting value", [$fieldName, $value]);
-				return false;
-			}
+			$field->setValue($value);
 			return true;
 		} else {
 			return false;
@@ -932,8 +924,8 @@ class BaseObject
 	{
 		$form = new Form($this);
 		$form->setComponents($this->getAllFieldsAsFormElements());
-		foreach($this->getTable()->getFields() as $field){
-			if($field->isDocumentField()){
+		foreach ($this->getTable()->getFields() as $field) {
+			if ($field->isDocumentField()) {
 				$form->setHasFiles(true);
 			}
 		}
