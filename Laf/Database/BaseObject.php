@@ -76,7 +76,7 @@ class BaseObject
 	 * @return static
 	 * @throws \Exception
 	 */
-	public static function findOne($keyValuePairs) : BaseObject
+	public static function findOne($keyValuePairs) : ?BaseObject
 	{
 		$object = new static();
 		$params = [];
