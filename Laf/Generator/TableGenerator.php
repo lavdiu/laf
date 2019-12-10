@@ -281,7 +281,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	 * @return {$this->getTable()->getNameAsClassname()}
 	 * @throws \Exception
 	 */
-	public static function findOne(array \$keyValuePairs) : {$this->getTable()->getNameAsClassname()}
+	public static function findOne(array \$keyValuePairs) : ?{$this->getTable()->getNameAsClassname()}
 	{
 		return parent::bOfindOne(\$keyValuePairs);
 	}
