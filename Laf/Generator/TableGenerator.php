@@ -281,7 +281,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	 * @return \\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}
 	 * @throws \Exception
 	 */
-	public static function findOne(array \$keyValuePairs) : \\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}
+	public static function findOne(array \$keyValuePairs) : ?\\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}
 	{
 		return parent::findOne(\$keyValuePairs);
 	}
@@ -291,7 +291,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	 * @return \\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}[]
 	 * @throws \Exception
 	 */
-	public static function find(array \$keyValuePairs) : \\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}[]
+	public static function find(array \$keyValuePairs) : ?\\{$this->config['namespace']}\\{$this->getTable()->getNameAsClassname()}[]
 	{
 		return parent::find(\$keyValuePairs);
 	}";
