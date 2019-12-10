@@ -278,20 +278,20 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	/**
 	 * Find one row by using the first result
 	 * @param array \$keyValuePairs
-	 * @return {$this->getTable()->getNameAsClassname()}
+	 * @return \{$this->config['namespace']}\{$this->getTable()->getNameAsClassname()}
 	 * @throws \Exception
 	 */
-	public function findOne(array \$keyValuePairs) : {$this->getTable()->getNameAsClassname()}
+	public static function findOne(array \$keyValuePairs) : \{$this->config['namespace']}\{$this->getTable()->getNameAsClassname()}
 	{
 		return parent::findOne(\$keyValuePairs);
 	}
 	
 	/**
 	 * @param array \$keyValuePairs
-	 * @return {$this->getTable()->getNameAsClassname()}[]
+	 * @return \{$this->config['namespace']}\{$this->getTable()->getNameAsClassname()}[]
 	 * @throws \Exception
 	 */
-	public function find(array \$keyValuePairs) : {$this->getTable()->getNameAsClassname()}[]
+	public static function find(array \$keyValuePairs) : \{$this->config['namespace']}\{$this->getTable()->getNameAsClassname()}[]
 	{
 		return parent::find(\$keyValuePairs);
 	}";
