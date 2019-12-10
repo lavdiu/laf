@@ -76,7 +76,7 @@ class BaseObject
 	 * @return static
 	 * @throws \Exception
 	 */
-	public static function findOne($keyValuePairs): ?BaseObject
+	public static function findOne(array $keyValuePairs): ?BaseObject
 	{
 		$object = new static();
 		$params = [];
@@ -119,7 +119,7 @@ class BaseObject
 	 * @return static[]
 	 * @throws \Exception
 	 */
-	public static function find($keyValuePairs)
+	public static function find(array $keyValuePairs)
 	{
 		$object = new static();
 		$params = [];

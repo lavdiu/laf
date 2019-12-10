@@ -273,6 +273,27 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	protected function returnLeafClass()
 	{
 		return \$this;
+	}
+	
+	/**
+	 * Find one row by using the first result
+	 * @param array \$keyValuePairs
+	 * @return {$this->getTable()->getNameAsClassname()}
+	 * @throws \Exception
+	 */
+	public function findOne(array \$keyValuePairs) : {$this->getTable()->getNameAsClassname()}
+	{
+		return parent::findOne(\$keyValuePairs);
+	}
+	
+	/**
+	 * @param array \$keyValuePairs
+	 * @return {$this->getTable()->getNameAsClassname()}[]
+	 * @throws \Exception
+	 */
+	public function find(array \$keyValuePairs) : {$this->getTable()->getNameAsClassname()}[]
+	{
+		return parent::find(\$keyValuePairs);
 	}";
         $file .= "\n}\n";
         $this->setClassFile($file);
