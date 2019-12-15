@@ -32,7 +32,7 @@ class Fancygrid
 	{
 		$this->setGridName($gridName);
 		$this->setFilters($filters);
-		$this->setParams($params);
+		$this->setParamsList($params);
 	}
 
 	/**
