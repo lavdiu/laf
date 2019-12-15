@@ -276,7 +276,7 @@ class Fancygrid
 		$db = Db::getInstance();
 		try {
 			$stmt = $db->prepare($sql);
-			foreach ($this->getParams() as $k => $v) {
+			foreach ($this->getParamsList() as $k => $v) {
 				$stmt->bindValue($k, $v);
 			}
 			$stmt->execute();
