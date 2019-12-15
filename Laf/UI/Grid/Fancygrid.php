@@ -200,9 +200,9 @@ class Fancygrid
 		if (count($gridInfo) < 4) {
 			throw new \Exception('Missing Grid info');
 		}
-		if (Util::isJSON($gridInfo['params_list']))
+		if (isset($gridInfo['params_list']) && Util::isJSON($gridInfo['params_list']))
 			$this->setParamsList(json_decode($gridInfo['params_list'], true));
-		if (Util::isJSON($gridInfo['columns_list']))
+		if (isset($gridInfo['columns_list']) && Util::isJSON($gridInfo['columns_list']))
 			$this->setColumnsList(json_decode($gridInfo['columns_list'], true));
 		$this->setId($gridInfo['id']);
 		$this->setGridName($gridInfo['grid_name']);
