@@ -73,7 +73,7 @@ class PhpGrid
 	/**
 	 * @return Grid
 	 */
-	public function getGridInstance(): ?Grid
+	public function getGridInstance(): ?BaseObject
 	{
 		return $this->gridInstance;
 	}
