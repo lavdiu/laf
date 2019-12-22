@@ -3,6 +3,8 @@
 # *.* filter=git-crypt diff=git-crypt
 .gitattributes !filter !diff
 
+* text=auto
+
 # These files are text and should be normalized (Convert crlf => lf)
 *.php text
 *.css text
@@ -35,7 +37,7 @@
 
 # Auto detect text files and perform LF normalization
 # http://davidlaing.com/2012/09/19/customise-your-gitattributes-to-become-a-git-ninja/
-* text=auto
+
 
 # Documents
 *.doc  diff=astextplain
