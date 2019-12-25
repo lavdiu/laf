@@ -291,11 +291,13 @@ class PhpGrid
 		if ($limit > 0 && !$getAllRows)
 			$sqlLimit .= " LIMIT {$start}, {$limit} \n";
 
-		$this->_sql = "SELECT 
+		$this->_sql = "#grid full: {$this->getGridInstance()->getGridNameVal()}
+		SELECT 
 		" . join(',', array_keys($this->getColumns())) . " 
 		FROM (\n {$this->getGridInstance()->getSqlQueryVal()} \n) {$this->getGridInstance()->getGridNameVal()} \n{$sqlWhere}\n{$sqlLimit}\n";
 
-		$this->_sql_count = "SELECT COUNT(*) as total_number_of_rows 
+		$this->_sql_count = "#grid counter: {$this->getGridInstance()->getGridNameVal()}
+		SELECT COUNT(*) as total_number_of_rows 
 		FROM (\n {$this->getGridInstance()->getSqlQueryVal()} \n) {$this->getGridInstance()->getGridNameVal()} \n{$sqlWhere}\n";
 
 	}
