@@ -612,7 +612,7 @@ class PhpGrid
 	
 	<div>
 		<div class='d-flex justify-content-between'>
-			<div id='{$gridName}_paginationInfoSection' class='m-0 py-2'></div>
+			<div id='{$gridName}_paginationInfoSection' class='m-0 py-2 small'></div>
 			<div class='row m-0 py-2'>
 				<span class='dropdown'>
 				  <button title='Choose how many rows to show per page' class='btn btn-outline-primary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
