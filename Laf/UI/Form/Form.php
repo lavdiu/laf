@@ -185,6 +185,7 @@ class Form implements ComponentInterface
 		} else {
 			$object->insert();
 		}
+		$this->getObject()->reload();
 		return $object->getRecordId();
 	}
 
