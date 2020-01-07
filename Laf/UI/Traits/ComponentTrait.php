@@ -47,7 +47,7 @@ trait ComponentTrait
 	/**
 	 * @var string
 	 */
-	protected $drawMode = DrawMode::VIEW;
+	protected $drawMode = null;
 
 	/**
 	 * @var string
