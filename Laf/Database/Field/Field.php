@@ -779,6 +779,15 @@ class Field
 	}
 
 	/**
+	 * Form elements with it's value are cached
+	 * This allows clearing cache so it can be reloaded
+	 */
+	public function clearFormElementCache()
+	{
+		$this->formElement = null;
+	}
+
+	/**
 	 * Check if the field points to the documents table and should have a document
 	 * @return bool
 	 */

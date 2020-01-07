@@ -320,10 +320,14 @@ class BaseObject
 	 * Reloads the data from the database into the object
 	 * @alias select()
 	 * @return bool
+	 * @throws \Exception
 	 */
 	public function reload(): bool
 	{
 		$this->addLoggerDebug("Reloading object data", [__METHOD__, $this->getRecordId()]);
+		foreach ($this->getTable()->getFields() as $field) {
+			$field->clearFormElementCache();
+		}
 		return $this->select($this->getRecordId());
 	}
 
@@ -331,6 +335,7 @@ class BaseObject
 	 * Select the record with the given id and retreive the data from the database
 	 * @param int $id
 	 * @return bool
+	 * @throws \Exception
 	 */
 	public function select($id)
 	{
