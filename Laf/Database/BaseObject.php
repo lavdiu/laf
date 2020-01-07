@@ -424,12 +424,14 @@ class BaseObject
 		$this->checkFieldsForMissingRequiredValues();
 		$this->checkUniqueFieldsForDuplicateValues();
 
+
 		if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
 			$this->setFieldValue('created_on', date('Y-m-d H:i:s'));
 		}
 		if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()) < 1) {
 			$this->setFieldValue('created_by', $personClass::getLoggedUserId());
 		}
+
 
 		$this->insertSql = "INSERT INTO `{$this->getTable()->getName()}` (";
 		$prepareColumns = $prepareValues = $executeValues = [];
