@@ -501,8 +501,8 @@ class Form implements ComponentInterface
 		$html =
 			"<div class='form formupdate py-2' id='{$this->getId()}_external_container'>
     <form 
-        action='{$this->getAction()}' 
-        method='{$this->getMethod()}' 
+        action='{$this->getAction()}'
+        method='{$this->getMethod()}'
         id='{$this->getId()}_id'
 		class='{$this->getCssClassesForHtml()}' 
 		style='{$this->getCssStyleForHtml()}'
