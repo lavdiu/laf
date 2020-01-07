@@ -17,9 +17,6 @@ class Form implements ComponentInterface
 {
 	use ComponentTrait;
 
-	const MODE_VIEW = 1;
-	const MODE_UPDATE = 2;
-
 	const METHOD_GET = 'GET';
 	const METHOD_POST = 'POST';
 
