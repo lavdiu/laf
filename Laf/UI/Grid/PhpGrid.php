@@ -411,7 +411,7 @@ class PhpGrid
 			$stmt->execute();
 			$this->data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-			for($i = 0; $i<=$stmt->columnCount(); $i++){
+			for($i = 0; $i<$stmt->columnCount(); $i++){
 				$tmp = $stmt->getColumnMeta($i);
 				$this->columnMetaData[$tmp['name']] = $tmp['native_type'];
 			}
