@@ -250,8 +250,11 @@ class Field
 	public function setValue($value): Field
 	{
 		if ($this->type->isValid($value)) {
-			$this->value = $this->sanitize($value);
-			$this->setUpdatedOnTs();
+			$tmpVal = $this->sanitize($value);
+			if($this->value != $tmpVal) {
+				$this->value = $tmpVal
+				$this->setUpdatedOnTs();
+			}
 		} else {
 			throw new Exception\InvalidValueException(sprintf('Invalid Value for type:%s and field: %s:%s ', get_class($this->getType()), $this->getTableName(), $this->getName()));
 		}
@@ -279,8 +282,10 @@ class Field
 	 */
 	public function setValueRaw($value): Field
 	{
-		$this->value = $value;
-		$this->setUpdatedOnTs();
+		if($this->value != $value) {
+			$this->value = $value;
+			$this->setUpdatedOnTs();
+		}
 		return $this;
 	}
 
@@ -291,9 +296,11 @@ class Field
 	 */
 	public function setValueHTML($value): Field
 	{
-		$this->value = $value;
-		#@TODO $this->value = $this->sanitizeHTML($value);
-		$this->setUpdatedOnTs();
+		if($this->value != $value) {
+			$this->value = $value;
+			#@TODO $this->value = $this->sanitizeHTML($value);
+			$this->setUpdatedOnTs();
+		}
 		return $this;
 	}
 
