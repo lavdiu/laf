@@ -28,6 +28,7 @@ class PhpGrid
 	protected $rowCount = 0;
 	protected $pageCount = 0;
 	protected $rowsPerPage = 0;
+	protected $columnMetaData = [];
 
 	protected $data = [];
 	protected $errorMessage = "";
@@ -409,6 +410,12 @@ class PhpGrid
 			}
 			$stmt->execute();
 			$this->data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+			for($i = 0; $i<=$stmt->columnCount(); $i++){
+				$tmp = $stmt->getColumnMeta($i);
+				$this->columnMetaData[$tmp['name']] = $tmp['native_type'];
+			}
+
 			if (!is_array($this->data)) {
 				return false;
 			}
