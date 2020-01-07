@@ -251,7 +251,7 @@ class Field
 	{
 		if ($this->type->isValid($value)) {
 			$tmpVal = $this->sanitize($value);
-			if($this->value != $tmpVal) {
+			if ($this->value != $tmpVal) {
 				$this->value = $tmpVal
 				$this->setUpdatedOnTs();
 			}
@@ -282,7 +282,7 @@ class Field
 	 */
 	public function setValueRaw($value): Field
 	{
-		if($this->value != $value) {
+		if ($this->value != $value) {
 			$this->value = $value;
 			$this->setUpdatedOnTs();
 		}
@@ -296,7 +296,7 @@ class Field
 	 */
 	public function setValueHTML($value): Field
 	{
-		if($this->value != $value) {
+		if ($this->value != $value) {
 			$this->value = $value;
 			#@TODO $this->value = $this->sanitizeHTML($value);
 			$this->setUpdatedOnTs();
@@ -428,7 +428,6 @@ class Field
 		$this->unique = $unique;
 		return $this;
 	}
-
 
 
 	/**
@@ -578,7 +577,7 @@ class Field
 			$foreignKey = $this->getTable()->getForeignKey($this->getName());
 
 			$referencedTable = new  Table($foreignKey->getReferencingTable());
-			$referencedObjectName = "\\".$settings->getProperty('project.package_name')."\\" . $referencedTable->getNameAsClassname();
+			$referencedObjectName = "\\" . $settings->getProperty('project.package_name') . "\\" . $referencedTable->getNameAsClassname();
 			$referencedTableObject = new $referencedObjectName($this->getValue());
 			$referencedValue = $referencedTableObject->getTable()->getDisplayField()->getValue();
 			return $referencedValue;
