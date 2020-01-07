@@ -425,7 +425,7 @@ class BaseObject
 		$this->checkUniqueFieldsForDuplicateValues();
 
 		if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
-			$this->setFieldValue('created_on', date('Y-m-d H:i'));
+			$this->setFieldValue('created_on', date('Y-m-d H:i:s'));
 		}
 		if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()) < 1) {
 			$this->setFieldValue('created_by', $personClass::getLoggedUserId());
@@ -543,7 +543,7 @@ class BaseObject
 		}
 
 		if ($this->getTable()->hasField('updated_on')) {
-			$this->setFieldValue('updated_on', date('Y-m-d H:i'));
+			$this->setFieldValue('updated_on', date('Y-m-d H:i:s'));
 		}
 		if ($this->getTable()->hasField('updated_by')) {
 			$this->setFieldValue('updated_by', $personClass::getLoggedUserId());
