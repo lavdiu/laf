@@ -364,7 +364,7 @@ class Form implements ComponentInterface
 		$html =
 			"<div class='form formview py-2' id='{$this->getId()}_external_container'>";
 
-		foreach($this->getComponents() as $component){
+		foreach ($this->getComponents() as $component) {
 			$component->setDrawMode($this->getDrawMode());
 			$component->setFormRowDisplayMode($this->getFormRowDisplayMode());
 			$html .= $component->draw();
@@ -512,8 +512,9 @@ class Form implements ComponentInterface
 			. ($this->hasFiles() ? "\n\t\tenctype='multipart/form-data'" : "") . ">
              ";
 
-		foreach($this->getComponents() as $component){
-			$component->setDrawMode($this->getDrawMode());
+		foreach ($this->getComponents() as $component) {
+			if ($component->getDrawMode() == '')
+				$component->setDrawMode($this->getDrawMode());
 			$component->setFormRowDisplayMode($this->getFormRowDisplayMode());
 			$html .= $component->draw();
 		}
