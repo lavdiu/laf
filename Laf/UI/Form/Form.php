@@ -186,8 +186,7 @@ class Form implements ComponentInterface
 			$object->insert();
 		}
 		$class = get_class($this->getObject());
-		$newObj = new $class($this->getObject()->getRecordId());
-		$this->object - $newObj;
+		$this->object = new $class($this->getObject()->getRecordId());
 		return $object->getRecordId();
 	}
 
