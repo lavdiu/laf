@@ -442,7 +442,7 @@ class BaseObject
 		$prepareColumns = $prepareValues = $executeValues = [];
 		foreach ($this->getTable()->getFields() as $field) {
 			if ($field->isPrimaryKey()) {
-				if (!$field->isAutoIncrement()) {
+				if (!$field->isAutoIncrement() && strlen(trim($field->getValue())) > 1) {
 					$prepareColumns[] = "`{$field->getName()}`";
 					$prepareValues[] = ":{$field->getName()}";
 
