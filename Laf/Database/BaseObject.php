@@ -95,7 +95,11 @@ class BaseObject
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
 		}
-		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE 1=1 AND " . join(' AND ', $filters);
+		if(count($filters) == 0){
+			$filters[] = ' 1=1 ';
+		}
+
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		foreach ($params as $fieldK => $fieldV) {
@@ -134,12 +138,15 @@ class BaseObject
 			$params[$fieldName] = $fieldValue;
 		}
 
-
 		$filters = [];
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
 		}
-		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE 1=1 AND " . join(' AND ', $filters);
+		if (count($filters) == 0) {
+			$filters[] = ' 1=1 ';
+		}
+
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		foreach ($params as $fieldK => $fieldV) {
