@@ -14,48 +14,48 @@ use Laf\Util\Util;
 class TableGenerator
 {
 
-    /**
-     * @var Table $table
-     */
-    private $table;
+	/**
+	 * @var Table $table
+	 */
+	private $table;
 
-    private $baseClassFile = null;
-    private $classFile = null;
+	private $baseClassFile = null;
+	private $classFile = null;
 
-    private $foreignKeys = [];
+	private $foreignKeys = [];
 
-    /**
-     * @var string[]
-     *
-     * example
-     * [
-     *  'namespace'         =>  'namespace;',
-     *  'base_class_dir'    =>  '/path/to/write/files,
-     *  'class_dir'         =>  '/path/to/class/dir',
-     *  'rewrite_class'        =>    1
-     * ]
-     * no trailing slashes at the end
-     */
-    private $config = [];
+	/**
+	 * @var string[]
+	 *
+	 * example
+	 * [
+	 *  'namespace'         =>  'namespace;',
+	 *  'base_class_dir'    =>  '/path/to/write/files,
+	 *  'class_dir'         =>  '/path/to/class/dir',
+	 *  'rewrite_class'        =>    1
+	 * ]
+	 * no trailing slashes at the end
+	 */
+	private $config = [];
 
-    /**
-     * Table constructor.
-     * @param Table $table
-     * @param string[] $config
-     */
-    public function __construct(Table $table, array $config)
-    {
-        $this->table = $table;
-        $this->config = $config;
-        $this->populateForeignKeys();
-    }
+	/**
+	 * Table constructor.
+	 * @param Table $table
+	 * @param string[] $config
+	 */
+	public function __construct(Table $table, array $config)
+	{
+		$this->table = $table;
+		$this->config = $config;
+		$this->populateForeignKeys();
+	}
 
-    /**
-     * @return TableGenerator
-     */
-    public function processBaseClass()
-    {
-        $file = "<?php
+	/**
+	 * @return TableGenerator
+	 */
+	public function processBaseClass()
+	{
+		$file = "<?php
 
 namespace {$this->config['namespace']}\\Base;
 
@@ -66,7 +66,7 @@ use Laf\Database\PrimaryKey;
 use Laf\Database\ForeignKey;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\ComponentInterface;
-use {$this->config['namespace']}\\".$this->getTable()->getNameAsClassname().";
+use {$this->config['namespace']}\\" . $this->getTable()->getNameAsClassname() . ";
 use Laf\Exception\InvalidForeignKeyValue;
 
 /**
@@ -111,13 +111,13 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	private function buildClass()
 	{
 		\$this->setTable(new Table('{$this->getTable()->getName()}'));";
-        $file .= $this->generateFields();
-        $file .= $this->generateForeignKeys();
-        $file .= "
+		$file .= $this->generateFields();
+		$file .= $this->generateForeignKeys();
+		$file .= "
 	}
 ";
-        foreach ($this->getTableColumns() as $column) {
-            $file .= "
+		foreach ($this->getTableColumns() as $column) {
+			$file .= "
 	/**
 	 * Set " . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . " value
 	 * @param mixed \$value
@@ -158,11 +158,11 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 		return \$this->getField(\"{$column['COLUMN_NAME']}\")->getFormElement(\$formElementOverride);
 	}
 ";
-            if ($this->getFkTable($column['COLUMN_NAME']) != '') {
-                $file .= "
+			if ($this->getFkTable($column['COLUMN_NAME']) != '') {
+				$file .= "
 	/**
-	 * Get ".Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME']))." Object
-	 * @return \\{$this->config['namespace']}\\".Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME']))."
+	 * Get " . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . " Object
+	 * @return \\{$this->config['namespace']}\\" . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . "
 	 */
 	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Obj()
 	{
@@ -173,10 +173,10 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 		}
 	}
 ";
-            }
-        }
+			}
+		}
 
-        $file .= "
+		$file .= "
 \t/**
 \t * Get all rows as associative array
 \t * @return string[]
@@ -224,27 +224,27 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 ";
 
 
-        $file .= "\n}\n";
-        $this->setBaseClassFile($file);
-        return $this;
-    }
+		$file .= "\n}\n";
+		$this->setBaseClassFile($file);
+		return $this;
+	}
 
 
-    /**
-     * Generates and saves class to file
-     * @return TableGenerator
-     */
-    public function saveBaseClassToFile()
-    {
-        $this->processBaseClass();
-        $file = $this->getConfig()['base_class_dir'] . '/Base' . $this->getTable()->getNameAsClassname() . '.php';
-        $ok = file_put_contents($file, $this->getBaseClassFile());
-        return $this;
-    }
+	/**
+	 * Generates and saves class to file
+	 * @return TableGenerator
+	 */
+	public function saveBaseClassToFile()
+	{
+		$this->processBaseClass();
+		$file = $this->getConfig()['base_class_dir'] . '/Base' . $this->getTable()->getNameAsClassname() . '.php';
+		$ok = file_put_contents($file, $this->getBaseClassFile());
+		return $this;
+	}
 
-    public function processClass()
-    {
-        $file = "<?php
+	public function processClass()
+	{
+		$file = "<?php
 
 namespace {$this->config['namespace']};
 
@@ -295,95 +295,95 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	{
 		return parent::bOfind(\$keyValuePairs);
 	}";
-        $file .= "\n}\n";
-        $this->setClassFile($file);
-    }
+		$file .= "\n}\n";
+		$this->setClassFile($file);
+	}
 
-    /**
-     * Generates and saves class to file
-     * @return TableGenerator
-     */
-    public function saveClassToFile()
-    {
-        $this->processClass();
-        $file = $this->getConfig()['class_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.php';
-        if (!file_exists($file) || (isset($this->getConfig()['rewrite_class']) && $this->getConfig()['rewrite_class']))
-            file_put_contents($file, $this->getClassFile());
-        return $this;
-    }
+	/**
+	 * Generates and saves class to file
+	 * @return TableGenerator
+	 */
+	public function saveClassToFile()
+	{
+		$this->processClass();
+		$file = $this->getConfig()['class_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.php';
+		if (!file_exists($file) || (isset($this->getConfig()['rewrite_class']) && $this->getConfig()['rewrite_class']))
+			file_put_contents($file, $this->getClassFile());
+		return $this;
+	}
 
-    /**
-     * @return Table
-     */
-    public function getTable(): Table
-    {
-        return $this->table;
-    }
+	/**
+	 * @return Table
+	 */
+	public function getTable(): Table
+	{
+		return $this->table;
+	}
 
-    /**
-     * @param Table $table
-     */
-    public function setTable(Table $table): void
-    {
-        $this->table = $table;
-    }
+	/**
+	 * @param Table $table
+	 */
+	public function setTable(Table $table): void
+	{
+		$this->table = $table;
+	}
 
-    /**
-     * @return string[]
-     */
-    public function getConfig(): array
-    {
-        return $this->config;
-    }
+	/**
+	 * @return string[]
+	 */
+	public function getConfig(): array
+	{
+		return $this->config;
+	}
 
-    /**
-     * @param string[] $config
-     */
-    public function setConfig(array $config): void
-    {
-        $this->config = $config;
-    }
+	/**
+	 * @param string[] $config
+	 */
+	public function setConfig(array $config): void
+	{
+		$this->config = $config;
+	}
 
-    /**
-     * @return null
-     */
-    public function getBaseClassFile()
-    {
-        return $this->baseClassFile;
-    }
+	/**
+	 * @return null
+	 */
+	public function getBaseClassFile()
+	{
+		return $this->baseClassFile;
+	}
 
-    /**
-     * @param null $baseClassFile
-     */
-    public function setBaseClassFile($baseClassFile): void
-    {
-        $this->baseClassFile = $baseClassFile;
-    }
+	/**
+	 * @param null $baseClassFile
+	 */
+	public function setBaseClassFile($baseClassFile): void
+	{
+		$this->baseClassFile = $baseClassFile;
+	}
 
-    /**
-     * @return null
-     */
-    public function getClassFile()
-    {
-        return $this->classFile;
-    }
+	/**
+	 * @return null
+	 */
+	public function getClassFile()
+	{
+		return $this->classFile;
+	}
 
-    /**
-     * @param null $classFile
-     */
-    public function setClassFile($classFile): void
-    {
-        $this->classFile = $classFile;
-    }
+	/**
+	 * @param null $classFile
+	 */
+	public function setClassFile($classFile): void
+	{
+		$this->classFile = $classFile;
+	}
 
-    /**
-     * Get column info for a table
-     * @return array
-     */
-    private function getTableColumns()
-    {
-        $db = Db::getInstance();
-        $sql = "
+	/**
+	 * Get column info for a table
+	 * @return array
+	 */
+	private function getTableColumns()
+	{
+		$db = Db::getInstance();
+		$sql = "
         SELECT *
         FROM information_schema.columns
         WHERE
@@ -392,16 +392,16 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
         ORDER BY table_name, ordinal_position
         ";
 
-        $q = $db->query($sql);
-        return $q->fetchAll(\PDO::FETCH_ASSOC);
-    }
+		$q = $db->query($sql);
+		return $q->fetchAll(\PDO::FETCH_ASSOC);
+	}
 
-    private function populateForeignKeys()
-    {
-        $db = DB::getInstance();
-        $settings = Settings::getInstance();
+	private function populateForeignKeys()
+	{
+		$db = DB::getInstance();
+		$settings = Settings::getInstance();
 
-        $sql = "
+		$sql = "
 		SELECT 
 			column_name,
 			referenced_table_name,
@@ -414,109 +414,109 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 				AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
 				AND referenced_table_name IS NOT NULL
 		";
-        $res = $db->query($sql);
-        while ($r = $res->fetchObject()) {
-            $this->foreignKeys[$r->column_name] = [
-                'column_name' => $r->column_name,
-                'constraint_name' => $r->constraint_name,
-                'referenced_table_name' => $r->referenced_table_name,
-                'referenced_column_name' => $r->referenced_column_name,
-            ];
-        }
-    }
+		$res = $db->query($sql);
+		while ($r = $res->fetchObject()) {
+			$this->foreignKeys[$r->column_name] = [
+				'column_name' => $r->column_name,
+				'constraint_name' => $r->constraint_name,
+				'referenced_table_name' => $r->referenced_table_name,
+				'referenced_column_name' => $r->referenced_column_name,
+			];
+		}
+	}
 
-    private function generateForeignKeys()
-    {
-        $tmp = "\n\t\t/**
+	private function generateForeignKeys()
+	{
+		$tmp = "\n\t\t/**
 		 * Generating Foreign keys
 		 */";
 
-        foreach ($this->foreignKeys as $fk) {
-            $tmp .= "\n\t\t\$this->getTable()->addForeignKey(
+		foreach ($this->foreignKeys as $fk) {
+			$tmp .= "\n\t\t\$this->getTable()->addForeignKey(
 			(new ForeignKey())
 				->setField(\$this->getTable()->getField(\"{$fk['column_name']}\"))
 				->setKeyName('{$fk['constraint_name']}')
 				->setReferencingTable(\"{$fk['referenced_table_name']}\")
 				->setReferencingField(\"{$fk['referenced_column_name']}\")
 		);\n";
-        }
-        return $tmp;
-    }
+		}
+		return $tmp;
+	}
 
-    private function generateFields()
-    {
-        $tmp = "\n\t\t/**
+	private function generateFields()
+	{
+		$tmp = "\n\t\t/**
 		 * Generate field data
 		 */
 		\$pk = new PrimaryKey();";
 
-        foreach ($this->getTableColumns() as $column) {
-            $additionalSettings = null;
+		foreach ($this->getTableColumns() as $column) {
+			$additionalSettings = null;
 
-            if (mb_strstr($column['COLUMN_COMMENT'], 'setLabel') === false) {
-                $additionalSettings = "\n\t\t\t->setLabel(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }
-            /*if (mb_strstr($column['COLUMN_COMMENT'], 'setHint') === false) {
-                $additionalSettings .= "\n\t\t\t->setHint(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }*/
-            if (mb_strstr($column['COLUMN_COMMENT'], 'setPlaceHolder') === false) {
-                $additionalSettings .= "\n\t\t\t->setPlaceHolder(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }
+			if (mb_strstr($column['COLUMN_COMMENT'], 'setLabel') === false) {
+				$additionalSettings = "\n\t\t\t->setLabel(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
+			}
+			/*if (mb_strstr($column['COLUMN_COMMENT'], 'setHint') === false) {
+				$additionalSettings .= "\n\t\t\t->setHint(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
+			}*/
+			if (mb_strstr($column['COLUMN_COMMENT'], 'setPlaceHolder') === false) {
+				$additionalSettings .= "\n\t\t\t->setPlaceHolder(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
+			}
 
-            $tmp .= "\n\t\t\$field = (new Field())
+			$tmp .= "\n\t\t\$field = (new Field())
 			->setName(\"{$column['COLUMN_NAME']}\"){$additionalSettings}
 			->setRequired(" . ($column['IS_NULLABLE'] == 'NO' ? 'true' : 'false') . ")
 			->setMaxLength(" . (is_numeric($column['CHARACTER_MAXIMUM_LENGTH']) ? $column['CHARACTER_MAXIMUM_LENGTH'] : '0') . ")
 			->setAutoIncrement(" . (strpos($column['EXTRA'], 'auto_increment') === false ? 'false' : 'true') . ")
-			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true':'false') . ")
+			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true' : 'false') . ")
 			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
 
-            $maxLength = preg_replace("/[^0-9,.]/", "", $column['COLUMN_TYPE']);
-            if (mb_strstr($maxLength, ','))
-                $maxLength = array_sum(explode(',', $maxLength));
+			$maxLength = preg_replace("/[^0-9,.]/", "", $column['COLUMN_TYPE']);
+			if (mb_strstr($maxLength, ','))
+				$maxLength = array_sum(explode(',', $maxLength));
 
-            if (is_int($maxLength)) {
-                $tmp .= "\n\t\t\$field->setMaxLength({$maxLength});";
-            }
+			if (is_int($maxLength)) {
+				$tmp .= "\n\t\t\$field->setMaxLength({$maxLength});";
+			}
 
-            if (Util::isJSON($column['COLUMN_COMMENT'])) {
-                $params = json_decode($column['COLUMN_COMMENT']);
-                foreach ($params->fields as $method => $value) {
-                    if (method_exists((new Field()), $method)) {
-                        $tmp .= "\n\t\t\$field->$method(\"{$value}\");";
-                    }else if($method == 'setDisplayField'){
-                        $tmp .= "\n\t\t\$this->getTable()->setDisplayField(\$field);";
-                    }
+			if (Util::isJSON($column['COLUMN_COMMENT'])) {
+				$params = json_decode($column['COLUMN_COMMENT']);
+				foreach ($params->fields as $method => $value) {
+					if (method_exists((new Field()), $method)) {
+						$tmp .= "\n\t\t\$field->$method(\"{$value}\");";
+					} else if ($method == 'setDisplayField') {
+						$tmp .= "\n\t\t\$this->getTable()->setDisplayField(\$field);";
+					}
 
-                }
-            }
+				}
+			}
 
-            if ($column['COLUMN_KEY'] == 'PRI') {
-                $tmp .= "\n\t\t\$pk->addField(\$field);";
-            }
-	        if ($column['COLUMN_KEY'] == 'UNI') {
-		        $tmp .= "\n\t\t\$this->getTable()->addUniqueField(\$field);";
-	        }
-            $tmp .= "\n\t\t\$this->getTable()->addField(\$field);
+			if ($column['COLUMN_KEY'] == 'PRI') {
+				$tmp .= "\n\t\t\$pk->addField(\$field);";
+			}
+			if ($column['COLUMN_KEY'] == 'UNI') {
+				$tmp .= "\n\t\t\$this->getTable()->addUniqueField(\$field);";
+			}
+			$tmp .= "\n\t\t\$this->getTable()->addField(\$field);
 		\$field = null;\n";
 
-        }
+		}
 
-        $tmp .= "\n\t\t\$this->getTable()->setPrimaryKey(\$pk);\n";
-        return $tmp;
-    }
+		$tmp .= "\n\t\t\$this->getTable()->setPrimaryKey(\$pk);\n";
+		return $tmp;
+	}
 
-    /**
-     * Given a column name, it will return the poiting table if it's a Foreign Key
-     * @param $column
-     * @return mixed|string
-     */
-    public function getFkTable($column)
-    {
-        if (array_key_exists($column, $this->foreignKeys)) {
-            return $this->foreignKeys[$column]['referenced_table_name'];
-        } else {
-            return '';
-        }
-    }
+	/**
+	 * Given a column name, it will return the poiting table if it's a Foreign Key
+	 * @param $column
+	 * @return mixed|string
+	 */
+	public function getFkTable($column)
+	{
+		if (array_key_exists($column, $this->foreignKeys)) {
+			return $this->foreignKeys[$column]['referenced_table_name'];
+		} else {
+			return '';
+		}
+	}
 }
