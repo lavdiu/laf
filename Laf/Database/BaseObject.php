@@ -76,7 +76,7 @@ class BaseObject
 	 * @return static
 	 * @throws \Exception
 	 */
-	public static function bOfindOne(array $keyValuePairs): ?BaseObject
+	public static function bOfindOne(array $keyValuePairs = []): ?BaseObject
 	{
 		$object = new static();
 		$params = [];
@@ -95,7 +95,7 @@ class BaseObject
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
 		}
-		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE 1=1 AND " . join(' AND ', $filters);
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		foreach ($params as $fieldK => $fieldV) {
@@ -119,7 +119,7 @@ class BaseObject
 	 * @return static[]
 	 * @throws \Exception
 	 */
-	public static function bOfind(array $keyValuePairs)
+	public static function bOfind(array $keyValuePairs = []): array
 	{
 		$object = new static();
 		$params = [];
@@ -139,7 +139,7 @@ class BaseObject
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
 		}
-		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE 1=1 AND " . join(' AND ', $filters);
 		$db = Db::getInstance();
 		$stmt = $db->prepare($sql);
 		foreach ($params as $fieldK => $fieldV) {
