@@ -270,7 +270,14 @@ class Table
 			return $this->displayField;
 		else {
 			$keys = array_keys($this->fields);
-			if (array_key_exists(1, $keys))
+
+			if ($this->hasField('name')) {
+				return $this->getField('name');
+			} else if ($this->hasField('label')) {
+				return $this->getField('label');
+			} else if ($this->hasField('description')) {
+				return $this->getField('description');
+			} else if (array_key_exists(1, $keys))
 				return $this->fields[$keys[1]];
 			else if (array_key_exists(0, $keys))
 				return $this->fields[$keys[0]];
