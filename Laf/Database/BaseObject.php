@@ -446,16 +446,21 @@ class BaseObject
 		$prepareColumns = $prepareValues = $executeValues = [];
 		foreach ($this->getTable()->getFields() as $field) {
 			if ($field->isPrimaryKey()) {
-				if (!$field->isAutoIncrement() && strlen(trim($field->getValue())) > 1) {
-					$prepareColumns[] = "`{$field->getName()}`";
-					$prepareValues[] = ":{$field->getName()}";
-
-					if (((string)$field->getValueForDbInsert()) != '') {
-						$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
-					} else {
-						$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
-					}
+				/**
+				 * skip AI fields if there is no value set
+				 */
+				if ($field->isAutoIncrement() && strlen(trim($field->getValue())) < 1) {
+					continue;
 				}
+				$prepareColumns[] = "`{$field->getName()}`";
+				$prepareValues[] = ":{$field->getName()}";
+
+				if (((string)$field->getValueForDbInsert()) != '') {
+					$executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+				} else {
+					$executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
+				}
+
 			} else {
 				$prepareColumns[] = "`{$field->getName()}`";
 				$prepareValues[] = ":{$field->getName()}";
