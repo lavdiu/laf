@@ -270,7 +270,6 @@ class Table
 			return $this->displayField;
 		else {
 			$keys = array_keys($this->fields);
-
 			if ($this->hasField('name')) {
 				return $this->getField('name');
 			} else if ($this->hasField('label')) {
