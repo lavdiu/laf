@@ -76,7 +76,7 @@ class BaseObject
 	 * @return static
 	 * @throws \Exception
 	 */
-	public static function bOfindOne(array $keyValuePairs = []): ?BaseObject
+	public static function bOfindOne(array $keyValuePairs): ?BaseObject
 	{
 		$object = new static();
 		$params = [];
@@ -94,9 +94,6 @@ class BaseObject
 		$filters = [];
 		foreach ($params as $k => $v) {
 			$filters[] = $k . ' = :' . $k;
-		}
-		if(count($filters) == 0){
-			$filters[] = ' 1=1 ';
 		}
 
 		$sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
