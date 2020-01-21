@@ -61,10 +61,10 @@ class TypeInteger implements FieldType
 
     /**
      * Return the field value formatted for the db store
-     * @param $value
+     * @param string $value
      * @return null|string
      */
-    public function formatForDb($value)
+    public function formatForDb(?string $value)
     {
         if(!is_numeric($value))
             return null;

@@ -43,10 +43,10 @@ class TypeDate implements FieldType
 
     /**
      * Return the field value formatted for the db store
-     * @param $value
+     * @param string $value
      * @return null|string
      */
-    public function formatForDb($value)
+    public function formatForDb(?string $value)
     {
         $dt = \DateTime::createFromFormat('Y-m-d', $value);
         if ($dt === false) return null;

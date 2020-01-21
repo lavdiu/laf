@@ -52,10 +52,10 @@ class TypeTime implements FieldType
 
 	/**
 	 * Return the field value formatted for the db store
-	 * @param $value
+	 * @param string $value
 	 * @return null|string
 	 */
-	public function formatForDb($value)
+	public function formatForDb(?string $value)
 	{
 		$dt = \DateTime::createFromFormat('H:i:s', $value);
 		if ($dt === false) return null;

@@ -47,10 +47,10 @@ class TypeVarchar implements FieldType
 
     /**
      * Return the field value formatted for the db store
-     * @param $value
+     * @param string $value
      * @return null|string
      */
-    public function formatForDb($value)
+    public function formatForDb(?string $value)
     {
 	    if (mb_strlen($value) == 0)
 		    return null;
