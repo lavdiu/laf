@@ -1,19 +1,49 @@
 <?php
 
-
 namespace Laf\UI\Page;
 
-
+/**
+ * Class Html
+ * @package Laf\UI\Page
+ */
 class Html
 {
 	protected $htmlHeader = "";
-	protected $cssFiles = [];
-	protected $jsFiles = [];
-	protected $inlineCss = "";
-	protected $inlineJs = "";
+	/**
+	 * @var HeaderComponent[]
+	 */
+	protected $headerComponents = [];
 	protected $pageTitle = "";
 	protected $components = [];
 	protected $menu = "";
+
+	/**
+	 * @return HeaderComponent[]
+	 */
+	public function getHeaderComponents(): array
+	{
+		return $this->headerComponents;
+	}
+
+	/**
+	 * @param HeaderComponent[] $headerComponents
+	 * @return Html
+	 */
+	public function setHeaderComponents(array $headerComponents): Html
+	{
+		$this->headerComponents = $headerComponents;
+		return $this;
+	}
+
+	/**
+	 * @param HeaderComponent $h
+	 * @return Html
+	 */
+	public function addHeaderComponent(HeaderComponent $h): Html
+	{
+		$this->headerComponents[] = $h;
+		return $this;
+	}
 
 	/**
 	 * @return string
@@ -30,98 +60,6 @@ class Html
 	public function setHtmlHeader(string $htmlHeader): Html
 	{
 		$this->htmlHeader = $htmlHeader;
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getCssFiles(): array
-	{
-		return $this->cssFiles;
-	}
-
-	/**
-	 * @param array $cssFiles
-	 * @return Html
-	 */
-	public function setCssFiles(array $cssFiles): Html
-	{
-		$this->cssFiles = $cssFiles;
-		return $this;
-	}
-
-	/**
-	 * @param string $file
-	 * @return Html
-	 */
-	public function addCssFile(string $file): Html
-	{
-		$this->cssFiles[] = $file;
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getJsFiles(): array
-	{
-		return $this->jsFiles;
-	}
-
-	/**
-	 * @param array $jsFiles
-	 * @return Html
-	 */
-	public function setJsFiles(array $jsFiles): Html
-	{
-		$this->jsFiles = $jsFiles;
-		return $this;
-	}
-
-	/**
-	 * @param string $file
-	 * @return Html
-	 */
-	public function addJsFile(string $file): Html
-	{
-		$this->jsFiles[] = $file;
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getInlineCss(): string
-	{
-		return $this->inlineCss;
-	}
-
-	/**
-	 * @param string $inlineCss
-	 * @return Html
-	 */
-	public function setInlineCss(string $inlineCss): Html
-	{
-		$this->inlineCss = $inlineCss;
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getInlineJs(): string
-	{
-		return $this->inlineJs;
-	}
-
-	/**
-	 * @param string $inlineJs
-	 * @return Html
-	 */
-	public function setInlineJs(string $inlineJs): Html
-	{
-		$this->inlineJs = $inlineJs;
 		return $this;
 	}
 
@@ -183,19 +121,14 @@ class Html
 	<title>{$this->getPageTitle()}</title>
 ";
 
-		foreach ($this->getJsFiles() as $file) {
-			$html .= "\n\t<script type='text/javascript' src='{$file}'></script>";
-		}
-		foreach ($this->getCssFiles() as $file) {
-			$html .= "\n\t<link rel='stylesheet' href='{$file}' />";
+		foreach ($this->getHeaderComponents() as $hc) {
+			$html .= "<" . $hc->getTagName();
+			foreach ($hc->getAttributes() as $ak => $av) {
+				$html .= " " . $ak . '="' . $av . '"';
+			}
+			$html .= ">" . $hc->getContent() . "</" . $hc->getTagName() . ">\n";
 		}
 
-		if ($this->getInlineCss() != '') {
-			echo "\n\t<style type'text/css'>{$this->getInlineCss()}</style>";
-		}
-		if ($this->getInlineJs() != '') {
-			echo "\n\t<script type='text/javascript'>{$this->getInlineJs()}</script>";
-		}
 		$html .= $this->getHtmlHeader();
 		$html .= "\n</head>";
 

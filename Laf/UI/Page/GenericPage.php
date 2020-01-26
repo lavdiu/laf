@@ -7,6 +7,10 @@ use Laf\UI\ComponentInterface;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\Util\Settings;
 
+/**
+ * Class GenericPage
+ * @package Laf\UI\Page
+ */
 class GenericPage implements ComponentInterface
 {
 	use ComponentTrait;
