@@ -18,7 +18,7 @@ class HeaderComponent
 	 * @param array $attributes
 	 * @param string $content
 	 */
-	public function __construct(string $tagName, array $attributes, ?string $content)
+	public function __construct(string $tagName, array $attributes, ?string $content = null)
 	{
 		$this->tagName = $tagName;
 		$this->attributes = $attributes;
