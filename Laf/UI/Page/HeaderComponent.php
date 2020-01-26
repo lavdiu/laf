@@ -11,6 +11,7 @@ class HeaderComponent
 	protected $tagName = "";
 	protected $attributes = [];
 	protected $content = "";
+	protected $selfClosingTag = true;
 
 	/**
 	 * HeaderComponent constructor.
@@ -18,11 +19,12 @@ class HeaderComponent
 	 * @param array $attributes
 	 * @param string $content
 	 */
-	public function __construct(string $tagName, array $attributes, ?string $content = null)
+	public function __construct(string $tagName, array $attributes, bool $selfClosingTag = true, ?string $content = null)
 	{
 		$this->tagName = $tagName;
 		$this->attributes = $attributes;
 		$this->content = $content;
+		$this->selfClosingTag = $selfClosingTag;
 	}
 
 
@@ -83,6 +85,24 @@ class HeaderComponent
 	public function setContent(string $content): HeaderComponent
 	{
 		$this->content = $content;
+		return $this;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isSelfClosingTag(): bool
+	{
+		return $this->selfClosingTag;
+	}
+
+	/**
+	 * @param bool $selfClosingTag
+	 * @return HeaderComponent
+	 */
+	public function setSelfClosingTag(bool $selfClosingTag): HeaderComponent
+	{
+		$this->selfClosingTag = $selfClosingTag;
 		return $this;
 	}
 
