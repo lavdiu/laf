@@ -126,8 +126,8 @@ class Html
 			foreach ($hc->getAttributes() as $ak => $av) {
 				$html .= " " . $ak . '="' . $av . '"';
 			}
-			$html .= ">" . $hc->getContent();
 			if ($hc->isSelfClosingTag()) {
+				$html .= ">" . $hc->getContent();
 				$html .= " />\n";
 			} else {
 				$html .= "</" . $hc->getTagName() . ">\n";
