@@ -3,9 +3,10 @@
 
 namespace Laf\UI\Page;
 
-
-use http\Header;
-
+/**
+ * Class HeaderComponent
+ * @package Laf\UI\Page
+ */
 class HeaderComponent
 {
 	protected $tagName = "";
@@ -18,8 +19,9 @@ class HeaderComponent
 	 * @param string $tagName
 	 * @param array $attributes
 	 * @param string $content
+	 * @param bool $selfClosingTag
 	 */
-	public function __construct(string $tagName, array $attributes, bool $selfClosingTag = true, ?string $content = null)
+	public function __construct(string $tagName, array $attributes, bool $selfClosingTag = false, ?string $content = null)
 	{
 		$this->tagName = $tagName;
 		$this->attributes = $attributes;
