@@ -127,9 +127,9 @@ class Html
 				$html .= " " . $ak . '="' . $av . '"';
 			}
 			if ($hc->isSelfClosingTag()) {
-				$html .= ">" . $hc->getContent();
 				$html .= " />\n";
 			} else {
+				$html .= ">" . $hc->getContent();
 				$html .= "</" . $hc->getTagName() . ">\n";
 			}
 		}
