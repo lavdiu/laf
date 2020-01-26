@@ -72,7 +72,7 @@ class GenericPage implements ComponentInterface
 			$header = "
         <div class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}'>
             <nav class='navbar navbar-expand navbar-light bg-light <!--sticky-top-->'>
-                <div class='navbar-brand'>{$icon} {$this->getTitle()}</div>
+                <div class=''>{$icon} <span class='navbar-brand'>{$this->getTitle()}</span></div>
                 <ul class='navbar-nav mr-auto'></ul>
                 <nav class='navbar-nav navbar-right btn-group'>
                     {$links}
