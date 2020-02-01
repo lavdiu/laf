@@ -105,6 +105,11 @@ class Form implements ComponentInterface
 	protected $formRowDisplayMode = "row";
 
 	/**
+	 * @var array
+	 */
+	protected $submittedFieldValues = [];
+
+	/**
 	 * Form constructor.
 	 * @param BaseObject $tableObject
 	 * @param string $action
@@ -170,6 +175,9 @@ class Form implements ComponentInterface
 
 		foreach ($object->getTable()->getFields() as $field) {
 			$value = trim(filter_input($this->getMethodForFilter(), $field->getNameRot13()));
+			if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
+				$value = trim($this->getSubmittedFieldValue($field->getName()));
+			}
 			if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
 				if ($field->isDocumentField()) {
 					$value = Document::upload($field->getNameRot13());
@@ -642,6 +650,9 @@ class Form implements ComponentInterface
 	{
 		$fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
 		if ($this->isSubmitted($fieldNameRot13)) {
+			if (array_key_exists($fieldName, $this->submittedFieldValues)) {
+				return $this->submittedFieldValues[$fieldName];
+			}
 			$value = trim(filter_input($this->getMethodForFilter(), $fieldNameRot13));
 			return $value;
 		} else return null;
@@ -655,14 +666,10 @@ class Form implements ComponentInterface
 	 */
 	public function setSubmittedFieldValue(string $fieldName, string $value): Form
 	{
-		$fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
-
-		if ($this->getMethodForFilter() == INPUT_GET) {
-			$_GET[$fieldNameRot13] = $value;
-		} else if ($this->getMethodForFilter() == INPUT_POST) {
-			$_POST[$fieldNameRot13] = $value;
-		}
+		$this->submittedFieldValues[$fieldName] = $value;
 		return $this;
 	}
+
+
 }
 
