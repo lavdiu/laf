@@ -12,6 +12,7 @@ use Laf\UI\Form\Control\Button;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\Control\SubmitButton;
 use Laf\UI\Traits\ComponentTrait;
+use Laf\Util\Util;
 
 class Form implements ComponentInterface
 {
@@ -247,7 +248,7 @@ class Form implements ComponentInterface
 	 * @param $fieldName
 	 * @return bool
 	 */
-	private function fieldIsSubmitted($fieldName)
+	public function fieldIsSubmitted($fieldName)
 	{
 		if ($this->getMethodForFilter() == INPUT_GET) {
 			return array_key_exists($fieldName, $_GET);
@@ -475,24 +476,6 @@ class Form implements ComponentInterface
 	}
 
 	/**
-	 * @return Field[]
-	 */
-	public function getFields(): array
-	{
-		return $this->fields;
-	}
-
-	/**
-	 * @param Field[] $fields
-	 * @return \Laf\UI\Form\Form
-	 */
-	public function setFields(array $fields)
-	{
-		$this->fields = $fields;
-		return $this;
-	}
-
-	/**
 	 * Draws the form in Update/insert Mode
 	 * @return string
 	 * @throws \Exception
@@ -646,6 +629,39 @@ class Form implements ComponentInterface
 	public function getComponentCssControlClass(): string
 	{
 		return str_replace('\\', '-', static::class);
+	}
+
+	/**
+	 * Get the value of a field that is submitted in the form
+	 *
+	 * @param string $fieldName
+	 * @return string|null
+	 */
+	public function getSubmittedFieldValue(string $fieldName): ?string
+	{
+		$fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
+		if ($this->isSubmitted($fieldNameRot13)) {
+			$value = trim(filter_input($this->getMethodForFilter(), $fieldNameRot13));
+			return $value;
+		} else return null;
+	}
+
+	/**
+	 * Set a value of a field before form is processed
+	 * @param string $fieldName
+	 * @param string $value
+	 * @return Form
+	 */
+	public function setSubmittedFieldValue(string $fieldName, string $value): Form
+	{
+		$fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
+
+		if ($this->getMethodForFilter() == INPUT_GET) {
+			$_GET[$fieldNameRot13] = $value;
+		} else if ($this->getMethodForFilter() == INPUT_POST) {
+			$_POST[$fieldNameRot13] = $value;
+		}
+		return $this;
 	}
 }
 
