@@ -170,7 +170,7 @@ class Form implements ComponentInterface
 
 		foreach ($object->getTable()->getFields() as $field) {
 			$value = trim(filter_input($this->getMethodForFilter(), $field->getNameRot13()));
-			if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getNameRot13())) {
+			if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
 				if ($field->isDocumentField()) {
 					$value = Document::upload($field->getNameRot13());
 				}
@@ -250,10 +250,11 @@ class Form implements ComponentInterface
 	 */
 	public function fieldIsSubmitted($fieldName)
 	{
+		$fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
 		if ($this->getMethodForFilter() == INPUT_GET) {
-			return array_key_exists($fieldName, $_GET);
+			return array_key_exists($fieldNameRot13, $_GET);
 		} else if ($this->getMethodForFilter() == INPUT_POST) {
-			return array_key_exists($fieldName, $_POST);
+			return array_key_exists($fieldNameRot13, $_POST);
 		} else {
 			return false;
 		}
