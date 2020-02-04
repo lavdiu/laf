@@ -924,7 +924,8 @@ class BaseObject
 			->addLink($updateLink)
 			->addLink($deleteLink)
 			->addCssClass('btn-outline-secondary')
-			->addCssClass('btn-sm');
+			->addCssClass('btn-sm')
+			->rightAlign();
 
 
 		$table->addActionButton($viewLink);
