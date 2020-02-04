@@ -109,7 +109,7 @@ switch (UrlParser::getAction()) {
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['list']}', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
 
-		\$dd = new Dropdown('{$labels['options']}', '', 'fa fa-cogs');
+		\$dd = new Dropdown('{$labels['options']}', '', 'fa fa-cogs', true);
 		\$dd->addCssClass('btn-outline-success')
 			->addCssClass('btn-sm');
 		\$newLink = new Link('{$labels['update']}', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
@@ -125,7 +125,7 @@ switch (UrlParser::getAction()) {
 		\$table = \${$instanceName}->getListAllSimpleTableObject();
 		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
 		\$table->setRowsPerPage(10);
-		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', ['class' => 'btn btn-sm btn-outline-success']));
+		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$table->setCurrentPage(\$_GET['page']??1);
 		\$page->addComponent(\$table);
 		#\$page->setContainerType(ContainerType::TYPE_DEFAULT);

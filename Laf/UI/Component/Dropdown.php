@@ -20,16 +20,18 @@ class Dropdown implements FormElementInterface, ComponentInterface
 	 */
 	protected $links = [];
 	protected $icon = "";
+	protected $rightAlign = false;
 
 	/**
 	 * Dropdown constructor.
 	 * @param string $text
 	 * @param string $icon
 	 */
-	public function __construct(string $text = '', $class = '', string $icon = '')
+	public function __construct(string $text = '', $class = '', string $icon = '', bool $rightAlign = false)
 	{
 		$this->text = $text;
 		$this->icon = $icon;
+		$this->rightAlign = $rightAlign;
 		if ($class != '')
 			$this->addCssClass($class);
 	}
@@ -72,7 +74,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 			role='button' data-toggle='dropdown' id='{$id}' aria-haspopup='true' aria-expanded='false'>
 		    {$text}
 		</a>
-		<div class='dropdown-menu' aria-labelledby='{$id}'>";
+		<div class='dropdown-menu".($this->rightAlign?' dropdown-menu-right':'')."' aria-labelledby='{$id}'>";
 		foreach ($this->getLinks() as $link) {
 			$link->addCssClass('dropdown-item ');
 			$link->removeCssClass('btn');
@@ -183,4 +185,24 @@ class Dropdown implements FormElementInterface, ComponentInterface
 	{
 
 	}
+
+	/**
+	 * @return Dropdown
+	 */
+	public function rightAlign(): Dropdown
+	{
+		$this->rightAlign = true;
+	}
+
+
+	/**
+	 * @return Dropdown
+	 */
+	public function leftAlign(): Dropdown
+	{
+		$this->rightAlign = true;
+	}
+
+
 }
+
