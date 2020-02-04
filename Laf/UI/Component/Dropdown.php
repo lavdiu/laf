@@ -192,6 +192,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 	public function rightAlign(): Dropdown
 	{
 		$this->rightAlign = true;
+		return $this;
 	}
 
 
@@ -201,6 +202,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 	public function leftAlign(): Dropdown
 	{
 		$this->rightAlign = true;
+		return $this;
 	}
 
 
