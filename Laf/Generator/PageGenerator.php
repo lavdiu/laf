@@ -24,15 +24,19 @@ class PageGenerator
 
 	private $config = [];
 
+	private $labelTranslations = [];
+
 	/**
 	 * Table constructor.
 	 * @param Table $table
 	 * @param string[] $config
+	 * @param string $labelTranslations
 	 */
-	public function __construct(Table $table, array $config)
+	public function __construct(Table $table, array $config, array $labelTranslations = [])
 	{
 		$this->table = $table;
 		$this->config = $config;
+		$this->labelTranslations = $labelTranslations;
 	}
 
 	public function processClass()
@@ -41,6 +45,16 @@ class PageGenerator
 		$className = $this->getTable()->getNameAsClassname();
 		$tableName = $this->getTable()->getName();
 		$instanceName = strtolower($className);
+
+		$labels = [];
+		$labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
+		$labels['options'] = $this->labelTranslations['options'] ?? 'Options';
+		$labels['add-new'] = $this->labelTranslations['add-new'] ?? 'Add new';
+		$labels['update'] = $this->labelTranslations['update'] ?? 'Update';
+		$labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
+		$labels['list'] = $this->labelTranslations['list'] ?? 'List';
+		$labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
+
 		$file = "<?php
 
 use {$namespace}\\{$className};
@@ -73,12 +87,12 @@ switch (UrlParser::getAction()) {
 		\$form->setDrawMode(DrawMode::UPDATE);
 		\$page->addComponent(\$form);
 
-		\$page->addLink(new Link('Cancel', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
 		break;
 	case 'new':
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
-		\$page->addLink(new Link('Cancel', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
 		break;
 	case 'delete':
 		if (\${$instanceName}->recordExists()) {
@@ -93,14 +107,14 @@ switch (UrlParser::getAction()) {
 	case 'view':
 		\$form->setDrawMode(DrawMode::VIEW);
 		\$page->addComponent(\$form);
-		\$page->addLink(new Link('List', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$page->addLink(new Link('{$labels['list']}', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
 
-		\$dd = new Dropdown('Options', '', 'fa fa-cogs');
+		\$dd = new Dropdown('{$labels['options']}', '', 'fa fa-cogs');
 		\$dd->addCssClass('btn-outline-success')
 			->addCssClass('btn-sm');
-		\$newLink = new Link('Update', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
-		\$deleteLink = new Link('Delete', UrlParser::getDeleteLink(), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
-		\$deleteLink->setConfirmationMessage('Are you sure you want to delete this item?\\nThis action cannot be undone!');
+		\$newLink = new Link('{$labels['update']}', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
+		\$deleteLink = new Link('{$labels['delete']}', UrlParser::getDeleteLink(), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
+		\$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
 
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
@@ -111,7 +125,7 @@ switch (UrlParser::getAction()) {
 		\$table = \${$instanceName}->getListAllSimpleTableObject();
 		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
 		\$table->setRowsPerPage(10);
-		\$page->addLink(new Link('Add New', UrlParser::getNewLink(), 'fa fa-plus-square', ['class' => 'btn btn-sm btn-outline-success']));
+		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', ['class' => 'btn btn-sm btn-outline-success']));
 		\$table->setCurrentPage(\$_GET['page']??1);
 		\$page->addComponent(\$table);
 		#\$page->setContainerType(ContainerType::TYPE_DEFAULT);

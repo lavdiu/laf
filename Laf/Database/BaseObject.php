@@ -872,6 +872,13 @@ class BaseObject
 		$table = new SimpleTable();
 		$parser = UrlParser::getInstance();
 		$primaryKeyField = static::getTable()->getPrimaryKey()->getFirstField()->getName();
+
+		$translations = [];
+		try{
+			$s = \Laf\Util\Settings::getInstance();
+			$translations = $s->getProperty('settings.label.translations');
+		}catch (\Exception $ex){}
+
 		$table->setSql(sprintf("
             SELECT * FROM `%s` 
         ", $this->returnLeafClass()->getTable()->getName()))
@@ -887,7 +894,8 @@ class BaseObject
 			->setIcon('fa fa-eye')
 			->addCssClass('btn')
 			->addCssClass('btn-outline-secondary')
-			->addCssClass('btn-sm');
+			->addCssClass('btn-sm')
+			->addAttribute('title', $translations['view']??'view');
 
 		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&id={id}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
@@ -895,7 +903,7 @@ class BaseObject
 		}
 
 		$updateLink = new Link();
-		$updateLink->setValue('Update')
+		$updateLink->setValue($translations['update']??'Update')
 			->setHref($updateUrl)
 			->setIcon('fa fa-edit');
 
@@ -905,10 +913,10 @@ class BaseObject
 			$deleteUrl = sprintf("/%s/%s/delete/{id}", $parser->_getModule(), $parser->_getSubmodule());
 		}
 		$deleteLink = new Link();
-		$deleteLink->setValue('Delete')
+		$deleteLink->setValue($translations['delete']??'Delete')
 			->setHref($deleteUrl)
 			->setIcon('fa fa-trash')
-			->setConfirmationMessage('Are you sure you want to delete this item?\\nThis action cannot be undone!');
+			->setConfirmationMessage($translations['delete-confirmation']??'Are you sure you want to delete this item?\\nThis action cannot be undone!');
 
 
 		$options = new Dropdown();

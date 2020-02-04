@@ -97,6 +97,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	 * Select the record by primary key
 	 * @param int \$id
 	 * @return bool
+	 * @throws \Exception
 	 */
 	public function select(\$id) : bool
 	{
@@ -180,6 +181,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \t/**
 \t * Get all rows as associative array
 \t * @return string[]
+\t * @throws \Exception
 \t */
 \tpublic function listAllArray(): array
 \t{
@@ -194,6 +196,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \t * Then returns an array of all objects
 \t * Please be careful, this can be bad for large tables
 \t * @return {$this->getTable()->getNameAsClassname()}[]
+\t * @throws \Exception
 \t */
 \tpublic function listAllObjects(): array
 \t{
