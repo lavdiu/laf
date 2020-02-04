@@ -74,7 +74,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 			role='button' data-toggle='dropdown' id='{$id}' aria-haspopup='true' aria-expanded='false'>
 		    {$text}
 		</a>
-		<div class='dropdown-menu".($this->rightAlign?' dropdown-menu-right':'')."' aria-labelledby='{$id}'>";
+		<div class='dropdown-menu" . ($this->rightAlign ? ' dropdown-menu-right' : '') . "' aria-labelledby='{$id}'>";
 		foreach ($this->getLinks() as $link) {
 			$link->addCssClass('dropdown-item ');
 			$link->removeCssClass('btn');
@@ -187,6 +187,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 	}
 
 	/**
+	 * Align the dropdown menu on right side of the button
 	 * @return Dropdown
 	 */
 	public function rightAlign(): Dropdown
