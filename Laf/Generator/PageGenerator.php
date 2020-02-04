@@ -128,7 +128,7 @@ switch (UrlParser::getAction()) {
 		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$table->setCurrentPage(\$_GET['page']??1);
 		\$page->addComponent(\$table);
-		#\$page->setContainerType(ContainerType::TYPE_DEFAULT);
+		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
 }
 echo \$page->draw();
