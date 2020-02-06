@@ -1027,4 +1027,53 @@ class BaseObject
 		return $data;
 	}
 
+	/**
+	 * @param array $keyValuePairs
+	 * @return static[]
+	 * @throws \Exception
+	 */
+	public static function findAsArray(array $keyValuePairs = []): array
+	{
+		$object = new static();
+		$params = [];
+
+		foreach ($keyValuePairs as $fieldName => $fieldValue) {
+			if (preg_match('/[^a-zA-Z_\-0-9]/', $fieldName)) {
+				return null;
+			}
+			if (!$object->getTable()->hasField($fieldName)) {
+				return null;
+			}
+			$params[$fieldName] = $fieldValue;
+		}
+
+		$filters = [];
+		foreach ($params as $k => $v) {
+			$filters[] = $k . ' = :' . $k;
+		}
+		if (count($filters) == 0) {
+			$filters[] = ' 1=1 ';
+		}
+
+		$sql = "SELECT * FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+		$db = Db::getInstance();
+		$stmt = $db->prepare($sql);
+		foreach ($params as $fieldK => $fieldV) {
+			$stmt->bindValue(':' . $fieldK, $fieldV);
+		}
+		$return = [];
+		if ($stmt->execute()) {
+			$res = $stmt->fetchAll(\PDO::FETCH_NUM);
+			if (is_array($res) && count($res) > 0) {
+				return $res;
+
+			} else {
+				[];
+			}
+		} else {
+			[];
+		}
+		return $return;
+	}
+
 }
