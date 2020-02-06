@@ -874,10 +874,11 @@ class BaseObject
 		$primaryKeyField = static::getTable()->getPrimaryKey()->getFirstField()->getName();
 
 		$translations = [];
-		try{
+		try {
 			$s = \Laf\Util\Settings::getInstance();
 			$translations = $s->getProperty('settings.label.translations');
-		}catch (\Exception $ex){}
+		} catch (\Exception $ex) {
+		}
 
 		$table->setSql(sprintf("
             SELECT * FROM `%s` 
@@ -895,7 +896,7 @@ class BaseObject
 			->addCssClass('btn')
 			->addCssClass('btn-outline-secondary')
 			->addCssClass('btn-sm')
-			->addAttribute('title', $translations['view']??'view');
+			->addAttribute('title', $translations['view'] ?? 'view');
 
 		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&id={id}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
@@ -903,7 +904,7 @@ class BaseObject
 		}
 
 		$updateLink = new Link();
-		$updateLink->setValue($translations['update']??'Update')
+		$updateLink->setValue($translations['update'] ?? 'Update')
 			->setHref($updateUrl)
 			->setIcon('fa fa-edit');
 
@@ -913,10 +914,10 @@ class BaseObject
 			$deleteUrl = sprintf("/%s/%s/delete/{id}", $parser->_getModule(), $parser->_getSubmodule());
 		}
 		$deleteLink = new Link();
-		$deleteLink->setValue($translations['delete']??'Delete')
+		$deleteLink->setValue($translations['delete'] ?? 'Delete')
 			->setHref($deleteUrl)
 			->setIcon('fa fa-trash')
-			->setConfirmationMessage($translations['delete-confirmation']??'Are you sure you want to delete this item?\\nThis action cannot be undone!');
+			->setConfirmationMessage($translations['delete-confirmation'] ?? 'Are you sure you want to delete this item?\\nThis action cannot be undone!');
 
 
 		$options = new Dropdown();
@@ -1001,6 +1002,29 @@ class BaseObject
 	public function canSoftDelete(): bool
 	{
 		return $this->getTable()->hasField('deleted');
+	}
+
+	/**
+	 * Returns an associative array of fields=>values of the fields specified
+	 * if no fields are specified, returns all
+	 * @param array $fields
+	 * @return array
+	 */
+	public function getFieldValuesAsArray(array $fields = []) : array
+	{
+		$data = [];
+		if (count($fields) > 0) {
+			foreach ($fields as $field) {
+				if ($this->getTable()->hasField($field)) {
+					$data[$field] = $this->getFieldValue($field);
+				}
+			}
+		} else {
+			foreach ($this->getTable()->getFields() as $field) {
+				$data[$field->getName()] = $this->getFieldValue($field->getName());
+			}
+		}
+		return $data;
 	}
 
 }
