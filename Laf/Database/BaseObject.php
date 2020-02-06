@@ -1063,7 +1063,7 @@ class BaseObject
 		}
 		$return = [];
 		if ($stmt->execute()) {
-			$res = $stmt->fetchAll(\PDO::FETCH_NUM);
+			$res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 			if (is_array($res) && count($res) > 0) {
 				return $res;
 
