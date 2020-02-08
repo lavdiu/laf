@@ -617,7 +617,7 @@ class PhpGrid
 	});
 </script>
 <div class='table-responsive' style='position:relative'>
-	<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm'  style='margin-bottom:0;'>
+	<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
 		<thead id='{$gridName}_thead' class='thead-light'>
 			<tr>
 				<th style='text-align: left'  id='{$gridName}_title'></th>
