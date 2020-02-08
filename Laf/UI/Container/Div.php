@@ -6,9 +6,21 @@ namespace Laf\UI\Container;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Traits\ComponentTrait;
 
-class GenericContainer implements ComponentInterface
+class Div implements ComponentInterface
 {
 	use ComponentTrait;
+
+	/**
+	 * Div constructor.
+	 * @param array $classes use array values as classes
+	 * @param array $style use key-> value pair for styles example ['border':'solid 1px red']
+	 */
+	function __construct(array $classes = [], array $style = [])
+	{
+		$this->setCssClasses($classes);
+		$this->setCssStyles($style);
+	}
+
 
 	/**
 	 * @return string
