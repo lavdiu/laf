@@ -148,7 +148,7 @@ class Text implements FormElementInterface, ComponentInterface
 	 */
 	protected function drawInsertMode()
 	{
-		$this->setValue('');
+		#$this->setValue('');
 		return static::drawUpdateMode();
 	}
 
