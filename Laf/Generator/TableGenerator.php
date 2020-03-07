@@ -88,7 +88,9 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 		parent::__construct(\$id);
 		\$this->buildClass();
 		\$this->setRecordId(\$id);
-		if (is_numeric(\$id)) {
+		if (is_numeric(\$id) && in_array(\$this->getTable()->getPrimaryKey()->getFirstField()->getType(), [Database\Field\FieldType::TYPE_BIG_INTEGER, Database\Field\FieldType::TYPE_INTEGER])) {
+			self::select(\$id);
+		} else if (\$id != '') {
 			self::select(\$id);
 		}
 	}
