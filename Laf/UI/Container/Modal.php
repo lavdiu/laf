@@ -273,7 +273,7 @@ class Modal implements ComponentInterface
 				{$components}	
 				</div>
 				<div class='modal-footer'>
-					<button type='button' class='btn btn-secondary' data-dismiss='modal'>{$this->getCancelLabel()}</button>
+					<button type='button' class='btn btn-outline-secondary' data-dismiss='modal'>{$this->getCancelLabel()}</button>
 					{$footerButtons}
 				</div>
 				{$formEndTag}
@@ -297,7 +297,7 @@ class Modal implements ComponentInterface
 			->addAttribute('data-toggle', 'modal')
 			->addAttribute('data-target', '#' . $this->getId())
 			->addCssClass('btn')
-			->addCssClass('btn-outline-primary')
+			->addCssClass('btn-outline-secondary')
 			->addAttribute('href', 'javascript:;');
 		return $btn;
 	}
