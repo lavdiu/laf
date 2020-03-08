@@ -6,7 +6,6 @@ namespace Laf\UI\Container;
 
 use Laf\UI\Component\Link;
 use Laf\UI\ComponentInterface;
-use Laf\UI\Form\Control\Button;
 use Laf\UI\Traits\ComponentTrait;
 
 class Modal implements ComponentInterface
@@ -288,16 +287,17 @@ class Modal implements ComponentInterface
 	/**
 	 * Returns a button ready to open the modal
 	 * @param string $label
+	 * @param $cssClasses string classes to o assign to the button
 	 * @return Link
 	 */
-	public function getModalOpenbutton(string $label = "Open Modal"): Link
+	public function getModalOpenbutton(string $label = "Open Modal", string $cssClasses = 'btn btn-outline-secondary btn-ms'): Link
 	{
 		$btn = new Link();
 		$btn->setValue('Open Modal')
 			->addAttribute('data-toggle', 'modal')
 			->addAttribute('data-target', '#' . $this->getId())
-			->addCssClass('btn')
-			->addCssClass('btn-outline-secondary')
+			->addCssClass($cssClasses)
+			->setCssClasses('')
 			->addAttribute('href', 'javascript:;');
 		return $btn;
 	}
