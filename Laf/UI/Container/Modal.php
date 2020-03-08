@@ -6,6 +6,7 @@ namespace Laf\UI\Container;
 
 use Laf\UI\Component\Link;
 use Laf\UI\ComponentInterface;
+use Laf\UI\Form\Control\Button;
 use Laf\UI\Traits\ComponentTrait;
 
 class Modal implements ComponentInterface
@@ -254,12 +255,12 @@ class Modal implements ComponentInterface
 
 
 		$html = "
-	<div class='modal' tabindex='-1' role='dialog'>
+	<div class='modal fade' id='{$this->getId()}' tabindex='-1' role='dialog' aria-labelledby='{$this->getId()}Label' aria-hidden='true'>
 		<div class='modal-dialog bd-example-modal-lg' role='document'>
 			<div class='modal-content'>
 				{$formStartTag}
 				<div class='modal-header'>
-					<h5 class='modal-title'>{$this->getTitle()}</h5>
+					<h5 class='modal-title' id='{$this->getId()}Label}'>{$this->getTitle()}</h5>
 					<button type='button' class='close' data-dismiss='modal' aria-label='Close'><span aria-hidden='true'>&times;</span></button>
 				</div>
 				<div class='modal-body'>
@@ -276,6 +277,23 @@ class Modal implements ComponentInterface
 ";
 		return $html;
 
+	}
+
+	/**
+	 * Returns a button ready to open the modal
+	 * @param string $label
+	 * @return Link
+	 */
+	public function getModalOpenbutton(string $label = "Open Modal"): Link
+	{
+		$btn = new Link();
+		$btn->setValue('Open Modal')
+			->addAttribute('data-toggle', 'modal')
+			->addAttribute('data-target', '#' . $this->getId())
+			->addCssClass('btn')
+			->addCssClass('btn-outline-primary')
+			->addAttribute('href', 'javascript:;');
+		return $btn;
 	}
 
 	/**
