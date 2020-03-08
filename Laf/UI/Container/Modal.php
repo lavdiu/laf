@@ -290,7 +290,7 @@ class Modal implements ComponentInterface
 	 * @param $cssClasses string classes to o assign to the button
 	 * @return Link
 	 */
-	public function getModalOpenbutton(string $label = "Open Modal", string $cssClasses = 'btn btn-outline-secondary btn-ms'): Link
+	public function getModalOpenbutton(string $label = "Open Modal", string $cssClasses = 'btn btn-outline-secondary btn-sm'): Link
 	{
 		$btn = new Link();
 		$btn->setValue('Open Modal')
