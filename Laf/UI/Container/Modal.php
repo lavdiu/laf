@@ -296,8 +296,7 @@ class Modal implements ComponentInterface
 		$btn->setValue('Open Modal')
 			->addAttribute('data-toggle', 'modal')
 			->addAttribute('data-target', '#' . $this->getId())
-			->addCssClass(explode(' ', $cssClasses))
-			->setCssClasses('')
+			->setCssClasses(explode(' ', $cssClasses))
 			->addAttribute('href', 'javascript:;');
 		return $btn;
 	}
