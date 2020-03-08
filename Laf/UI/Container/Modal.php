@@ -262,8 +262,8 @@ class Modal implements ComponentInterface
 
 		$html = "
 	<div class='modal fade' id='{$this->getId()}' tabindex='-1' role='dialog' aria-labelledby='{$this->getId()}Label' aria-hidden='true'>
-		<div class='modal-dialog' role='document'>
-			<div class='modal-content {$this->getSize()}'>
+		<div class='modal-dialog {$this->getSize()}' role='document'>
+			<div class='modal-content'>
 				{$formStartTag}
 				<div class='modal-header'>
 					<h5 class='modal-title' id='{$this->getId()}Label}'>{$this->getTitle()}</h5>
