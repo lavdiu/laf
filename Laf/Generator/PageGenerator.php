@@ -124,7 +124,7 @@ switch (UrlParser::getAction()) {
 	default:
 		\$table = \${$instanceName}->getListAllSimpleTableObject();
 		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
-		\$table->setRowsPerPage(10);
+		\$table->setRowsPerPage(\$_GET['rows_per_page']??20);
 		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$table->setRowsPerPage(\$_GET['rows_per_page']??20);
 		\$table->setCurrentPage(\$_GET['page']??1);
