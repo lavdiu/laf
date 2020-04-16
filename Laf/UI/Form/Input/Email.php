@@ -1,9 +1,11 @@
 <?php
 
-namespace Laf\UI\Form;
+namespace Laf\UI\Form\Input;
+
 
 use Laf\UI\ComponentInterface;
-use Laf\UI\Form\Input\Text;
+use Laf\UI\Form\FormElementInterface;
+use Laf\UI\Form\InputType;
 
 class Email extends Text implements FormElementInterface, ComponentInterface
 {

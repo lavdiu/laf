@@ -1,10 +1,11 @@
 <?php
 
-namespace Laf\UI\Form;
+namespace Laf\UI\Form\Input;
 
 
 use Laf\UI\ComponentInterface;
-use Laf\UI\Form\Input\Text;
+use Laf\UI\Form\FormElementInterface;
+use Laf\UI\Form\InputType;
 
 class Color extends Text implements FormElementInterface, ComponentInterface
 {
@@ -14,12 +15,12 @@ class Color extends Text implements FormElementInterface, ComponentInterface
         return parent::drawUpdateMode();
     }
 
-	/**
-	 * Returns the CSS class unique to the UI component
-	 * @return string
-	 */
-	public function getComponentCssControlClass(): string
-	{
-		return str_replace('\\', '-', static::class);
-	}
+    /**
+     * Returns the CSS class unique to the UI component
+     * @return string
+     */
+    public function getComponentCssControlClass(): string
+    {
+        return str_replace('\\', '-', static::class);
+    }
 }

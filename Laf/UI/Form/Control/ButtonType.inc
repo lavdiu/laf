@@ -1,11 +1,12 @@
 <?php
 
-namespace Laf\UI\Form;
+namespace Laf\UI\Form\Control;
 
 class ButtonType
 {
-	const Button = 'button';
-	const Reset = 'reset';
-	const Submit = 'submit';
+    const Button = 'button';
+    const Reset = 'reset';
+    const Submit = 'submit';
 
 }
+
