@@ -251,7 +251,7 @@ class Field
 	{
 		if ($this->type->isValid($value)) {
 			$tmpVal = $this->sanitize($value);
-			if ($this->value != $tmpVal) {
+			if ($this->value !== $tmpVal) {
 				$this->value = $tmpVal;
 				$this->setUpdatedOnTs();
 			}
