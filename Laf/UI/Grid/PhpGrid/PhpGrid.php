@@ -76,6 +76,12 @@ class PhpGrid
      * @var array
      */
     protected $filters = [];
+
+    /**
+     * @var array
+     */
+    protected $sortDetails = ['filed' => null, 'dir' => 'ASC'];
+
     /**
      * @var int
      */
@@ -134,6 +140,26 @@ class PhpGrid
         $this->grid_name = str_replace(' ', '_', $grid_name);
         return $this;
     }
+
+    /**
+     * @return array
+     */
+    public function getSortDetails(): array
+    {
+        return $this->sortDetails;
+    }
+
+    /**
+     * @param string $field
+     * @param string $direction
+     * @return $this
+     */
+    public function setSortDetails(string $field, string $direction): PhpGrid
+    {
+        $this->sortDetails = ['filed' => $field, 'dir' => $direction];
+        return $this;
+    }
+
 
     /**
      * @return null
@@ -505,8 +531,10 @@ class PhpGrid
     {
         $filters = $this->filters;
         $page = 0;
-        $sort = $this->getFirstColumnName();
-        $dir = 'ASC';
+        if ($this->getSortDetails()['field'] == '') {
+            $this->setSortDetails($this->getFirstColumnName(), 'DESC');
+        }
+
         if ($this->getRowsPerPage() == 0) {
             $this->setRowsPerPage(10);
         }
@@ -527,11 +555,11 @@ class PhpGrid
         }
 
         if (isset($filters['sort']) && $this->hasColumn($filters['sort'])) {
-            $sort = $filters['sort'];
+            $this->sortDetails['field'] = $filters['sort'];
         }
 
         if (isset($filters['dir']) && in_array(strtolower($filters['dir']), ['asc', 'desc'])) {
-            $dir = $filters['dir'];
+            $this->sortDetails['dir'] = $filters['dir'];
         }
 
         if (isset($filters['searchParams'])) {
@@ -559,7 +587,7 @@ class PhpGrid
 
         $start = $page * $this->getRowsPerPage();
 
-        $sqlOrderBy = " ORDER BY `$sort` $dir \n";
+        $sqlOrderBy = " ORDER BY `{$this->sortDetails['field']}` {$this->sortDetails['dir']} \n";
 
         $sqlLimit = "";
         if ($this->getRowsPerPage() > 0 && !$getAllRows) {
@@ -1013,4 +1041,12 @@ class PhpGrid
         }
     }
 
+    /**
+     * Checks if the request has necessary params to handle json requests
+     * @return bool
+     */
+    public function isReadyToHandleRequests()
+    {
+        return array_key_exists('load_grid_by_name', $this->getFilters());
+    }
 }
