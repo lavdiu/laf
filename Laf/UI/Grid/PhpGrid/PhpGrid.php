@@ -15,6 +15,7 @@ use Laf\UI\Grid\PhpGrid\Column;
 use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Font;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Exception;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class PhpGrid
@@ -89,6 +90,11 @@ class PhpGrid
      * @var string
      */
     protected $errorMessage = "";
+
+    /**
+     * @var bool
+     */
+    protected $allowExport = true;
 
 
     /**
@@ -402,6 +408,24 @@ class PhpGrid
     }
 
     /**
+     * @param bool $allowExport
+     * @return $this
+     */
+    public function allowExport(bool $allowExport = true): PhpGrid
+    {
+        $this->allowExport = $allowExport;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isAllowExport(): bool
+    {
+        return $this->allowExport;
+    }
+
+    /**
      * @return int
      */
     public function getRowsPerPage(): int
@@ -678,7 +702,7 @@ class PhpGrid
      * @throws IOException
      * @throws WriterNotOpenedException
      * @throws \PhpOffice\PhpSpreadsheet\Exception
-     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception
+     * @throws Exception
      */
     public function bootstrap()
     {
@@ -696,7 +720,7 @@ class PhpGrid
     /**
      * Export data to Excel using Spreadsheet
      * @throws \PhpOffice\PhpSpreadsheet\Exception
-     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception
+     * @throws Exception
      */
     public function exportToExcelPhpExcel()
     {
@@ -834,6 +858,7 @@ class PhpGrid
                 'message' => $this->getErrorMessage(),
                 'pageCount' => $this->getPageCount(),
                 'rowsPerPage' => $this->getRowsPerPage(),
+                'allowExport' => $this->getAllowExport(),
                 'rowCount' => $this->getRowCount(),
                 'user_query' => $sql = (isLive() ? null : $this->getSqlQuery()),
                 'generated_query' => $sql = (isLive() ? null : $this->getGeneratedSqlQuery()),
