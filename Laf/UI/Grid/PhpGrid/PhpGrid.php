@@ -421,10 +421,10 @@ class PhpGrid
     /**
      * Reads the columns field in the db record object
      * and sets up column settings in $columns property
-     * @param Grid $dbObject
+     * @param BaseObject $dbObject
      * @throws \Exception
      */
-    public function loadConfigFromObject(Grid $dbObject): void
+    public function loadConfigFromObject(BaseObject $dbObject): void
     {
         $json = $dbObject->getColumnListVal();
         if (!Util::isJson($json)) {
