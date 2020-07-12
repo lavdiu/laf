@@ -63,9 +63,9 @@ class PhpGrid
     protected $generated_sql_count_query = null;
 
     /**
-     * @var array
+     * @var ActionButton[]
      */
-    protected $settings = [];
+    protected $actionButtons = [];
 
     /**
      * @var int
@@ -280,6 +280,34 @@ class PhpGrid
         return $this;
     }
 
+    /**
+     * @return ActionButton[]
+     */
+    public function getActionButtons(): array
+    {
+        return $this->actionButtons;
+    }
+
+    /**
+     * @param ActionButton[] $actionButtons
+     * @return PhpGrid
+     */
+    public function setActionButtons(array $actionButtons): PhpGrid
+    {
+        $this->actionButtons = $actionButtons;
+        return $this;
+    }
+
+    /**
+     * @param ActionButton $button
+     * @return PhpGrid
+     */
+    public function addActionButton(ActionButton $button): PhpGrid
+    {
+        $this->actionButtons[] = $button;
+        return this;
+    }
+
 
     /**
      * @param Column $column
@@ -373,24 +401,6 @@ class PhpGrid
     public function setErrorMessage(string $errorMessage): PhpGrid
     {
         $this->errorMessage = $errorMessage;
-        return $this;
-    }
-
-    /**
-     * @return array
-     */
-    public function getSettings(): array
-    {
-        return $this->settings;
-    }
-
-    /**
-     * @param array $settings
-     * @return PhpGrid
-     */
-    public function setSettings(array $settings): PhpGrid
-    {
-        $this->settings = $settings;
         return $this;
     }
 
@@ -489,7 +499,7 @@ class PhpGrid
             $this->addColumn(Column::createFromAssocArray($c));
         }
         $this->setGridName($dbObject->getGridNameVal());
-        $this->setSettings(json_decode($dbObject->getSettingsVal(), true));
+        $this->setActionButtons(json_decode($dbObject->getActionButtonsVal()));
         $this->setTitle($dbObject->getTitleVal());
         $this->setSqlQuery($dbObject->getSqlQueryVal());
         $this->setRowsPerPage($dbObject->getRowsPerPageVal());
@@ -859,7 +869,7 @@ class PhpGrid
                 'title' => $this->getTitle(),
                 'columns' => $this->getColumnsList(),
                 'columnCount' => $this->getColumnsCount(),
-                'settings' => $this->getSettings(),
+                'actionButtons' => $this->getActionButtons(),
                 'message' => $this->getErrorMessage(),
                 'pageCount' => $this->getPageCount(),
                 'rowsPerPage' => $this->getRowsPerPage(),

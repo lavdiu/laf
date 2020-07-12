@@ -9,15 +9,17 @@ class ActionButton
     /**
      * @var string
      */
-    protected $label = null;
+    public $label = null;
+
     /**
      * @var string
      */
-    protected $href = null;
+    public $href = null;
+
     /**
      * @var string
      */
-    protected $icon = null;
+    public $icon = null;
 
     /**
      * ActionButton constructor.
@@ -31,7 +33,6 @@ class ActionButton
         $this->href = $href;
         $this->icon = $icon;
     }
-
 
     /**
      * @return string
