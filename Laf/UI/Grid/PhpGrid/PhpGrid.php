@@ -943,10 +943,10 @@ class PhpGrid
 		<thead id='{$gridName}_thead' class='thead-light'>
 			<tr>
 				<th style='text-align: left'  id='{$gridName}_title'></th>
-				<th style='text-align: right'  id='{$gridName}_buttons'></th>
+				<th style='text-align: right' id='{$gridName}_buttons'></th>
 			</tr>
 			<tr></tr>
-			<tr></tr>
+			<tr class='d-print-none'></tr>
 		</thead>
 		<tbody id='{$gridName}_tbody'>
 		</tbody>

@@ -360,6 +360,7 @@ class Grid {
             btnGroup.appendChild(mainBtn);
             btnGroup.appendChild(dropdownToggleButton);
             btnGroup.appendChild(dropdownMenu);
+            btnGroup.classList.add('d-print-none');
             this.contentGridButtons.appendChild(btnGroup);
         }
     }
