@@ -411,7 +411,7 @@ class PhpGrid
      * @param bool $allowExport
      * @return $this
      */
-    public function allowExport(bool $allowExport = true): PhpGrid
+    public function setAllowExport(bool $allowExport = true): PhpGrid
     {
         $this->allowExport = $allowExport;
         return $this;
@@ -420,7 +420,7 @@ class PhpGrid
     /**
      * @return bool
      */
-    public function isAllowExport(): bool
+    public function getAllowExport(): bool
     {
         return $this->allowExport;
     }
