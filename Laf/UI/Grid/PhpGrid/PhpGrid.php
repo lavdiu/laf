@@ -315,7 +315,7 @@ class PhpGrid
      * @param int $rowCount
      * @return PhpGrid
      */
-    public function setRowCount(int $rowCount): PhpGrid
+    private function setRowCount(int $rowCount): PhpGrid
     {
         $this->row_count = $rowCount;
         $this->calculatePageCount();

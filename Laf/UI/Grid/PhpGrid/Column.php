@@ -19,15 +19,42 @@ class Column
     public $innerElementAttributes = "";
     public $outerElementAttributes = "";
 
-
     /**
      * Column constructor.
-     * @param string|null $fieldName
+     * @param int $index
+     * @param string $fieldName
+     * @param string $label
+     * @param string $format
+     * @param string $href
+     * @param string $target
+     * @param string $innerElementCssStyle
+     * @param string $innerElementCssClass
+     * @param string $outerElementCssStyle
+     * @param string $outerElementCssClass
+     * @param bool $visible
+     * @param bool $exportable
+     * @param string $innerElementAttributes
+     * @param string $outerElementAttributes
      */
-    public function __construct(?string $fieldName)
+    public function __construct(?string $fieldName = null, ?string $label = null, ?string $format = null, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, bool $visible = true, bool $exportable = true, string $innerElementAttributes = null, string $outerElementAttributes = null)
     {
         $this->fieldName = $fieldName;
+        $this->label = $label;
+        $this->format = $format;
+        $this->href = $href;
+        $this->target = $target;
+        $this->innerElementCssStyle = $innerElementCssStyle;
+        $this->innerElementCssClass = $innerElementCssClass;
+        $this->outerElementCssStyle = $outerElementCssStyle;
+        $this->outerElementCssClass = $outerElementCssClass;
+        $this->visible = $visible;
+        $this->exportable = $exportable;
+        $this->innerElementAttributes = $innerElementAttributes;
+        $this->outerElementAttributes = $outerElementAttributes;
     }
+
+
+
 
 
     /**
