@@ -296,7 +296,7 @@ class PhpGrid
     public function addActionButton(ActionButton $button): PhpGrid
     {
         $this->actionButtons[] = $button;
-        return this;
+        return $this;
     }
 
 
