@@ -9,6 +9,7 @@ use Box\Spout\Writer\Common\Creator\Style\BorderBuilder;
 use Box\Spout\Writer\Common\Creator\Style\StyleBuilder;
 use Laf\Database\BaseObject;
 use Laf\Database\Db;
+use Laf\UI\ComponentInterface;
 use Laf\Util\Util;
 use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Font;
@@ -600,7 +601,7 @@ class PhpGrid
 	}
 
 	public
-	function draw()
+	function draw(): string
 	{
 		$gridName = $this->getGridInstance()->getGridNameVal();
 		$header = "";
@@ -610,6 +611,7 @@ class PhpGrid
 
 		$html =
 			"
+<!-- drawing grid -->
 <script type='text/javascript'>
 	grid['{$gridName}'] = new Grid('{$gridName}');
 	\$(document).ready(function () {
@@ -666,6 +668,7 @@ class PhpGrid
 		<div class='fa-5x'><i class='fas fa-spinner fa-spin' style='color:#000000;'></i></div>
 	</div>
 </div>
+<!-- endof drawing grid -->
 ";
 		return $html;
 	}
