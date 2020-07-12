@@ -156,7 +156,7 @@ class PhpGrid
      */
     public function setSortDetails(string $field, string $direction): PhpGrid
     {
-        $this->sortDetails = ['filed' => $field, 'dir' => $direction];
+        $this->sortDetails = ['field' => $field, 'dir' => $direction];
         return $this;
     }
 
