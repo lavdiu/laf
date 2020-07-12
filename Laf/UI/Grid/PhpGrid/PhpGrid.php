@@ -11,11 +11,11 @@ use Box\Spout\Writer\Exception\WriterNotOpenedException;
 use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Util\Util;
+use Laf\UI\Grid\PhpGrid\Column;
 use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Font;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Laf\UI\Grid\PhpGrid\Column;
 
 class PhpGrid
 {
@@ -78,10 +78,6 @@ class PhpGrid
      * @var int
      */
     protected $page_count = 0;
-    /**
-     * @var array
-     */
-    protected $columnMetaData = [];
 
     /**
      * results will be stored here
@@ -105,7 +101,6 @@ class PhpGrid
 
     /**
      * PhpGrid constructor.
-     * @param BaseObject|null $gridInstance
      * @param array $params_list
      * @param array $filters
      * @throws \Exception
@@ -211,38 +206,63 @@ class PhpGrid
         return $this;
     }
 
+    /**
+     * @param array $filters
+     * @return $this
+     */
     public function setFilters(array $filters = []): PhpGrid
     {
         $this->filters = $filters;
         return $this;
     }
 
+    /**
+     * @return array
+     */
     public function getFilters(): array
     {
         return $this->filters;
     }
 
+    /**
+     * @return int
+     */
     public function getFiltersCount(): int
     {
         return count($this->getFilters());
     }
 
+    /**
+     * @return bool
+     */
     public function hasFilters(): bool
     {
         return $this->getFiltersCount() > 0;
     }
 
+    /**
+     * @param array $params_list
+     * @return $this
+     */
     public function setParamsList(array $params_list = []): PhpGrid
     {
         $this->params_list = $params_list;
         return $this;
     }
 
+    /**
+     * @return array
+     */
     public function getParamsList(): array
     {
         return $this->params_list;
     }
 
+    /**
+     * @param string $key
+     * @param string $value
+     * @return $this
+     */
     public function addParam(string $key, string $value): PhpGrid
     {
         $this->params_list[$key] = $value;
@@ -250,10 +270,15 @@ class PhpGrid
     }
 
 
-    public function addColumn(Column $column)
+    /**
+     * @param Column $column
+     * @return $this
+     */
+    public function addColumn(Column $column): PhpGrid
     {
         $column->setIndex($this->getColumnsCount());
         $this->column_list[$column->getFieldName()] = $column;
+        return $this;
     }
 
     /**
