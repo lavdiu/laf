@@ -1,6 +1,5 @@
 <?php
 
-
 namespace Laf\UI\Grid\PhpGrid;
 
 use Box\Spout\Common\Entity\Style\Border;
@@ -20,11 +19,24 @@ use Laf\UI\Grid\PhpGrid\Column;
 
 class PhpGrid
 {
-    #from db
+    /**
+     * @var string
+     */
     protected $grid_name = "";
+
+    /**
+     * @var string
+     */
     protected $title = "";
+
+    /**
+     * @var array
+     */
     protected $params_list = [];
-    protected $expected_param_count = 0;
+
+    /**
+     * @var array
+     */
     protected $column_list = [];
 
     /**
@@ -43,18 +55,44 @@ class PhpGrid
      * @var string
      */
     protected $generated_sql_count_query = null;
-    protected $settings = null;
+
+    /**
+     * @var array
+     */
+    protected $settings = [];
+
+    /**
+     * @var int
+     */
     protected $rows_per_page = 10;
 
-    #class settings
+    /**
+     * @var array
+     */
     protected $filters = [];
+    /**
+     * @var int
+     */
     protected $row_count = 0;
+    /**
+     * @var int
+     */
     protected $page_count = 0;
+    /**
+     * @var array
+     */
     protected $columnMetaData = [];
 
+    /**
+     * results will be stored here
+     * @var array
+     */
     protected $data = [];
+
+    /**
+     * @var string
+     */
     protected $errorMessage = "";
-    protected $_json_value = null;
 
 
     /**
@@ -73,11 +111,12 @@ class PhpGrid
      * @throws \Exception
      */
 
-    public function __construct(?BaseObject $gridInstance = null, array $params_list = [], array $filters = [])
+    public function __construct(array $params_list = [], array $filters = [])
     {
-        $this->setGridInstance($gridInstance);
-        $this->filters = $filters;
-        $this->loadColumnsFromConfiguration();
+        $this->setFilters($filters);
+        if (!$this->hasFilters()) {
+            $this->setFilters($_GET);
+        }
         $this->setParamsList($params_list);
     }
 
@@ -183,6 +222,16 @@ class PhpGrid
         return $this->filters;
     }
 
+    public function getFiltersCount(): int
+    {
+        return count($this->getFilters());
+    }
+
+    public function hasFilters(): bool
+    {
+        return $this->getFiltersCount() > 0;
+    }
+
     public function setParamsList(array $params_list = []): PhpGrid
     {
         $this->params_list = $params_list;
@@ -224,6 +273,15 @@ class PhpGrid
     }
 
     /**
+     * @return string
+     */
+    public function getFirstColumnName(): string
+    {
+        $cols = array_keys($this->getColumnsList());
+        return array_pop($cols);
+    }
+
+    /**
      * @param string $field_name
      * @return bool
      */
@@ -232,6 +290,10 @@ class PhpGrid
         return array_key_exists($field_name, $this->column_list);
     }
 
+    /**
+     * @param string $fieldName
+     * @return \Laf\UI\Grid\PhpGrid\Column|null
+     */
     public function getColumn(string $fieldName): ?Column
     {
         if (array_key_exists($fieldName, $this->column_list)) {
@@ -261,27 +323,39 @@ class PhpGrid
     }
 
     /**
-     * Looks at the amount of rows returned and
-     * rows per page to display
-     * then calculates the amount of pages it needs to list
-     * and stores it in pageCount
+     * @return string
      */
-    private function calculatePageCount(): void
+    public function getErrorMessage(): string
     {
-        $rowsPerPage = $this->getRowsPerPage();
-        if ($rowsPerPage == 0) {
-            $this->setPageCount(1);
-        } else {
-            $rowCount = $this->getRowCount();
-            if (!is_numeric($rowsPerPage) || $rowsPerPage == 0) {
-                $rowsPerPage = 10;
-            }
+        return $this->errorMessage;
+    }
 
-            $pages = $rowCount / $rowsPerPage;
-            $pages = (int)$pages;
-            $pages++;
-            $this->setPageCount($pages);
-        }
+    /**
+     * @param string $errorMessage
+     * @return PhpGrid
+     */
+    public function setErrorMessage(string $errorMessage): PhpGrid
+    {
+        $this->errorMessage = $errorMessage;
+        return $this;
+    }
+
+    /**
+     * @return array
+     */
+    public function getSettings(): array
+    {
+        return $this->settings;
+    }
+
+    /**
+     * @param array $settings
+     * @return PhpGrid
+     */
+    public function setSettings(array $settings): PhpGrid
+    {
+        $this->settings = $settings;
+        return $this;
     }
 
     /**
@@ -321,12 +395,36 @@ class PhpGrid
     }
 
     /**
+     * Looks at the amount of rows returned and
+     * rows per page to display
+     * then calculates the amount of pages it needs to list
+     * and stores it in pageCount
+     */
+    private function calculatePageCount(): void
+    {
+        $rowsPerPage = $this->getRowsPerPage();
+        if ($rowsPerPage == 0) {
+            $this->setPageCount(1);
+        } else {
+            $rowCount = $this->getRowCount();
+            if (!is_numeric($rowsPerPage) || $rowsPerPage == 0) {
+                $rowsPerPage = 10;
+            }
+
+            $pages = $rowCount / $rowsPerPage;
+            $pages = (int)$pages;
+            $pages++;
+            $this->setPageCount($pages);
+        }
+    }
+
+    /**
      * Reads the columns field in the db record object
      * and sets up column settings in $columns property
-     * @param BaseObject $dbObject
+     * @param Grid $dbObject
      * @throws \Exception
      */
-    protected function loadColumnsFromDbObject(BaseObject $dbObject)
+    public function loadConfigFromObject(Grid $dbObject): void
     {
         $json = $dbObject->getColumnListVal();
         if (!Util::isJson($json)) {
@@ -336,6 +434,12 @@ class PhpGrid
         foreach ($jsonDecoded as $c) {
             $this->addColumn(Column::createFromAssocArray($c));
         }
+        $this->setGridName($dbObject->getGridNameVal());
+        $this->setSettings(json_decode($dbObject->getSettingsVal(), true));
+        $this->setTitle($dbObject->getTitleVal());
+        $this->setSqlQuery($dbObject->getSqlQueryVal());
+        $this->setRowsPerPage($dbObject->getRowsPerPageVal());
+        $this->setParamsList(Util::coalesce(json_decode($dbObject->getParamsListVal(), true), []));
     }
 
 
@@ -346,7 +450,7 @@ class PhpGrid
     {
         $filters = $this->filters;
         $page = 0;
-        $sort = array_keys($this->getColumnsList())[0];
+        $sort = $this->getFirstColumnName();
         $dir = 'ASC';
         if ($this->getRowsPerPage() == 0) {
             $this->setRowsPerPage(10);
@@ -400,8 +504,7 @@ class PhpGrid
 
         $start = $page * $this->getRowsPerPage();
 
-
-        $sqlWhere .= " ORDER BY `$sort` $dir \n";
+        $sqlOrderBy = " ORDER BY `$sort` $dir \n";
 
         $sqlLimit = "";
         if ($this->getRowsPerPage() > 0 && !$getAllRows) {
@@ -416,6 +519,7 @@ class PhpGrid
                 {$this->getSqlQuery()}
             ) {$this->getGridName()} 
             {$sqlWhere}
+            {$sqlOrderBy}
             {$sqlLimit}
             "
         );
@@ -425,9 +529,13 @@ class PhpGrid
             SELECT 
                 COUNT(*) as total_number_of_rows 
             FROM (
-                {$this->getSqlQuery()}
-            ) {$this->getGridName()} 
-            {$sqlWhere}
+                SELECT 
+                " . $this->getFirstColumnName() . " 
+                FROM (
+                    {$this->getSqlQuery()}
+                ) {$this->getGridName()} 
+                {$sqlWhere}
+            ) {$this->getGridName()}_count
         "
         );
 
@@ -516,7 +624,8 @@ class PhpGrid
 
             for ($i = 0; $i < $stmt->columnCount(); $i++) {
                 $tmp = $stmt->getColumnMeta($i);
-                $this->columnMetaData[$tmp['name']] = $tmp['native_type'];
+                $this->getColumn($tmp['name'])->setFormat($this->convertNativeDataTypeToString($tmp['native_type']));
+                $this->setRowCount(count($this->data));
             }
 
             if (!is_array($this->data)) {
@@ -603,7 +712,6 @@ class PhpGrid
             $_row++;
         }
 
-
         /**
          * Set auto width
          */
@@ -617,12 +725,10 @@ class PhpGrid
         $sheet->setSelectedCell('A1');
         $writer = new Xlsx($workbook);
 
-
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="' . $fileName . '"');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
-
 
         //log exec time
         //log peak memory
@@ -690,7 +796,7 @@ class PhpGrid
     {
         ob_clean();
         header('Content-Type: application/json');
-        if (count($this->data) < 1 || $this->_json_value == "" || $reload_results) {
+        if (count($this->data) < 1 || $reload_results) {
             $this->execute();
             $data = [
                 'success' => $this->getErrorMessage() == "",
@@ -705,14 +811,15 @@ class PhpGrid
                 'rowsPerPage' => $this->getRowsPerPage(),
                 'rowCount' => $this->getRowCount(),
                 'user_query' => $sql = (isLive() ? null : $this->getSqlQuery()),
-                'generated_query' => $sql = (isLive() ? null : $this->getSqlQuery()),
+                'generated_query' => $sql = (isLive() ? null : $this->getGeneratedSqlQuery()),
                 'generated_counter_query' => $sql = (isLive() ? null : $this->getGeneratedSqlCountQuery()),
                 'rows' => $this->data
             ];
-            $this->_json_value = json_encode($data);
+            echo json_encode($data);
 
+        } else {
+            echo [];
         }
-        echo $this->_json_value;
         ob_end_flush();
         exit;
     }
@@ -720,40 +827,6 @@ class PhpGrid
     /**
      * @return string
      */
-    public function getErrorMessage(): string
-    {
-        return $this->errorMessage;
-    }
-
-    /**
-     * @param string $errorMessage
-     * @return PhpGrid
-     */
-    public function setErrorMessage(string $errorMessage): PhpGrid
-    {
-        $this->errorMessage = $errorMessage;
-        return $this;
-    }
-
-    /**
-     * @return array
-     */
-    public function getSettings(): array
-    {
-        return $this->settings;
-    }
-
-    /**
-     * @param array $settings
-     * @return PhpGrid
-     */
-    public function setSettings(array $settings): PhpGrid
-    {
-        $this->settings = $settings;
-        return $this;
-    }
-
-
     public function draw(): string
     {
         $gridName = $this->getGridName();
@@ -784,7 +857,6 @@ class PhpGrid
 		</tbody>
 		<tfoot>
 		</tfoot>
-			
 	</table>
 	
 	<div>
@@ -792,14 +864,12 @@ class PhpGrid
 			<div id='{$gridName}_paginationInfoSection' class='m-0 py-2 small'></div>
 			<div class='row m-0 py-2'>
 				<span class='dropdown'>
-				  <button title='Choose how many rows to show per page' class='btn btn-outline-primary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
+				  <button title='Choose how many rows to show per page' class='btn btn-outline-secondary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
 				  <span class='dropdown-menu text-right' aria-labelledby='{$gridName}_pagesPerRowSelector'>
-				    <span class='dropdown-item'>Rows to display</span>
-				        <div class='dropdown-divider'></div>
 				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(10);\">10</a>
 				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(50);\">50</a>
 				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(100);\">100</a>
-				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(1000);\">1000</a>
+				    <!-- <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(1000);\">1000</a> -->
 				    <!-- <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(0);\">All</a> -->
 				  </span>
 				</span>
@@ -809,8 +879,8 @@ class PhpGrid
 						<li class='page-item'><a id='{$gridName}_paginationFirstPage' href='javascript:;' class='page-link' title='First Page'><i class='fa fa-angle-double-left'></i></a></li>
 						<li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
 						<li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
-						<li class='page-item '><a  id='{$gridName}_paginationNextPage'href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
-						<li class='page-item'><a id='{$gridName}_paginationLastPage'href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
+						<li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
+						<li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
 					</ul>
 				</nav>
 			</div>
@@ -858,12 +928,12 @@ class PhpGrid
             case "FLOAT":
             case "DOUBLE":
             case "NEWDECIMAL":
-                return 'integer';
+                return 'float';
             case "integer":
             case "INTEGER":
             case "LONG":
             case "TINY":
-                return 'float';
+                return 'integer';
             case 'DATE':
                 return 'date';
             case 'TIME':
@@ -873,9 +943,7 @@ class PhpGrid
             case 'VAR_STRING':
             default:
                 return "string";
-
         }
     }
-
 
 }

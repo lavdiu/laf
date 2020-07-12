@@ -1,8 +1,6 @@
 <?php
 
-
 namespace Laf\UI\Grid\PhpGrid;
-
 
 class Column
 {
@@ -11,6 +9,7 @@ class Column
     public $label = "";
     public $format = "";
     public $href = "";
+    public $target = "";
     public $innerElementCssStyle = "";
     public $innerElementCssClass = "";
     public $outerElementCssStyle = "";
@@ -45,7 +44,7 @@ class Column
     public static function createFromJsonString(string $json_string)
     {
         $settings = json_decode($json_string, true);
-        $object = new self();
+        $object = new self($settings['fieldName']);
 
         foreach ($settings as $_property => $_value) {
             $object->setPropertyValue($_property, $_value);
@@ -59,7 +58,7 @@ class Column
      */
     public static function createFromAssocArray(array $settings)
     {
-        $object = new self();
+        $object = new self($settings['fieldName']);
         foreach ($settings as $_property => $_value) {
             $object->setPropertyValue($_property, $_value);
         }
@@ -144,6 +143,25 @@ class Column
         $this->href = $href;
         return $this;
     }
+
+    /**
+     * @return string
+     */
+    public function getTarget(): string
+    {
+        return $this->target;
+    }
+
+    /**
+     * @param string $target
+     * @return Column
+     */
+    public function setTarget(string $target): Column
+    {
+        $this->target = $target;
+        return $this;
+    }
+
 
     /**
      * @return string
