@@ -80,7 +80,7 @@ class PhpGrid
     /**
      * @var array
      */
-    protected $sortDetails = ['filed' => null, 'dir' => 'ASC'];
+    protected $sortDetails = ['field' => null, 'dir' => 'ASC'];
 
     /**
      * @var int
@@ -359,7 +359,7 @@ class PhpGrid
     public function getFirstColumnName(): string
     {
         $cols = array_keys($this->getColumnsList());
-        return array_pop($cols);
+        return array_shift($cols);
     }
 
     /**
