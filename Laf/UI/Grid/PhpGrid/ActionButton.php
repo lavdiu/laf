@@ -3,7 +3,10 @@
 
 namespace Laf\UI\Grid\PhpGrid;
 
-
+/**
+ * Class ActionButton
+ * @package Laf\UI\Grid\PhpGrid
+ */
 class ActionButton
 {
     /**
@@ -23,11 +26,11 @@ class ActionButton
 
     /**
      * ActionButton constructor.
-     * @param string|null $label
-     * @param string|null $href
-     * @param string|null $icon
+     * @param string $label
+     * @param string $href
+     * @param string $icon
      */
-    public function __construct(?string $label, ?string $href, ?string $icon)
+    public function __construct(string $label, string $href, ?string $icon = null)
     {
         $this->label = $label;
         $this->href = $href;

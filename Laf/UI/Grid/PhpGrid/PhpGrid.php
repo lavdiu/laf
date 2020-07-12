@@ -101,15 +101,6 @@ class PhpGrid
      */
     protected $allowExport = true;
 
-
-    /**
-     *
-     * INSERT INTO `grid` (`id`, `grid_name`, `title`, `params_list`, `expected_params_count`, `sql_query`, `settings`, `rows_per_page`, `created_by`, `created_on`, `updated_by`, `updated_on`, `column_list`) VALUES
-     * (1, 'test', 'My First Grid', NULL, 0, 'SELECT  g.grupid as id , g.grupid as label , g.g_grandtotal as page_file , g.g_b as is_default , g.g_b as is_visible , FROM_UNIXTIME(g.g_dataregjistrimit, \'%Y-%m-%d\') as test FROM asm.grup g', '{\"actionButtons\":[{\"label\":\"Edit\",\"href\":\"?modulus=[modulus]&action=[action]&id={id}&edit=1\",\"icon\":null},{\"label\":\"Goog List\",\"href\":\"http://google.com\",\"icon\":\"fa fa-list\"}], \"allowExport\":true}', 10, NULL, NULL, NULL, NULL, '[{\"fieldName\":\"id\",\"label\":\"Id\",\"format\":\"text\",\"href\":\"?module=routing_table&action={label}&view={id}&\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"label\",\"label\":\"Label\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"color:red;\",\"innerElementCssClass\":\"badge\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"page_file\",\"label\":\"Page File\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"is_default\",\"label\":\"Is Default Page\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":false,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"is_visible\",\"label\":\"Is Visible Page\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"test\",\"label\":\"Date field\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"}]');
-    *
-     */
-
-
     /**
      * PhpGrid constructor.
      * @param array $params_list
@@ -499,7 +490,7 @@ class PhpGrid
             $this->addColumn(Column::createFromAssocArray($c));
         }
         $this->setGridName($dbObject->getGridNameVal());
-        $this->setActionButtons(json_decode($dbObject->getActionButtonsVal()));
+        $this->setActionButtons(json_decode($dbObject->getActionButtonsVal(), true));
         $this->setTitle($dbObject->getTitleVal());
         $this->setSqlQuery($dbObject->getSqlQueryVal());
         $this->setRowsPerPage($dbObject->getRowsPerPageVal());
@@ -739,6 +730,9 @@ class PhpGrid
      */
     public function exportToExcelPhpExcel()
     {
+        if (!$this->getAllowExport()) {
+            return null;
+        }
         ob_clean();
         $_column = 'A';
         $_row = 1;
@@ -806,6 +800,10 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
+        if (!$this->getAllowExport()) {
+            return null;
+        }
+
         $w = WriterEntityFactory::createXLSXWriter();
         $fileName = $this->getGridName() . date(' (Y-m-d H.i)');
         $w->openToBrowser($fileName);
@@ -847,6 +845,10 @@ class PhpGrid
 
     public function exportToCsv()
     {
+        if (!$this->getAllowExport()) {
+            return null;
+        }
+
 
     }
 
