@@ -18,6 +18,11 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Exception;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+
+/**
+ * Class PhpGrid
+ * @package Laf\UI\Grid\PhpGrid
+ */
 class PhpGrid
 {
     /**
