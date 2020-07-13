@@ -390,8 +390,9 @@ class Grid {
 
 
         var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
+        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate();
         var fileName = _data.name + ' (' + now + ')';
+        fileName = fileName.substring(1,30)
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
@@ -418,8 +419,9 @@ class Grid {
 
 
         var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
+        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate();
         var fileName = _data.name + ' (' + now + ')';
+        fileName = fileName.substring(1,30)
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
