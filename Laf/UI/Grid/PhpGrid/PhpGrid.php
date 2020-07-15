@@ -109,13 +109,15 @@ class PhpGrid
 
     /**
      * PhpGrid constructor.
+     * @param string $gridName
      * @param array $params_list
      * @param array $filters
      * @throws \Exception
      */
 
-    public function __construct(array $params_list = [], array $filters = [])
+    public function __construct(string $gridName = null, array $params_list = [], array $filters = [])
     {
+        $this->setGridName($gridName);
         $this->setFilters($filters);
         if (!$this->hasFilters()) {
             $this->setFilters($_GET);

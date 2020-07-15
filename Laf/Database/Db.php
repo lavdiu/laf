@@ -93,11 +93,11 @@ class Db
 	}
 
 	/**
-	 * Runs a query and returns the resultset
+	 * Runs a query and returns the result set
 	 * @param $sql
 	 * @return \PDOStatement
 	 */
-	public function query($sql): \PDOStatement
+	public function query($sql): ?\PDOStatement
 	{
 		if (!is_a($this->getConnection(), 'PDO')) {
 			return null;
@@ -366,7 +366,7 @@ class Db
 	 * @return string
 	 * @throws \Exception
 	 */
-	public static function getOne(string $sql, $params = [], $columnIndex = 0): string
+	public static function getOne(string $sql, $params = [], $columnIndex = 0): ?string
 	{
 		$db = self::getInstance();
 		$stmt = $db->prepare($sql);
