@@ -934,8 +934,9 @@ class PhpGrid
             "
 <script type='text/javascript'>
 	grid['{$gridName}'] = new Grid('{$gridName}');
+	window.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
 	\$(document).ready(function () {
-	     window.grid['{$gridName}'].initialize();   
+	     window.grid['{$gridName}'].initialize();
 	});
 </script>
 <div class='table-responsive' style='position:relative'>
