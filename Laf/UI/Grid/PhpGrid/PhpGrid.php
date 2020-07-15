@@ -115,7 +115,7 @@ class PhpGrid
      * @throws \Exception
      */
 
-    public function __construct(string $gridName = null, array $params_list = [], array $filters = [])
+    public function __construct(string $gridName, array $params_list = [], array $filters = [])
     {
         $this->setGridName($gridName);
         $this->setFilters($filters);
