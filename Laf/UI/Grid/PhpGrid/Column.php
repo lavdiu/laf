@@ -21,22 +21,20 @@ class Column
 
     /**
      * Column constructor.
-     * @param int $index
      * @param string $fieldName
      * @param string $label
-     * @param string $format
+     * @param bool $visible
+     * @param bool $exportable
      * @param string $href
      * @param string $target
      * @param string $innerElementCssStyle
      * @param string $innerElementCssClass
      * @param string $outerElementCssStyle
      * @param string $outerElementCssClass
-     * @param bool $visible
-     * @param bool $exportable
      * @param string $innerElementAttributes
      * @param string $outerElementAttributes
      */
-    public function __construct(?string $fieldName = null, ?string $label = null, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, bool $visible = true, bool $exportable = true, string $innerElementAttributes = null, string $outerElementAttributes = null)
+    public function __construct(?string $fieldName = null, ?string $label = null, bool $visible = true, bool $exportable = true, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, string $innerElementAttributes = null, string $outerElementAttributes = null)
     {
         $this->fieldName = $fieldName;
         $this->label = $label;
