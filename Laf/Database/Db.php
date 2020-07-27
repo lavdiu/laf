@@ -603,4 +603,15 @@ class Db
 		return self::getInstance()->getConnection()->quote($value);
 	}
 
+    /**
+     * Runs a query without returning anything
+     * @param string $sql
+     * @throws \Exception
+     */
+    public static function run(string $sql): void
+    {
+        $db = self::getInstance();
+        $db->execute($sql);
+    }
+
 }
