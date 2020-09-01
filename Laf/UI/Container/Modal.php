@@ -6,6 +6,7 @@ namespace Laf\UI\Container;
 
 use Laf\UI\Component\Link;
 use Laf\UI\ComponentInterface;
+use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Traits\ComponentTrait;
 
 class Modal implements ComponentInterface
@@ -91,10 +92,10 @@ class Modal implements ComponentInterface
     }
 
     /**
-     * @param Link $button
+     * @param FormElementInterface $button
      * @return Modal
      */
-    public function addFooterButton(Link $button): Modal
+    public function addFooterButton(FormElementInterface $button): Modal
     {
         $this->footerButtons[] = $button;
         return $this;
@@ -314,7 +315,7 @@ class Modal implements ComponentInterface
      * @param $cssClasses string classes to o assign to the button
      * @return Link
      */
-    public function getModalOpenbutton(string $label = "Open Modal", string $cssClasses = 'btn btn-outline-secondary btn-sm'): Link
+    public function getModalOpenButton(string $label = "Open Modal", string $cssClasses = 'btn btn-outline-secondary btn-sm'): Link
     {
         $btn = new Link();
         $btn->setValue('Open Modal')
