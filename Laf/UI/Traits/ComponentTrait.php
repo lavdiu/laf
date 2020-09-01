@@ -354,7 +354,7 @@ trait ComponentTrait
 		if ($this->hasWrapperCssStyleItem($property))
 			return $this->wrapperCssStyle[$property];
 		else
-			return null;
+			return [];
 	}
 
 	/**
