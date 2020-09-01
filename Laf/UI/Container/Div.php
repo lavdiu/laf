@@ -4,6 +4,7 @@
 namespace Laf\UI\Container;
 
 use Laf\UI\ComponentInterface;
+use Laf\UI\Form\DrawMode;
 use Laf\UI\Traits\ComponentTrait;
 
 class Div implements ComponentInterface
@@ -19,6 +20,7 @@ class Div implements ComponentInterface
 	{
 		$this->setCssClasses($classes);
 		$this->setCssStyles($style);
+		$this->setDrawMode(DrawMode::VIEW);
 	}
 
 
