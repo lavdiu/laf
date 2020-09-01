@@ -11,8 +11,16 @@ class Card extends Div implements ComponentInterface
 {
 	use ComponentTrait;
 
+    /**
+     * Card constructor.
+     */
+    public function __construct()
+    {
+        $this->setContainerType("");
+    }
 
-	/**
+
+    /**
 	 * @inheritDoc
 	 */
 	public function draw(): ?string
