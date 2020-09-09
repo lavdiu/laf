@@ -127,10 +127,10 @@ class BaseObject
 
 		foreach ($keyValuePairs as $fieldName => $fieldValue) {
 			if (preg_match('/[^a-zA-Z_\-0-9]/', $fieldName)) {
-				return null;
+				return [];
 			}
 			if (!$object->getTable()->hasField($fieldName)) {
-				return null;
+				return [];
 			}
 			$params[$fieldName] = $fieldValue;
 		}
@@ -1040,10 +1040,10 @@ class BaseObject
 
 		foreach ($keyValuePairs as $fieldName => $fieldValue) {
 			if (preg_match('/[^a-zA-Z_\-0-9]/', $fieldName)) {
-				return null;
+				return [];
 			}
 			if (!$object->getTable()->hasField($fieldName)) {
-				return null;
+				return [];
 			}
 			$params[$fieldName] = $fieldValue;
 		}
