@@ -411,7 +411,8 @@ class BaseObject
 	 */
 	public function store()
 	{
-		if (!is_numeric($this->getTable()->getPrimaryKey()->getFirstField()->getValue())) {
+	    $pk = $this->getTable()->getPrimaryKey()->getFirstField()->getValue();
+		if (mb_strlen($pk) < 1) {
 			return $this->insert();
 		}
 		return $this->update();
