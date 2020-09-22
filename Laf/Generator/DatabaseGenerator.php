@@ -133,7 +133,7 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
 	 * Get tables from database
 	 * @return array
 	 */
-	private function getTables()
+	public function getTables()
 	{
 		$db = Db::getInstance();
 		$sql = "

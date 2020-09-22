@@ -203,7 +203,7 @@ echo \$page->draw();
 	 * @return array
 	 * @throws \Exception
 	 */
-	private function getTableColumns()
+	public function getTableColumns()
 	{
 		$db = Db::getInstance();
 		$sql = "

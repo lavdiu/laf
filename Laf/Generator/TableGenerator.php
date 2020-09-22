@@ -385,7 +385,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 	 * Get column info for a table
 	 * @return array
 	 */
-	private function getTableColumns()
+	public function getTableColumns()
 	{
 		$db = Db::getInstance();
 		$sql = "
@@ -401,7 +401,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 		return $q->fetchAll(\PDO::FETCH_ASSOC);
 	}
 
-	private function populateForeignKeys()
+	public function populateForeignKeys()
 	{
 		$db = DB::getInstance();
 		$settings = Settings::getInstance();
@@ -430,7 +430,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 		}
 	}
 
-	private function generateForeignKeys()
+	public function generateForeignKeys()
 	{
 		$tmp = "\n\t\t/**
 		 * Generating Foreign keys
@@ -448,7 +448,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 		return $tmp;
 	}
 
-	private function generateFields()
+	public function generateFields()
 	{
 		$tmp = "\n\t\t/**
 		 * Generate field data
