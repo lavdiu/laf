@@ -15,47 +15,47 @@ use Laf\Util\Util;
 class PageGenerator
 {
 
-	/**
-	 * @var Table $table
-	 */
-	private $table;
+    /**
+     * @var Table $table
+     */
+    private $table;
 
-	private $pageFile = null;
+    private $pageFile = null;
 
-	private $config = [];
+    private $config = [];
 
-	private $labelTranslations = [];
+    private $labelTranslations = [];
 
-	/**
-	 * Table constructor.
-	 * @param Table $table
-	 * @param string[] $config
-	 * @param string $labelTranslations
-	 */
-	public function __construct(Table $table, array $config, array $labelTranslations = [])
-	{
-		$this->table = $table;
-		$this->config = $config;
-		$this->labelTranslations = $labelTranslations;
-	}
+    /**
+     * Table constructor.
+     * @param Table $table
+     * @param string[] $config
+     * @param string $labelTranslations
+     */
+    public function __construct(Table $table, array $config, array $labelTranslations = [])
+    {
+        $this->table = $table;
+        $this->config = $config;
+        $this->labelTranslations = $labelTranslations;
+    }
 
-	public function processClass()
-	{
-		$namespace = $this->getConfig()['namespace'];
-		$className = $this->getTable()->getNameAsClassname();
-		$tableName = $this->getTable()->getName();
-		$instanceName = strtolower($className);
+    public function processClass()
+    {
+        $namespace = $this->getConfig()['namespace'];
+        $className = $this->getTable()->getNameAsClassname();
+        $tableName = $this->getTable()->getName();
+        $instanceName = strtolower($className);
 
-		$labels = [];
-		$labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
-		$labels['options'] = $this->labelTranslations['options'] ?? 'Options';
-		$labels['add-new'] = $this->labelTranslations['add-new'] ?? 'Add new';
-		$labels['update'] = $this->labelTranslations['update'] ?? 'Update';
-		$labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
-		$labels['list'] = $this->labelTranslations['list'] ?? 'List';
-		$labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
+        $labels = [];
+        $labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
+        $labels['options'] = $this->labelTranslations['options'] ?? 'Options';
+        $labels['add-new'] = $this->labelTranslations['add-new'] ?? 'Add new';
+        $labels['update'] = $this->labelTranslations['update'] ?? 'Update';
+        $labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
+        $labels['list'] = $this->labelTranslations['list'] ?? 'List';
+        $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
 
-		$file = "<?php
+        $file = "<?php
 
 use {$namespace}\\{$className};
 use Laf\UI\Component\Dropdown;
@@ -135,78 +135,96 @@ switch (UrlParser::getAction()) {
 echo \$page->draw();
 
 ";
-		$this->setPageFile($file);
-	}
+        $this->setPageFile($file);
+    }
 
-	/**
-	 * Generates and saves class to file
-	 * @return PageGenerator
-	 */
-	public function savePageToFile()
-	{
-		$this->processClass();
-		$file = $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
-		file_put_contents($file, $this->getpageFile());
-		return $this;
-	}
+    /**
+     * Return the path where the page file will be stored
+     * @return string
+     */
+    public function getPageFilePath(): string
+    {
+        return $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+    }
 
-	/**
-	 * @return Table
-	 */
-	public function getTable(): Table
-	{
-		return $this->table;
-	}
+    /**
+     * Check if the page file already exists in the filesystem
+     * @return bool
+     */
+    public function pageFileExists(): bool
+    {
+        return file_exists($this->getPageFilePath());
+    }
 
-	/**
-	 * @param Table $table
-	 */
-	public function setTable(Table $table): void
-	{
-		$this->table = $table;
-	}
+    /**
+     * Generates and saves class to file
+     * @return PageGenerator
+     */
+    public function savePageToFile()
+    {
+        $this->processClass();
+        $file = $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+        file_put_contents($file, $this->getpageFile());
+        return $this;
+    }
 
-	/**
-	 * @return string[]
-	 */
-	public function getConfig(): array
-	{
-		return $this->config;
-	}
+    /**
+     * @return Table
+     */
+    public function getTable(): Table
+    {
+        return $this->table;
+    }
 
-	/**
-	 * @param string[] $config
-	 */
-	public function setConfig(array $config): void
-	{
-		$this->config = $config;
-	}
+    /**
+     * @param Table $table
+     */
+    public function setTable(Table $table): void
+    {
+        $this->table = $table;
+    }
 
-	/**
-	 * @return null
-	 */
-	public function getPageFile()
-	{
-		return $this->pageFile;
-	}
+    /**
+     * @return string[]
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
 
-	/**
-	 * @param null $pageFile
-	 */
-	public function setPageFile($pageFile): void
-	{
-		$this->pageFile = $pageFile;
-	}
+    /**
+     * @param string[] $config
+     */
+    public function setConfig(array $config): void
+    {
+        $this->config = $config;
+    }
 
-	/**
-	 * Get column info for a table
-	 * @return array
-	 * @throws \Exception
-	 */
-	public function getTableColumns()
-	{
-		$db = Db::getInstance();
-		$sql = "
+    /**
+     * @return null
+     */
+    public function getPageFile()
+    {
+        return $this->pageFile;
+    }
+
+    /**
+     * @param null $pageFile
+     */
+    public function setPageFile($pageFile): void
+    {
+        $this->pageFile = $pageFile;
+    }
+
+    /**
+     * Get column info for a table
+     * @return array
+     * @throws \Exception
+     */
+    public function getTableColumns()
+    {
+        $db = Db::getInstance();
+        $sql = "
         SELECT *
         FROM information_schema.columns
         WHERE
@@ -215,22 +233,22 @@ echo \$page->draw();
         ORDER BY table_name, ordinal_position
         ";
 
-		$q = $db->query($sql);
-		return $q->fetchAll(\PDO::FETCH_ASSOC);
-	}
+        $q = $db->query($sql);
+        return $q->fetchAll(\PDO::FETCH_ASSOC);
+    }
 
-	/**
-	 * @return string
-	 * @throws \Exception
-	 */
-	public function getColumnsAsCSV()
-	{
-		$cols = [];
-		foreach ($this->getTableColumns() as $col) {
-			$cols[] = $col['COLUMN_NAME'];
-		}
-		return join(', ', $cols);
-	}
+    /**
+     * @return string
+     * @throws \Exception
+     */
+    public function getColumnsAsCSV()
+    {
+        $cols = [];
+        foreach ($this->getTableColumns() as $col) {
+            $cols[] = $col['COLUMN_NAME'];
+        }
+        return join(', ', $cols);
+    }
 
 
 }
