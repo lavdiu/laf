@@ -137,7 +137,10 @@ switch (UrlParser::getAction()) {
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
 }
-echo \$page->draw();
+
+\$html = \{$namespace}}\Factory::GeneralPage();
+\$html->addComponent(\$page);
+echo \$html->draw();
 
 ";
         $this->setPageFile($file);
