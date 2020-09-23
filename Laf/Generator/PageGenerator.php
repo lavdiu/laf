@@ -27,6 +27,11 @@ class PageGenerator
     private $labelTranslations = [];
 
     /**
+     * @var bool
+     */
+    private $writeOnLiveDirectory = false;
+
+    /**
      * Table constructor.
      * @param Table $table
      * @param string[] $config
@@ -163,7 +168,7 @@ echo \$page->draw();
     public function savePageToFile()
     {
         $this->processClass();
-        $file = $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+        $file = $this->getPageFilePath();
         file_put_contents($file, $this->getpageFile());
         return $this;
     }
@@ -248,6 +253,42 @@ echo \$page->draw();
             $cols[] = $col['COLUMN_NAME'];
         }
         return join(', ', $cols);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isWriteOnLiveDirectory(): bool
+    {
+        return $this->writeOnLiveDirectory;
+    }
+
+    /**
+     * @param bool $writeOnLiveDirectory
+     * @return PageGenerator
+     */
+    public function setWriteOnLiveDirectory(bool $writeOnLiveDirectory): PageGenerator
+    {
+        $this->writeOnLiveDirectory = $writeOnLiveDirectory;
+        return $this;
+    }
+
+    /**
+     * @return array|string
+     */
+    public function getLabelTranslations()
+    {
+        return $this->labelTranslations;
+    }
+
+    /**
+     * @param array|string $labelTranslations
+     * @return PageGenerator
+     */
+    public function setLabelTranslations($labelTranslations)
+    {
+        $this->labelTranslations = $labelTranslations;
+        return $this;
     }
 
 
