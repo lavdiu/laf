@@ -138,7 +138,7 @@ switch (UrlParser::getAction()) {
 		break;
 }
 
-\$html = \{$namespace}}\Factory::GeneralPage();
+\$html = \{$namespace}\Factory::GeneralPage();
 \$html->addComponent(\$page);
 echo \$html->draw();
 
