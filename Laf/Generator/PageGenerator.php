@@ -149,7 +149,11 @@ echo \$page->draw();
      */
     public function getPageFilePath(): string
     {
-        return $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+        if ($this->isWriteOnLiveDirectory()) {
+            return $this->getConfig()['live_page_dir'] . '/' . $this->getTable()->getName() . '.page';
+        } else {
+            return $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+        }
     }
 
     /**
