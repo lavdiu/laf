@@ -899,7 +899,7 @@ class BaseObject
 			->addCssClass('btn-sm')
 			->addAttribute('title', $translations['view'] ?? 'view');
 
-		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&{$primaryKeyField}={id}", $parser->_getModule(), $parser->_getSubmodule());
+		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&{$primaryKeyField}={{$primaryKeyField}}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
 			$updateUrl = sprintf("/%s/%s/update/{id}", $parser->_getModule(), $parser->_getSubmodule());
 		}
