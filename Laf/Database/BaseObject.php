@@ -887,7 +887,7 @@ class BaseObject
 			->setRowsPerPage('10');
 		$viewLink = new Link();
 
-		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&id={{$primaryKeyField}}", $parser->_getModule(), $parser->_getSubmodule());
+		$viewLinkURL = sprintf("?module=%s&submodule=%s&action=view&{$primaryKeyField}={{$primaryKeyField}}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl())
 			$viewLinkURL = sprintf("/%s/%s/view/%s", $parser->_getModule(), $parser->_getSubmodule(), $primaryKeyField);
 
@@ -899,7 +899,7 @@ class BaseObject
 			->addCssClass('btn-sm')
 			->addAttribute('title', $translations['view'] ?? 'view');
 
-		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&id={id}", $parser->_getModule(), $parser->_getSubmodule());
+		$updateUrl = sprintf("?module=%s&submodule=%s&action=update&{$primaryKeyField}={id}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
 			$updateUrl = sprintf("/%s/%s/update/{id}", $parser->_getModule(), $parser->_getSubmodule());
 		}
@@ -910,7 +910,7 @@ class BaseObject
 			->setIcon('fa fa-edit');
 
 
-		$deleteUrl = sprintf("?module=%s&submodule=%s&action=delete&id={id}", $parser->_getModule(), $parser->_getSubmodule());
+		$deleteUrl = sprintf("?module=%s&submodule=%s&action=delete&{$primaryKeyField}={id}", $parser->_getModule(), $parser->_getSubmodule());
 		if ($parser->isUsePrettyUrl()) {
 			$deleteUrl = sprintf("/%s/%s/delete/{id}", $parser->_getModule(), $parser->_getSubmodule());
 		}
