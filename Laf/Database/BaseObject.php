@@ -512,6 +512,7 @@ class BaseObject
 		} else {
 			$this->setRecordId($db->getInsertId());
 		}
+		$this->recordSelected = true;
 		$this->addLoggerDebug("INSERT Id", [$this->getRecordId()]);
 		$this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
 
