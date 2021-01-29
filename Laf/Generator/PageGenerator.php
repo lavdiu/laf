@@ -308,7 +308,8 @@ echo \$html->draw();
         $joins = [];
         foreach ($thisTable->getFields() as $field) {
             if ($field->isForeignKey()) {
-                $fkTable = new Table($thisTable->getForeignKey($field->getName()));
+                $fkClassName = '\\'.$this->getConfig()['namespace'].'\\'.$thisTable->getForeignKey($field->getName())->getTable()->getName();
+                $fkTable = new $fkClassName;
 
                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
                 $columns[$fkTable->getName() . '_' . $field->getName()] = [$fkTable->getName(), $field->getName(), false];
