@@ -132,15 +132,15 @@ switch (UrlParser::getAction()) {
 
         foreach ($this->buildListSql()['columns'] as $alias => $column) {
             if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={".$tableName."_id}', UrlParser::getModule())));";
             } else {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
             }
         }
 
         $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={id}', UrlParser::getModule()), 'fa fa-eye'));
-        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={id}', UrlParser::getModule()), 'fa fa-edit'));
-        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={id}', UrlParser::getModule()), 'fa fa-trash');
+        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-edit'));
+        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-trash');
         \$grid->addActionButton(\$deleteLink);
 
         if (\$grid->isReadyToHandleRequests()) {
