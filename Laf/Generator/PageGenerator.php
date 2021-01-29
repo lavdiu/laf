@@ -302,13 +302,13 @@ echo \$html->draw();
      */
     private function buildLlistSql(): array
     {
-        $className = '\\'.$this->getConfig()['namespace'].'\\'.$this->getTable()->getNameAsClassname();
+        $className = '\\' . $this->getConfig()['namespace'] . '\\' . $this->getTable()->getNameAsClassname();
         $thisTable = (new $className)->getTable();
         $columns = [];
         $joins = [];
         foreach ($thisTable->getFields() as $field) {
             if ($field->isForeignKey()) {
-                $fkClassName = '\\'.$this->getConfig()['namespace'].'\\'.$thisTable->getForeignKey($field->getName())->getTable()->getName();
+                $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getTable()->getName();
                 $fkTable = (new $fkClassName)->getTable();
 
                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
@@ -321,8 +321,15 @@ echo \$html->draw();
         }
 
         $sql = "SELECT\n";
+        $iterator = 1;
         foreach ($columns as $alias => $column) {
-            $sql .= "\t, `" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
+            if ($iterator == 1) {
+                $sql .= "\t  ";
+            } else {
+                $sql .= "\t, ";
+            }
+            $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
+            $iterator++;
         }
         $sql .= "FROM " . $thisTable->getName() . "\n";
         $sql .= join("\n", $joins);
