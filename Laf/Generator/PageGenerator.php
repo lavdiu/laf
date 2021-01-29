@@ -70,6 +70,10 @@ use Laf\UI\Form\DrawMode;
 use Laf\UI\Form\Form;
 use Laf\UI\Page\AdminPage;
 use Laf\Util\UrlParser;
+use Laf\UI\Container\HtmlContainer;
+use Laf\UI\Grid\PhpGrid\PhpGrid;
+use Laf\UI\Grid\PhpGrid\Column;
+use Laf\UI\Grid\PhpGrid\ActionButton;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
@@ -127,13 +131,31 @@ switch (UrlParser::getAction()) {
 		break;
 	case 'list':
 	default:
-		\$table = \${$instanceName}->getListAllSimpleTableObject();
-		#\$table->setSql(\"SELECT {$this->getColumnsAsCSV()} FROM {$tableName}\");
-		\$table->setRowsPerPage(\$_GET['rows_per_page']??20);
-		\$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
-		\$table->setRowsPerPage(\$_GET['rows_per_page']??20);
-		\$table->setCurrentPage(\$_GET['page']??1);
-		\$page->addComponent(\$table);
+		\$grid = new PhpGrid('{$tableName}_list');
+        \$grid->setTitle('{$className} {$labels['list']}')
+            ->setRowsPerPage(20)
+            ->setSqlQuery('\n" . ($this->buildLlistSql()['sql']) . "')\n";
+
+        foreach ($this->buildLlistSql()['columns'] as $alias => $column) {
+            if ($column[1] == 'id') {
+                $file .= "\t\t->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
+            } else {
+
+                $file .= "\t\t->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "'));";
+            }
+        }
+
+        $file .= "\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={id}', UrlParser::getModule()), 'fa fa-eye'));
+        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={id}', UrlParser::getModule()), 'fa fa-edit'));
+        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={id}', UrlParser::getModule()), 'fa fa-trash');
+        \$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
+        \$grid->addActionButton(\$deleteLink);
+
+        if (\$grid->isReadyToHandleRequests()) {
+            \$grid->bootstrap();
+        }
+
+        \$page->addComponent(new HtmlContainer(\$grid->draw()));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
 }
@@ -229,40 +251,6 @@ echo \$html->draw();
     }
 
     /**
-     * Get column info for a table
-     * @return array
-     * @throws \Exception
-     */
-    public function getTableColumns()
-    {
-        $db = Db::getInstance();
-        $sql = "
-        SELECT *
-        FROM information_schema.columns
-        WHERE
-            table_schema = '{$db->getDatabase()}'
-            AND table_name='{$this->getTable()->getName()}'
-        ORDER BY table_name, ordinal_position
-        ";
-
-        $q = $db->query($sql);
-        return $q->fetchAll(\PDO::FETCH_ASSOC);
-    }
-
-    /**
-     * @return string
-     * @throws \Exception
-     */
-    public function getColumnsAsCSV()
-    {
-        $cols = [];
-        foreach ($this->getTableColumns() as $col) {
-            $cols[] = $col['COLUMN_NAME'];
-        }
-        return join(', ', $cols);
-    }
-
-    /**
      * @return bool
      */
     public function isWriteOnLiveDirectory(): bool
@@ -296,6 +284,53 @@ echo \$html->draw();
     {
         $this->labelTranslations = $labelTranslations;
         return $this;
+    }
+
+    /**
+     * Returns the built sql to select the list
+     * and a list of columns
+     * format: [
+     *  sql = "sql statement"
+     *  columns [
+     *      alias => [
+     *          0 => table name
+     *          1 => column name
+     *      ]
+     *  ]
+     *
+     * ]
+     * @return array
+     */
+    private function buildLlistSql(): array
+    {
+        $thisTable = $this->getTable();
+        $columns = [];
+        $joins = [];
+        foreach ($thisTable->getFields() as $field) {
+            if ($field->isForeignKey()) {
+                $fkTable = new Table($thisTable->getForeignKey($field->getName()));
+
+                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
+                $columns[$fkTable->getName() . '_' . $field->getName()] = [$fkTable->getName(), $field->getName(), false];
+
+                $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
+            } else {
+                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
+            }
+        }
+
+        $sql = "SELECT\n";
+        foreach ($columns as $alias => $column) {
+            $sql .= "\t, `" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
+        }
+        $sql .= "FROM " . $thisTable->getName() . "\n";
+        $sql .= join("\n", $joins);
+
+        return [
+            'sql' => "SELECT * FROM ({$sql})l1 ",
+            'columns' => $columns
+        ];
+
     }
 
 
