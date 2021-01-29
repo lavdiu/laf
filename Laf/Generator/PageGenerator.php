@@ -312,7 +312,7 @@ echo \$html->draw();
                 $fkTable = (new $fkClassName)->getTable();
 
                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), false];
-                $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), true];
+                $columns[$fkTable->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), true];
 
                 $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
             } else {
