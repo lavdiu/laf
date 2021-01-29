@@ -135,13 +135,13 @@ switch (UrlParser::getAction()) {
 		\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
-            ->setSqlQuery('\n" . ($this->buildLlistSql()['sql']) . "');\n\n";
+            ->setSqlQuery('\n" . ($this->buildListSql()['sql']) . "');\n\n";
 
-        foreach ($this->buildLlistSql()['columns'] as $alias => $column) {
+        foreach ($this->buildListSql()['columns'] as $alias => $column) {
             if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
             } else {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', " . ($column[2] ? 'true' : 'false') . "));";
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
             }
         }
 
@@ -294,13 +294,15 @@ echo \$html->draw();
      *      alias => [
      *          0 => table name
      *          1 => column name
+     *          2 => label
+     *          3 => visible
      *      ]
      *  ]
      *
      * ]
      * @return array
      */
-    private function buildLlistSql(): array
+    private function buildListSql(): array
     {
         $className = '\\' . $this->getConfig()['namespace'] . '\\' . $this->getTable()->getNameAsClassname();
         $thisTable = (new $className)->getTable();
@@ -311,12 +313,12 @@ echo \$html->draw();
                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
                 $fkTable = (new $fkClassName)->getTable();
 
-                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), false];
-                $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), true];
+                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName() . 'Id', false];
+                $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), $fkTable->getName(), true];
 
                 $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
             } else {
-                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
+                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName(), true];
             }
         }
 
