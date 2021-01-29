@@ -2,14 +2,7 @@
 
 namespace Laf\Generator;
 
-use Laf\Database\Field\FieldTypeFactory;
 use Laf\Database\Table;
-use Laf\Database\Field\Field;
-use Laf\Database\Db;
-use Laf\UI\ComponentInterface;
-use Laf\UI\Form\FormElementInterface;
-use Laf\UI\Page\Page;
-use Laf\Util\Settings;
 use Laf\Util\Util;
 
 class PageGenerator
