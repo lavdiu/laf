@@ -141,8 +141,7 @@ switch (UrlParser::getAction()) {
             if ($column[1] == 'id') {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
             } else {
-
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "'));";
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', ".((string)$column[2])."));";
             }
         }
 
