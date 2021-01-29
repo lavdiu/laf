@@ -146,7 +146,7 @@ switch (UrlParser::getAction()) {
             }
         }
 
-        $file .= "\n\n\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={id}', UrlParser::getModule()), 'fa fa-eye'));
+        $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={id}', UrlParser::getModule()), 'fa fa-eye'));
         \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={id}', UrlParser::getModule()), 'fa fa-edit'));
         \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={id}', UrlParser::getModule()), 'fa fa-trash');
         \$grid->addActionButton(\$deleteLink);
