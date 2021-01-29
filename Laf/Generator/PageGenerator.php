@@ -52,6 +52,7 @@ class PageGenerator
         $instanceName = strtolower($className);
 
         $labels = [];
+        $labels['view'] = $this->labelTranslations['view'] ?? 'View';
         $labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
         $labels['options'] = $this->labelTranslations['options'] ?? 'Options';
         $labels['add-new'] = $this->labelTranslations['add-new'] ?? 'Add new';
