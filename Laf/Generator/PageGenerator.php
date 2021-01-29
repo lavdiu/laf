@@ -320,19 +320,19 @@ echo \$html->draw();
             }
         }
 
-        $sql = "SELECT\n";
+        $sql = "\tSELECT\n";
         $iterator = 1;
         foreach ($columns as $alias => $column) {
             if ($iterator == 1) {
-                $sql .= "\n\t  ";
+                $sql .= "\n\t\t  ";
             } else {
-                $sql .= "\n\t, ";
+                $sql .= "\n\t\t, ";
             }
             $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
             $iterator++;
         }
-        $sql .= "FROM " . $thisTable->getName() . "\n";
-        $sql .= join("\n", $joins);
+        $sql .= "\n\tFROM " . $thisTable->getName() . "\n";
+        $sql .= join("\n\t", $joins);
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
