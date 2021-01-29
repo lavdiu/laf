@@ -123,6 +123,7 @@ switch (UrlParser::getAction()) {
 			->addCssClass('btn-sm');
 		\$newLink = new Link('{$labels['update']}', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
 		\$deleteLink = new Link('{$labels['delete']}', UrlParser::getDeleteLink(), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
+		#\$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
 
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
