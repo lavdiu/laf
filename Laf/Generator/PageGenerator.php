@@ -311,8 +311,8 @@ echo \$html->draw();
                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
                 $fkTable = (new $fkClassName)->getTable();
 
-                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), true];
-                $columns[$fkTable->getName() . '_' . $thisTable->getForeignKey($field->getName())->getReferencingField()] = [$fkTable->getName(), $thisTable->getForeignKey($field->getName())->getReferencingField(), false];
+                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), false];
+                $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), true];
 
                 $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
             } else {
