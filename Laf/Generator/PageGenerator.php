@@ -302,7 +302,8 @@ echo \$html->draw();
      */
     private function buildLlistSql(): array
     {
-        $thisTable = new Table($this->getTable());
+        $className = $this->getConfig()['namespace'].'\\'.$this->getTable()->getNameAsClassname()
+        $thisTable = new $className;
         $columns = [];
         $joins = [];
         foreach ($thisTable->getFields() as $field) {
