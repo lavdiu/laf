@@ -324,9 +324,9 @@ echo \$html->draw();
         $iterator = 1;
         foreach ($columns as $alias => $column) {
             if ($iterator == 1) {
-                $sql .= "\t  ";
+                $sql .= "\n\t  ";
             } else {
-                $sql .= "\t, ";
+                $sql .= "\n\t, ";
             }
             $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
             $iterator++;
@@ -335,7 +335,7 @@ echo \$html->draw();
         $sql .= join("\n", $joins);
 
         return [
-            'sql' => "SELECT * FROM ({$sql})l1 ",
+            'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
             'columns' => $columns
         ];
 
