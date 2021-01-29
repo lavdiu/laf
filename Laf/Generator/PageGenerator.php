@@ -134,7 +134,7 @@ switch (UrlParser::getAction()) {
 		\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
-            ->setSqlQuery('\n" . ($this->buildLlistSql()['sql']) . "')\n";
+            ->setSqlQuery('\n" . ($this->buildLlistSql()['sql']) . "');\n";
 
         foreach ($this->buildLlistSql()['columns'] as $alias => $column) {
             if ($column[1] == 'id') {
