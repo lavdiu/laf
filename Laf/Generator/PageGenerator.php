@@ -138,10 +138,10 @@ switch (UrlParser::getAction()) {
             ->setSqlQuery('\n" . ($this->buildLlistSql()['sql']) . "');\n\n";
 
         foreach ($this->buildLlistSql()['columns'] as $alias => $column) {
-            if ($column[1] == 'id') {
+            if ($column[0] == $tableName && $column[1] == 'id') {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', true, true, sprintf('?module=%s&action=view&id={id}', UrlParser::getModule())));";
             } else {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', ".((string)$column[2])."));";
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[1]) . "', ".($column[2]?'true':'false')."));";
             }
         }
 
