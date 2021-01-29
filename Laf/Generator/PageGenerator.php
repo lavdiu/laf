@@ -123,7 +123,7 @@ switch (UrlParser::getAction()) {
 			->addCssClass('btn-sm');
 		\$newLink = new Link('{$labels['update']}', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
 		\$deleteLink = new Link('{$labels['delete']}', UrlParser::getDeleteLink(), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
-		#\$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
+		\$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
 
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
@@ -148,7 +148,6 @@ switch (UrlParser::getAction()) {
         $file .= "\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={id}', UrlParser::getModule()), 'fa fa-eye'));
         \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={id}', UrlParser::getModule()), 'fa fa-edit'));
         \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={id}', UrlParser::getModule()), 'fa fa-trash');
-        \$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
         \$grid->addActionButton(\$deleteLink);
 
         if (\$grid->isReadyToHandleRequests()) {
