@@ -333,7 +333,7 @@ echo \$html->draw();
             $iterator++;
         }
         $sql .= "\n\tFROM " . $thisTable->getName() . "\n";
-        $sql .= join("\n\t", $joins);
+        $sql .= join("\n\t\t", $joins);
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
