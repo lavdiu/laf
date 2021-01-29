@@ -302,7 +302,7 @@ echo \$html->draw();
      */
     private function buildLlistSql(): array
     {
-        $thisTable = $this->getTable();
+        $thisTable = new Table($this->getTable());
         $columns = [];
         $joins = [];
         foreach ($thisTable->getFields() as $field) {
