@@ -27,7 +27,7 @@ class ActionButton
     /**
      * @var array
      */
-    public $attributes = [];
+    public $attributeList = [];
 
     /**
      * ActionButton constructor.
@@ -101,7 +101,7 @@ class ActionButton
      */
     public function getAttributes(): array
     {
-        return $this->attributes;
+        return $this->attributeList;
     }
 
     /**
@@ -110,13 +110,13 @@ class ActionButton
      */
     public function setAttributes(array $attributes): ActionButton
     {
-        $this->attributes = $attributes;
+        $this->attributeList = $attributes;
         return $this;
     }
 
     public function addAttribute(string $attribute, string $value): ActionButton
     {
-        $this->attributes[$attribute] = $value;
+        $this->attributeList[$attribute] = $value;
         return $this;
     }
 
