@@ -25,6 +25,11 @@ class ActionButton
     public $icon = null;
 
     /**
+     * @var array
+     */
+    public $attributes = [];
+
+    /**
      * ActionButton constructor.
      * @param string $label
      * @param string $href
@@ -90,4 +95,31 @@ class ActionButton
         $this->icon = $icon;
         return $this;
     }
+
+    /**
+     * @return array
+     */
+    public function getAttributes(): array
+    {
+        return $this->attributes;
+    }
+
+    /**
+     * @param array $attributes
+     * @return ActionButton
+     */
+    public function setAttributes(array $attributes): ActionButton
+    {
+        $this->attributes = $attributes;
+        return $this;
+    }
+
+    public function addAttribute(string $attribute, string $value): ActionButton
+    {
+        $this->attributes[$attribute] = $value;
+        return $this;
+    }
+
+
+
 }

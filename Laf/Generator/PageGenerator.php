@@ -141,6 +141,7 @@ switch (UrlParser::getAction()) {
         $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-eye'));
         \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-edit'));
         \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-trash');
+        \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
         \$grid->addActionButton(\$deleteLink);
 
         if (\$grid->isReadyToHandleRequests()) {
