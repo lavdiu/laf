@@ -885,7 +885,7 @@ class PhpGrid
             return null;
         }
 
-        $fileName = $this->getGridName() . date(' (Y-m-d Hi).csv');
+        $fileName = $this->getGridName() . date(' (Y-m-d Hi)').'.csv';
 
         ob_clean();
         header('Content-Type: text/csv');
