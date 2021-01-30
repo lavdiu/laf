@@ -830,6 +830,7 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
+        ob_clean();
         if (!$this->getAllowExport()) {
             return null;
         }
