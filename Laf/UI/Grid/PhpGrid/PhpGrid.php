@@ -900,8 +900,7 @@ class PhpGrid
         $this->execute(true);
         $file = fopen('php://output', 'wb');
         foreach ($this->data as $row) {
-            $rowCsv = join(',', $row);
-            fputcsv($file, $rowCsv);
+            fputcsv($file, $row);
         }
         fclose($file);
         exit;
