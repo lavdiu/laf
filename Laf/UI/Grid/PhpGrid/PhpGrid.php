@@ -899,6 +899,7 @@ class PhpGrid
 
         $this->execute(true);
         $file = fopen('php://output', 'wb');
+        fputcsv($file, $headingRow);
         foreach ($this->data as $row) {
             fputcsv($file, $row);
         }
