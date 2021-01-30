@@ -885,7 +885,26 @@ class PhpGrid
             return null;
         }
 
+        $fileName = $this->getGridName() . date(' (Y-m-d Hi)');
 
+        ob_clean();
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment;filename="' . $fileName . '"');
+        header('Cache-Control: max-age=0');
+
+        $headingRow = [];
+        foreach ($this->getColumnsList() as $column) {
+            $headingRow[] = $column->getLabel();
+        }
+
+        $this->execute(true);
+        $file = fopen('php://output', 'wb');
+        foreach ($this->data as $row) {
+            $rowCsv = join(',', $row);
+            fputcsv($file, $rowCsv);
+        }
+        fclose($file);
+        exit;
     }
 
     /**
