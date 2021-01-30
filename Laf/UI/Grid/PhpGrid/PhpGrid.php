@@ -767,7 +767,7 @@ class PhpGrid
         $_column = 'A';
         $_row = 1;
         $workbook = new Spreadsheet();
-        $fileName = $this->getGridName() . date(' (Y-m-d H.i)');
+        $fileName = $this->getGridName() . date(' (Y-m-d H:i)');
 
         $sheet = $workbook->getActiveSheet();
 
@@ -835,7 +835,7 @@ class PhpGrid
         }
 
         $w = WriterEntityFactory::createXLSXWriter();
-        $fileName = $this->getGridName() . date(' (Y-m-d H.i)');
+        $fileName = $this->getGridName() . date(' (Y-m-d H:i)');
         $w->openToBrowser($fileName);
 
         $headingRow = [];
