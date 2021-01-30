@@ -830,13 +830,19 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
+        $fileName = $this->getGridName() . date(' (Y-m-d Hi)');
+
         ob_clean();
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $fileName . '"');
+        header('Cache-Control: max-age=0');
+
         if (!$this->getAllowExport()) {
             return null;
         }
 
         $w = WriterEntityFactory::createXLSXWriter();
-        $fileName = $this->getGridName() . date(' (Y-m-d Hi)');
+        $w->openToBrowser($fileName);
 
         $headingRow = [];
         foreach ($this->getColumnsList() as $column) {
@@ -873,7 +879,6 @@ class PhpGrid
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="' . $fileName . '"');
         header('Cache-Control: max-age=0');
-        $w->openToBrowser($fileName);
     }
 
     public function exportToCsv()
