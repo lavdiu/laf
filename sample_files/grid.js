@@ -262,6 +262,7 @@ class Grid {
                 columnSortbuttonIcon.classList.add('fa-sort');
             }
             columnSortButton.appendChild(columnSortbuttonIcon);
+            columnSortButton.classList.add('d-print-none');
             th.appendChild(columnTitle);
             th.appendChild(columnSortButton);
 
@@ -390,9 +391,8 @@ class Grid {
 
 
         var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate();
+        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
         var fileName = _data.name + ' (' + now + ')';
-        fileName = fileName.substring(1,30)
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
@@ -419,9 +419,8 @@ class Grid {
 
 
         var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate();
+        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
         var fileName = _data.name + ' (' + now + ')';
-        fileName = fileName.substring(1,30)
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
@@ -498,6 +497,13 @@ class Grid {
                         _item.classList.add('dropdown-item');
                         _item.href = this.formatLinkHref(this.rows[rowIndex], currentActionButton.href)
                         _item.innerHTML = "<i class='" + currentActionButton.icon + "'></i> " + currentActionButton.label;
+
+
+                        //check if it has attributes
+                        for(var attribProperty in currentActionButton.attributeList){
+                            _item.setAttribute(attribProperty, currentActionButton.attributeList[attribProperty]);
+                        }
+
                         actionButtonsDropdown_menu.appendChild(_item);
                     }
                 }
