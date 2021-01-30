@@ -876,9 +876,7 @@ class PhpGrid
         }
 
         $w->close();
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
+        exit;
     }
 
     public function exportToCsv()
