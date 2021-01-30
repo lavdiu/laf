@@ -148,7 +148,7 @@ switch (UrlParser::getAction()) {
         }
 
 
-        \$page->addLink(new Link('{$labels['add-new']}'', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
+        \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
         \$page->addComponent(new HtmlContainer(\$grid->draw()));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
