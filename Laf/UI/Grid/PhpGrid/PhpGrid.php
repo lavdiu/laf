@@ -8,6 +8,8 @@ use Box\Spout\Common\Exception\IOException;
 use Box\Spout\Writer\Common\Creator\Style\BorderBuilder;
 use Box\Spout\Writer\Common\Creator\Style\StyleBuilder;
 use Box\Spout\Writer\Exception\WriterNotOpenedException;
+use JetBrains\PhpStorm\NoReturn;
+use JetBrains\PhpStorm\Pure;
 use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Util\Util;
@@ -655,6 +657,7 @@ class PhpGrid
                 return '!=';
                 break;
             case 'like':
+            default:
                 return 'LIKE';
                 break;
         }
@@ -663,7 +666,7 @@ class PhpGrid
     /**
      * @return bool
      */
-    protected function isValid()
+    protected function isValid() : bool
     {
         if (strlen($this->getSqlQuery()) < 10) {
             $this->errorMessage = "Missing SQL Query";
@@ -912,8 +915,10 @@ class PhpGrid
      * If the results are not generated, it would re-run it
      * @param bool $reload_results
      * @throws \Exception
+     * @return void
      */
-    public function outputJsonWithHeaders(bool $reload_results = false)
+    #[NoReturn]
+    public function outputJsonWithHeaders(bool $reload_results = false) : void
     {
         ob_clean();
         header('Content-Type: application/json');
@@ -949,7 +954,7 @@ class PhpGrid
     /**
      * @return string
      */
-    public function draw(): string
+    #[Pure] public function draw(): string
     {
         $gridName = $this->getGridName();
         $header = "";
@@ -1023,7 +1028,7 @@ class PhpGrid
      * @param $c
      * @return string
      */
-    public function columnNumberToLetter($c)
+    #[Pure] public function columnNumberToLetter($c)
     {
         $c = intval($c);
         if ($c <= 0) return '';
@@ -1073,8 +1078,9 @@ class PhpGrid
      * Checks if the request has necessary params to handle json requests
      * @return bool
      */
+    #[Pure]
     public function isReadyToHandleRequests()
     {
-        return array_key_exists('load_grid_by_name', $this->getFilters());
+        return array_key_exists('load_grid_by_name', $this->getFilters()) && $this->getFilters()['load_grid_by_name'] == $this->getGridName();
     }
 }
