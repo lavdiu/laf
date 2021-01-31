@@ -52,14 +52,8 @@ class PageGenerator
         $this->labelTranslations = $labelTranslations;
     }
 
-    public function processClass()
+    private function getLabels(): array
     {
-        $namespace = $this->getConfig()['namespace'];
-        $className = $this->getTable()->getNameAsClassname();
-        $tableName = $this->getTable()->getName();
-        $instanceName = strtolower($className);
-
-        $labels = [];
         $labels['view'] = $this->labelTranslations['view'] ?? 'View';
         $labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
         $labels['options'] = $this->labelTranslations['options'] ?? 'Options';
@@ -68,8 +62,16 @@ class PageGenerator
         $labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
         $labels['list'] = $this->labelTranslations['list'] ?? 'List';
         $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
+        return $labels;
+    }
 
-        $tableDetails = $this->getDbTableDetails($this->getTable()->getName());
+    public function processClass()
+    {
+        $namespace = $this->getConfig()['namespace'];
+        $className = $this->getTable()->getNameAsClassname();
+        $tableName = $this->getTable()->getName();
+        $instanceName = strtolower($className);
+        $labels = $this->getLabels();
 
         $file = "<?php
 
@@ -141,31 +143,9 @@ switch (UrlParser::getAction()) {
 		\$page->addLink(\$dd);
 		break;
 	case 'list':
-	default:
-		\$grid = new PhpGrid('{$tableName}_list');
-        \$grid->setTitle('{$className} {$labels['list']}')
-            ->setRowsPerPage(20)
-            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
-
-        foreach ($tableDetails['columns'] as $alias => $column) {
-            if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
-            } else {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
-            }
-        }
-
-        $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
-        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
-        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-trash');
-        \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
-        \$grid->addActionButton(\$deleteLink);
-
-        if (\$grid->isReadyToHandleRequests()) {
-            \$grid->bootstrap();
-        }
-        
-        \$page->addComponent(new HtmlContainer(\$grid->draw()));
+	default:";
+        $file .= $this->buildGrid($this->getTable());
+        $file .= "
         \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
@@ -367,6 +347,42 @@ echo \$html->draw();
             'columns' => $columns
         ];
 
+    }
+
+    public function buildGrid(string $table_name, string $grid_name = 'grid') : string
+    {
+        $tableDetails = $this->getDbTableDetails($table_name);
+        $labels = $this->getLabels();
+
+        $namespace = $this->getConfig()['namespace'];
+        $className = $this->getTable()->getNameAsClassname();
+        $tableName = $this->getTable()->getName();
+        $instanceName = strtolower($className);
+
+        $file =" \$grid = new PhpGrid('{$tableName}_list');
+        \$grid->setTitle('{$className} {$labels['list']}')
+            ->setRowsPerPage(20)
+            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
+
+        foreach ($tableDetails['columns'] as $alias => $column) {
+            if ($column[0] == $tableName && $column[1] == 'id') {
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
+            } else {
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
+            }
+        }
+
+        $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
+        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
+        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-trash');
+        \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
+        \$grid->addActionButton(\$deleteLink);
+
+        if (\$grid->isReadyToHandleRequests()) {
+            \$grid->bootstrap();
+        }
+        
+        \$page->addComponent(new HtmlContainer(\$grid->draw()));";
     }
 
 
