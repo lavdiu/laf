@@ -1,8 +1,7 @@
 <?php
 
-/**
- * building database connection logic
- */
+use Laf\Util\Settings;
+
 $db_host = $db_username = $db_password = $db_name = null;
 if(isset($_SERVER['SERVER_NAME'])){
     $_server_name = $_SERVER['SERVER_NAME'];
@@ -19,33 +18,15 @@ switch ($_server_name) {
         $db_host = 'localhost';
         $db_username = 'root';
         $db_password = '';
-        $db_name = 'intrepicure';
-        break;
-    case "intrepicurebeta.com":
-    case "my.intrepicurebeta.com":
-        $db_host = 'databases.intrepicure.com';
-        $db_username = 'intrepicureuname';
-        $db_password = '!ntrepiCur3Pwd?';
-        $db_name = 'comintrepicurebetasite';
-        break;
-    case "intrepicure.com":
-    case "my.intrepicure.com":
-    case "intrepicure.net":
-    case "my.intrepicure.net":
-    case "intrepicure.org":
-    case "my.intrepicure.org":
-        $db_host = 'databases.intrepicure.com';
-        $db_username = 'intrepicureuname';
-        $db_password = '!ntrepiCur3Pwd?';
-        $db_name = 'comintrepicuresite';
+        $db_name = 'lafshell';
         break;
 }
 
 /**
  * Database settings
  */
-$settings = \Laf\Util\Settings::getInstance();
-$settings->setProperty('db_hostname', $db_host);
-$settings->setProperty('db_databasename', $db_name);
-$settings->setProperty('db_username', $db_username);
-$settings->setProperty('db_password', $db_password);
+$settings = Settings::getInstance();
+$settings->setProperty('database.hostname', $db_host);
+$settings->setProperty('database.database_name', $db_name);
+$settings->setProperty('database.username', $db_username);
+$settings->setProperty('database.password', $db_password);

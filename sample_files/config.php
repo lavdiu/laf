@@ -1,4 +1,7 @@
 <?php
+
+use Laf\Util\Settings;
+
 date_default_timezone_set("America/New_York");
 require_once(__DIR__.'/functions.php');
 
@@ -28,5 +31,5 @@ require_once(__DIR__.'/constants.php');
 /**
  * Setting Global settings
  */
-$settings = \Laf\Util\Settings::getInstance();
+$settings = Settings::getInstance();
 $settings->setProperty('debug_level', 0);

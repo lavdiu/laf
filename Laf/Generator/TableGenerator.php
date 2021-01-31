@@ -19,10 +19,22 @@ class TableGenerator
      */
     private $table;
 
+    /**
+     * @var string
+     */
     private $baseClassFile = null;
+
+    /**
+     * @var string
+     */
     private $classFile = null;
 
     private $foreignKeys = [];
+
+    /**
+     * @var TableInspector
+     */
+    private $tableInspector = null;
 
     /**
      * @var string[]
@@ -47,6 +59,7 @@ class TableGenerator
     {
         $this->table = $table;
         $this->config = $config;
+        $this->tableInspector = new TableInspector($table->getName());
         $this->populateForeignKeys();
     }
 
@@ -422,50 +435,31 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
      */
     public function getTableColumns()
     {
-        $db = Db::getInstance();
-        $sql = "
-        SELECT *
-        FROM information_schema.columns
-        WHERE
-            table_schema = '{$db->getDatabase()}'
-            AND table_name='{$this->getTable()->getName()}'
-        ORDER BY table_name, ordinal_position
-        ";
-
-        $q = $db->query($sql);
-        return $q->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->getTableInspector()->getColumns();
     }
 
-    public function populateForeignKeys()
-    {
-        $db = DB::getInstance();
-        $settings = Settings::getInstance();
 
-        $sql = "
-		SELECT 
-			column_name,
-			referenced_table_name,
-			referenced_column_name,
-			constraint_name
-		FROM
-			information_schema.key_column_usage
-		WHERE
-			table_name = '{$this->table->getName()}'
-				AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
-				AND referenced_table_name IS NOT NULL
-		";
-        $res = $db->query($sql);
-        while ($r = $res->fetchObject()) {
-            $this->foreignKeys[$r->column_name] = [
-                'column_name' => $r->column_name,
-                'constraint_name' => $r->constraint_name,
-                'referenced_table_name' => $r->referenced_table_name,
-                'referenced_column_name' => $r->referenced_column_name,
-            ];
+    /**
+     *
+     */
+    public function populateForeignKeys(): void
+    {
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            if (array_key_exists('FOREIGN_KEY', $column) && count($column['FOREIGN_KEY']) > 0) {
+                $this->foreignKeys[$column['FOREIGN_KEY']['column_name']] = [
+                    'column_name' => $column['FOREIGN_KEY']['column_name'],
+                    'constraint_name' => $column['FOREIGN_KEY']['constraint_name'],
+                    'referenced_table_name' => $column['FOREIGN_KEY']['referenced_table_name'],
+                    'referenced_column_name' => $column['FOREIGN_KEY']['referenced_column_name'],
+                ];
+            }
         }
     }
 
-    public function generateForeignKeys()
+    /**
+     * @return string
+     */
+    public function generateForeignKeys(): string
     {
         $tmp = "\n\t\t/**
 		 * Generating Foreign keys
@@ -558,5 +552,13 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
         } else {
             return '';
         }
+    }
+
+    /**
+     * @return TableInspector
+     */
+    public function getTableInspector(): TableInspector
+    {
+        return $this->tableInspector;
     }
 }
