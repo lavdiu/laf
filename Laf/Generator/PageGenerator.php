@@ -337,10 +337,10 @@ echo \$html->draw();
         foreach($this->getTableInspector()->getColumns() as $c){
             if(array_key_exists('FOREIGN_KEY', $c)){
                 $columnName = $c['COLUMN_NAME'];
-                $fkTableName = $c['TABLE_NAME']['FOREIGN_KEY']['referenced_table_name'];
-                $fkTableCol = $c['TABLE_NAME']['FOREIGN_KEY']['referenced_column_name'];
+                $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
+                $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
 
-                $referencingTable = new TableInspector($c['TABLE_NAME']['FOREIGN_KEY']['referenced_table_name']);
+                $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $referencingTableColumns = $referencingTable->getColumns();
                 $displayCol = $referencingTable->getDisplayColumnName();
 
