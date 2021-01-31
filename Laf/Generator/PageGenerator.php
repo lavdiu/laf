@@ -69,7 +69,7 @@ class PageGenerator
         $labels['list'] = $this->labelTranslations['list'] ?? 'List';
         $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
 
-        $tableDetails = $this->buildListSql();
+        $tableDetails = $this->getDbTableDetails($this->getTable()->getName());
 
         $file = "<?php
 
@@ -147,15 +147,8 @@ switch (UrlParser::getAction()) {
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
 
-
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            if ($column['COLUMN_KEY'] == 'PRI') {
-
-            }
-        }
-
         foreach ($tableDetails['columns'] as $alias => $column) {
-            if ($column[0] == $tableName && $column[1] == 'id') {
+            if ($column['COLUMN_KEY'] == 'PRI') {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
             } else {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
@@ -172,8 +165,8 @@ switch (UrlParser::getAction()) {
             \$grid->bootstrap();
         }
         
-        \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
         \$page->addComponent(new HtmlContainer(\$grid->draw()));
+        \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		break;
 }
@@ -316,6 +309,7 @@ echo \$html->draw();
     /**
      * Returns the built sql to select the list
      * and a list of columns
+     * @param string $tableName
      * format: [
      *  sql = "sql statement"
      *  columns [
@@ -331,10 +325,8 @@ echo \$html->draw();
      * @return array
      */
     #[ArrayShape(['sql' => "string", 'columns' => "array"])]
-    private function buildListSql(): array
+    private function getDbTableDetails(string $tableName): array
     {
-        $className = '\\' . $this->getConfig()['namespace'] . '\\' . $this->getTable()->getNameAsClassname();
-        $thisTable = (new $className)->getTable();
         $columns = [];
         $joins = [];
 
@@ -350,9 +342,9 @@ echo \$html->draw();
                 $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$c['TABLE_NAME'], $c['COLUMN_NAME'], $c['COLUMN_NAME'] . 'Id', false];
                 $columns[$fkTableName . '_' . $displayCol] = [$fkTableName, $displayCol, $fkTableName, true];
 
-                $joins[] = "LEFT JOIN `" . $fkTableName . "` ON `" . $thisTable->getName() . '`.`' . $columnName . '` = `' . $fkTableName . '`.`' . $fkTableCol . '`';
+                $joins[] = "LEFT JOIN `" . $fkTableName . "` ON `" . $tableName . '`.`' . $columnName . '` = `' . $fkTableName . '`.`' . $fkTableCol . '`';
             } else {
-                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$thisTable->getName(), $c['COLUMN_NAME'], $c['COLUMN_NAME'], true];
+                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$tableName, $c['COLUMN_NAME'], $c['COLUMN_NAME'], true];
             }
         }
 
@@ -367,7 +359,7 @@ echo \$html->draw();
             $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
             $iterator++;
         }
-        $sql .= "\n\tFROM " . $thisTable->getName();
+        $sql .= "\n\tFROM " . $tableName;
         $sql .= "\n\t" . implode("\n\t", $joins);
 
         return [
