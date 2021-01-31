@@ -382,7 +382,6 @@ echo \$html->draw();
         }
         $sql .= "\n\tFROM " . $thisTable->getName();
         $sql .= "\n\t" . implode("\n\t", $joins);
-        $sql .= "\n";
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
