@@ -355,19 +355,19 @@ echo \$html->draw();
             }
         }
 
-       /* foreach ($thisTable->getFields() as $field) {
-            if ($field->isForeignKey()) {
-                $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
-                $fkTable = (new $fkClassName)->getTable();
+        /* foreach ($thisTable->getFields() as $field) {
+             if ($field->isForeignKey()) {
+                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
+                 $fkTable = (new $fkClassName)->getTable();
 
-                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName() . 'Id', false];
-                $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), $fkTable->getName(), true];
+                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName() . 'Id', false];
+                 $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), $fkTable->getName(), true];
 
-                $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
-            } else {
-                $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName(), true];
-            }
-        }*/
+                 $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
+             } else {
+                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName(), true];
+             }
+         }*/
 
         $sql = "\tSELECT\n";
         $iterator = 1;
@@ -380,8 +380,9 @@ echo \$html->draw();
             $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
             $iterator++;
         }
-        $sql .= "\n\tFROM " . $thisTable->getName() . "\n";
-        $sql .= join("\n\t\t", $joins);
+        $sql .= "\n\tFROM " . $thisTable->getName();
+        $sql .= "\n\t\t" . implode("\n\t\t", $joins);
+        $sql .= "\n";
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
