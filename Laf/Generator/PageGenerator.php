@@ -148,7 +148,7 @@ switch (UrlParser::getAction()) {
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
 
         foreach ($tableDetails['columns'] as $alias => $column) {
-            if ($column['COLUMN_KEY'] == 'PRI') {
+            if ($column[0] == $tableName && $column[1] == 'id') {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
             } else {
                 $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
