@@ -68,6 +68,8 @@ class PageGenerator
         $labels['list'] = $this->labelTranslations['list'] ?? 'List';
         $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
 
+        $tableDetails = $this->buildListSql();
+
         $file = "<?php
 
 use {$namespace}\\{$className};
@@ -142,22 +144,22 @@ switch (UrlParser::getAction()) {
 		\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
-            ->setSqlQuery('\n" . ($this->buildListSql()['sql']) . "');\n\n";
+            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
 
 
-        foreach ($this->getTableInspector()->getColumns() as $column){
-            if($column['COLUMN_KEY'] == 'PRI'){
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            if ($column['COLUMN_KEY'] == 'PRI') {
 
             }
         }
 
-            foreach ($this->buildListSql()['columns'] as $alias => $column) {
-                if ($column[0] == $tableName && $column[1] == 'id') {
-                    $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
-                } else {
-                    $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
-                }
+        foreach ($tableDetails['columns'] as $alias => $column) {
+            if ($column[0] == $tableName && $column[1] == 'id') {
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
+            } else {
+                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
             }
+        }
 
         $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
         \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
@@ -334,8 +336,8 @@ echo \$html->draw();
         $columns = [];
         $joins = [];
 
-        foreach($this->getTableInspector()->getColumns() as $c){
-            if(array_key_exists('FOREIGN_KEY', $c)){
+        foreach ($this->getTableInspector()->getColumns() as $c) {
+            if (array_key_exists('FOREIGN_KEY', $c)) {
                 $columnName = $c['COLUMN_NAME'];
                 $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
@@ -348,10 +350,12 @@ echo \$html->draw();
                 $columns[$fkTableName . '_' . $displayCol] = [$fkTableName, $displayCol, $fkTableName, true];
 
                 $joins[] = "LEFT JOIN `" . $fkTableName . "` ON `" . $thisTable->getName() . '`.`' . $columnName . '` = `' . $fkTableName . '`.`' . $fkTableCol . '`';
+            } else {
+                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$thisTable->getName(), $c['COLUMN_NAME'], $c['COLUMN_NAME'], true];
             }
         }
 
-        foreach ($thisTable->getFields() as $field) {
+       /* foreach ($thisTable->getFields() as $field) {
             if ($field->isForeignKey()) {
                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
                 $fkTable = (new $fkClassName)->getTable();
@@ -363,7 +367,7 @@ echo \$html->draw();
             } else {
                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName(), true];
             }
-        }
+        }*/
 
         $sql = "\tSELECT\n";
         $iterator = 1;
