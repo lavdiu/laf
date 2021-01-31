@@ -2,6 +2,7 @@
 
 namespace Laf\Generator;
 
+use JetBrains\PhpStorm\ArrayShape;
 use Laf\Database\Table;
 use Laf\Util\Util;
 
@@ -329,6 +330,7 @@ echo \$html->draw();
      * ]
      * @return array
      */
+    #[ArrayShape(['sql' => "string", 'columns' => "array"])]
     private function buildListSql(): array
     {
         $className = '\\' . $this->getConfig()['namespace'] . '\\' . $this->getTable()->getNameAsClassname();
@@ -343,7 +345,6 @@ echo \$html->draw();
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
 
                 $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                $referencingTableColumns = $referencingTable->getColumns();
                 $displayCol = $referencingTable->getDisplayColumnName();
 
                 $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$c['TABLE_NAME'], $c['COLUMN_NAME'], $c['COLUMN_NAME'] . 'Id', false];
@@ -354,20 +355,6 @@ echo \$html->draw();
                 $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$thisTable->getName(), $c['COLUMN_NAME'], $c['COLUMN_NAME'], true];
             }
         }
-
-        /* foreach ($thisTable->getFields() as $field) {
-             if ($field->isForeignKey()) {
-                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();
-                 $fkTable = (new $fkClassName)->getTable();
-
-                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName() . 'Id', false];
-                 $columns[$fkTable->getName() . '_' . $fkTable->getDisplayField()->getName()] = [$fkTable->getName(), $fkTable->getDisplayField()->getName(), $fkTable->getName(), true];
-
-                 $joins[] = "LEFT JOIN `" . $fkTable->getName() . "` ON `" . $thisTable->getName() . '`.`' . $field->getName() . '` = `' . $fkTable->getName() . '`.`' . $thisTable->getForeignKey($field->getName())->getReferencingField() . '`';
-             } else {
-                 $columns[$thisTable->getName() . '_' . $field->getName()] = [$thisTable->getName(), $field->getName(), $field->getName(), true];
-             }
-         }*/
 
         $sql = "\tSELECT\n";
         $iterator = 1;
