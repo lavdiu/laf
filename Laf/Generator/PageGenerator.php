@@ -381,7 +381,7 @@ echo \$html->draw();
             $iterator++;
         }
         $sql .= "\n\tFROM " . $thisTable->getName();
-        $sql .= "\n\t\t" . implode("\n\t\t", $joins);
+        $sql .= "\n\t" . implode("\n\t", $joins);
         $sql .= "\n";
 
         return [
