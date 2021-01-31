@@ -114,12 +114,14 @@ switch (UrlParser::getAction()) {
 
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
 		\$html->addComponent(\$page);
+		echo \$html->draw();
 		break;
 	case 'new':
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
 		\$html->addComponent(\$page);
+		echo \$html->draw();
 		break;
 	case 'delete':
 		if (\${$instanceName}->recordExists()) {
@@ -147,6 +149,7 @@ switch (UrlParser::getAction()) {
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
 		\$html->addComponent(\$page);
+		echo \$html->draw();
 		break;
 	case 'list':
 	default:";
@@ -155,12 +158,9 @@ switch (UrlParser::getAction()) {
         \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
 		\$html->addComponent(\$page);
+		echo \$html->draw();
 		break;
 }
-
-
-echo \$html->draw();
-
 ";
         $this->setPageFile($file);
     }
@@ -355,7 +355,7 @@ echo \$html->draw();
 
     }
 
-    public function buildGrid(string $table_name, string $grid_name = 'grid') : string
+    public function buildGrid(string $table_name, string $grid_name = 'grid'): string
     {
         $tableDetails = $this->getDbTableDetails($table_name);
         $labels = $this->getLabels();
@@ -365,7 +365,7 @@ echo \$html->draw();
         $tableName = $this->getTable()->getName();
         $instanceName = strtolower($className);
 
-        $file ="\n\t\t\$grid = new PhpGrid('{$tableName}_list');
+        $file = "\n\t\t\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
