@@ -90,9 +90,11 @@ use Laf\UI\Grid\PhpGrid\ActionButton;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
-\$form = \${$instanceName}->getForm();
 
+\$form = \${$instanceName}->getForm();
+\$html = \\{$namespace}\\Factory::GeneralPage();
 \$page = new AdminPage();
+
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
 \$page->setTitleIcon('far fa-list-alt');
 
@@ -110,11 +112,13 @@ switch (UrlParser::getAction()) {
 		\$page->addComponent(\$form);
 
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$html->addComponent(\$page);
 		break;
 	case 'new':
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		\$html->addComponent(\$page);
 		break;
 	case 'delete':
 		if (\${$instanceName}->recordExists()) {
@@ -141,6 +145,7 @@ switch (UrlParser::getAction()) {
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
+		\$html->addComponent(\$page);
 		break;
 	case 'list':
 	default:";
@@ -148,11 +153,11 @@ switch (UrlParser::getAction()) {
         $file .= "
         \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
 		\$page->setContainerType(ContainerType::TYPE_FLUID);
+		\$html->addComponent(\$page);
 		break;
 }
 
-\$html = \\{$namespace}\\Factory::GeneralPage();
-\$html->addComponent(\$page);
+
 echo \$html->draw();
 
 ";
@@ -328,7 +333,7 @@ echo \$html->draw();
             }
         }
 
-        $sql = "\tSELECT\n";
+        $sql = "\tSELECT";
         $iterator = 1;
         foreach ($columns as $alias => $column) {
             if ($iterator == 1) {
@@ -359,10 +364,10 @@ echo \$html->draw();
         $tableName = $this->getTable()->getName();
         $instanceName = strtolower($className);
 
-        $file ="\n\t\$grid = new PhpGrid('{$tableName}_list');
+        $file ="\n\t\t\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
-            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
+            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
         foreach ($tableDetails['columns'] as $alias => $column) {
             if ($column[0] == $tableName && $column[1] == 'id') {
