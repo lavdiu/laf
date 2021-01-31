@@ -359,7 +359,7 @@ echo \$html->draw();
         $tableName = $this->getTable()->getName();
         $instanceName = strtolower($className);
 
-        $file =" \$grid = new PhpGrid('{$tableName}_list');
+        $file ="\n\t\$grid = new PhpGrid('{$tableName}_list');
         \$grid->setTitle('{$className} {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n\n";
@@ -382,7 +382,8 @@ echo \$html->draw();
             \$grid->bootstrap();
         }
         
-        \$page->addComponent(new HtmlContainer(\$grid->draw()));";
+        \$page->addComponent(new HtmlContainer(\$grid->draw()));\n";
+        return $file;
     }
 
 
