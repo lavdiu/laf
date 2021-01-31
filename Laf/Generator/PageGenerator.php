@@ -87,12 +87,13 @@ use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
+use LafShell\Factory;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
 
 \$form = \${$instanceName}->getForm();
-\$html = \\{$namespace}\\Factory::GeneralPage();
+\$html = Factory::GeneralPage();
 \$page = new AdminPage();
 
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
