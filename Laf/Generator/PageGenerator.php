@@ -13,16 +13,30 @@ class PageGenerator
      */
     private $table;
 
+    /**
+     * @var string
+     */
     private $pageFile = null;
 
+    /**
+     * @var string[]
+     */
     private $config = [];
 
+    /**
+     * @var array
+     */
     private $labelTranslations = [];
 
     /**
      * @var bool
      */
     private $writeOnLiveDirectory = false;
+
+    /**
+     * @var TableInspector
+     */
+    private $tableInspector = null;
 
     /**
      * Table constructor.
@@ -32,7 +46,7 @@ class PageGenerator
      */
     public function __construct(Table $table, array $config, array $labelTranslations = [])
     {
-        $this->table = $table;
+        $this->setTable($table);
         $this->config = $config;
         $this->labelTranslations = $labelTranslations;
     }
@@ -130,17 +144,24 @@ switch (UrlParser::getAction()) {
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($this->buildListSql()['sql']) . "');\n\n";
 
-        foreach ($this->buildListSql()['columns'] as $alias => $column) {
-            if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={".$tableName."_id}', UrlParser::getModule())));";
-            } else {
-                $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
+
+        foreach ($this->getTableInspector()->getColumns() as $column){
+            if($column['COLUMN_KEY'] == 'PRI'){
+
             }
         }
 
-        $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-eye'));
-        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-edit'));
-        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={".$tableName."_id}', UrlParser::getModule()), 'fa fa-trash');
+            foreach ($this->buildListSql()['columns'] as $alias => $column) {
+                if ($column[0] == $tableName && $column[1] == 'id') {
+                    $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
+                } else {
+                    $file .= "\n\t\t\$grid->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
+                }
+            }
+
+        $file .= "\n\n\t\t\$grid->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
+        \$grid->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
+        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-trash');
         \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
         \$grid->addActionButton(\$deleteLink);
 
@@ -205,11 +226,20 @@ echo \$html->draw();
     }
 
     /**
+     * @return TableInspector
+     */
+    public function getTableInspector(): TableInspector
+    {
+        return $this->tableInspector;
+    }
+
+    /**
      * @param Table $table
      */
     public function setTable(Table $table): void
     {
         $this->table = $table;
+        $this->tableInspector = new TableInspector($table->getName());
     }
 
     /**
@@ -303,6 +333,24 @@ echo \$html->draw();
         $thisTable = (new $className)->getTable();
         $columns = [];
         $joins = [];
+
+        foreach($this->getTableInspector()->getColumns() as $c){
+            if(array_key_exists('FOREIGN_KEY', $c)){
+                $columnName = $c['COLUMN_NAME'];
+                $fkTableName = $c['TABLE_NAME']['FOREIGN_KEY']['referenced_table_name'];
+                $fkTableCol = $c['TABLE_NAME']['FOREIGN_KEY']['referenced_column_name'];
+
+                $referencingTable = new TableInspector($c['TABLE_NAME']['FOREIGN_KEY']['referenced_table_name']);
+                $referencingTableColumns = $referencingTable->getColumns();
+                $displayCol = $referencingTable->getDisplayColumnName();
+
+                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$c['TABLE_NAME'], $c['COLUMN_NAME'], $c['COLUMN_NAME'] . 'Id', false];
+                $columns[$fkTableName . '_' . $displayCol] = [$fkTableName, $displayCol, $fkTableName, true];
+
+                $joins[] = "LEFT JOIN `" . $fkTableName . "` ON `" . $thisTable->getName() . '`.`' . $columnName . '` = `' . $fkTableName . '`.`' . $fkTableCol . '`';
+            }
+        }
+
         foreach ($thisTable->getFields() as $field) {
             if ($field->isForeignKey()) {
                 $fkClassName = '\\' . $this->getConfig()['namespace'] . '\\' . $thisTable->getForeignKey($field->getName())->getReferencingTable();

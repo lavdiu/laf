@@ -21,11 +21,34 @@ class TableInspector
      */
     private $columns = [];
 
+    /**
+     * @var null
+     */
+    private $primaryColumnName = null;
+
 
     public function __construct(string $table)
     {
         $this->table = $table;
         $this->inspect();
+    }
+
+    /**
+     * @return null
+     */
+    public function getPrimaryColumnName()
+    {
+        return $this->primaryColumnName;
+    }
+
+    /**
+     * @param null $primaryColumnName
+     * @return TableInspector
+     */
+    public function setPrimaryColumnName($primaryColumnName)
+    {
+        $this->primaryColumnName = $primaryColumnName;
+        return $this;
     }
 
     /**
@@ -89,6 +112,9 @@ class TableInspector
         $q = $db->query($sql);
         while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
             $this->columns[$col['COLUMN_NAME']] = $col;
+            if ($col['COLUMN_KEY'] == 'PRI') {
+                $this->setPrimaryColumnName($col['COLUMN_NAME']);
+            }
         }
     }
 
@@ -122,6 +148,24 @@ class TableInspector
                 'referenced_column_name' => $r->referenced_column_name,
             ];
         }
+    }
+
+    /**
+     * @return string
+     */
+    public function getDisplayColumnName(): string
+    {
+        if (array_key_exists('label', $this->getColumns())) {
+            return 'label';
+        }
+        if (array_key_exists('name', $this->getColumns())) {
+            return 'name';
+        }
+
+        $cols = $this->getColumns();
+        $first = array_shift($cols);//discard
+        $second = array_shift($cols);
+        return $second['COLUMN_NAME'];
     }
 
 }
