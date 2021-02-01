@@ -325,14 +325,13 @@ switch (UrlParser::getAction()) {
             if (array_key_exists('FOREIGN_KEY', $c)) {
                 $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
 
-                if (in_array($tableName, $joinedTables)) {
+                if (in_array($fkTableName, $joinedTables)) {
                     $fkTableAlias = $fkTableName . '_' . $iterator;
                 } else {
                     $fkTableAlias = $fkTableName;
                 }
                 array_push($joinedTables, $fkTableName);
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
-
 
                 $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $displayCol = $referencingTable->getDisplayColumnName();
