@@ -315,6 +315,8 @@ switch (UrlParser::getAction()) {
     {
         $columns = [];
         $joins = [];
+        $joinedTables = [];
+        $iterator = 1;
 
         foreach ($this->getTableInspector()->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
@@ -322,8 +324,15 @@ switch (UrlParser::getAction()) {
 
             if (array_key_exists('FOREIGN_KEY', $c)) {
                 $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
-                $fkTableAlias = $fkTableName;
+
+                if (in_array($tableName, $joinedTables)) {
+                    $fkTableAlias = $fkTableName . '_' . $iterator;
+                } else {
+                    $fkTableAlias = $fkTableName;
+                }
+                array_push($fkTableName);
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
+
 
                 $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $displayCol = $referencingTable->getDisplayColumnName();
@@ -335,6 +344,7 @@ switch (UrlParser::getAction()) {
             } else {
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName, true];
             }
+            $iterator++;
         }
 
         $sql = "\tSELECT";
