@@ -315,7 +315,7 @@ switch (UrlParser::getAction()) {
     {
         $columns = [];
         $joins = [];
-        $joinedTables = [];
+        $joinedTables = [$tableName];
 
         foreach ($this->getTableInspector()->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
@@ -341,7 +341,6 @@ switch (UrlParser::getAction()) {
                 $joins[] = "LEFT JOIN `{$fkTableName}` `{$fkTableAlias}` ON `{$tableName}`.`{$columnName}` = `{$fkTableAlias}`.`{$fkTableCol}`";
             } else {
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName, true];
-                array_push($joinedTables, $tableName);
             }
         }
 
