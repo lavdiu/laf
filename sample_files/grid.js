@@ -386,17 +386,17 @@ class Grid {
         $.getJSON(this.url, function (data) {
             _data = data;
         }).fail(function () {
-            alert('Faile loading data for the table. Please refresh the page and try again')
+            alert('Failed loading data for the table. Please refresh the page and try again')
         });
 
 
         var nowDate = new Date();
         var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-        var fileName = _data.name + ' (' + now + ')';
+        var fileName = _data.name;
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
-        var bin = XLSX.writeFile(workbook, (fileName + '.xlsx'), {bookType: 'xlsx'});
+        var bin = XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.xlsx'), {bookType: 'xlsx'});
         this.hideLoadingIcon();
     }
 
@@ -420,11 +420,11 @@ class Grid {
 
         var nowDate = new Date();
         var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-        var fileName = _data.name + ' (' + now + ')';
+        var fileName = _data.name;
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
-        var bin = XLSX.writeFile(workbook, (fileName + '.csv'), {bookType: 'csv'});
+        var bin = XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.csv'), {bookType: 'csv'});
     }
 
     draw() {
