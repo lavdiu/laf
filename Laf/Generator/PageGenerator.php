@@ -330,7 +330,7 @@ switch (UrlParser::getAction()) {
                 } else {
                     $fkTableAlias = $fkTableName;
                 }
-                array_push($fkTableName);
+                array_push($joinedTables, $fkTableName);
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
 
 
