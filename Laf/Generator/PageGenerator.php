@@ -326,7 +326,7 @@ switch (UrlParser::getAction()) {
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
 
                 if (in_array($fkTableName, $joinedTables)) {
-                    $fkTableAlias = $fkTableName . '_' . $fkTableCol;
+                    $fkTableAlias = $fkTableName . '_' . $columnName;
                 } else {
                     $fkTableAlias = $fkTableName;
                 }
