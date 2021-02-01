@@ -317,20 +317,23 @@ switch (UrlParser::getAction()) {
         $joins = [];
 
         foreach ($this->getTableInspector()->getColumns() as $c) {
+            $columnName = $c['COLUMN_NAME'];
+            $tableAlias = $tableName;
+
             if (array_key_exists('FOREIGN_KEY', $c)) {
-                $columnName = $c['COLUMN_NAME'];
                 $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
+                $fkTableAlias = $fkTableName;
                 $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
 
                 $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $displayCol = $referencingTable->getDisplayColumnName();
 
-                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$c['TABLE_NAME'], $c['COLUMN_NAME'], $c['COLUMN_NAME'] . 'Id', false];
-                $columns[$fkTableName . '_' . $displayCol] = [$fkTableName, $displayCol, $fkTableName, true];
+                $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];
+                $columns[$fkTableAlias . '_' . $displayCol] = [$fkTableAlias, $displayCol, $columnName, true];
 
-                $joins[] = "LEFT JOIN `" . $fkTableName . "` ON `" . $tableName . '`.`' . $columnName . '` = `' . $fkTableName . '`.`' . $fkTableCol . '`';
+                $joins[] = "LEFT JOIN `{$fkTableName}` `{$fkTableAlias}` ON `{$tableName}`.`{$columnName}` = `{$fkTableAlias}`.`{$fkTableCol}`";
             } else {
-                $columns[$c['TABLE_NAME'] . '_' . $c['COLUMN_NAME']] = [$tableName, $c['COLUMN_NAME'], $c['COLUMN_NAME'], true];
+                $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName, true];
             }
         }
 
@@ -345,7 +348,7 @@ switch (UrlParser::getAction()) {
             $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
             $iterator++;
         }
-        $sql .= "\n\tFROM " . $tableName;
+        $sql .= "\n\tFROM {$tableName} {$tableAlias}";
         $sql .= "\n\t" . implode("\n\t", $joins);
 
         return [
