@@ -169,7 +169,7 @@ switch (UrlParser::getAction()) {
         }
 
 
-        echo "
+        $file .= "
         \$panel->addComponent(\$tabContainer);
         \$html->addComponent(\$panel);
 		echo \$html->draw();
