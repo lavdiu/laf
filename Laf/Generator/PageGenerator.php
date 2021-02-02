@@ -162,7 +162,7 @@ switch (UrlParser::getAction()) {
 
 
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
-                    $gridVarName = $table;
+                    $gridVarName = $table['TABLE_NAME'];
                     $gridDraw = $this->buildGrid($tableName, $gridVarName);
 
                     $file .= "
