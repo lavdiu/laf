@@ -351,7 +351,7 @@ switch (UrlParser::getAction()) {
         $joinedTables = [$tableName];
         $ti = new TableInspector($tableName);
 
-        foreach ($ti as $c) {
+        foreach ($ti->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
             $tableAlias = $tableName;
 
