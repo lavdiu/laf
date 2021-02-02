@@ -397,7 +397,7 @@ switch (UrlParser::getAction()) {
         $sql .= "\n\tWHERE 1=1 ";
 
         if (isset($filters['table_name']) && isset($filters['column_name']) && $filters['table_name'] != '' && $filters['column_name'] != '') {
-            $sql .= " AND {$filters['table_name']}.{$filters['column_name']} = \" . ((int)UrlParser::getId());\n";
+            $sql .= " AND {$filters['table_name']}.{$filters['column_name']} = ' . ((int)UrlParser::getId()).'\n";
         }
 
         return [
