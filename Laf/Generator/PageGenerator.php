@@ -3,6 +3,7 @@
 namespace Laf\Generator;
 
 use JetBrains\PhpStorm\ArrayShape;
+use JetBrains\PhpStorm\Pure;
 use Laf\Database\Table;
 use Laf\Util\Util;
 
@@ -88,6 +89,9 @@ use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
 use LafShell\Factory;
+use Laf\UI\Container\Div;
+use Laf\UI\Container\TabContainer;
+use Laf\UI\Container\TabItem;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
@@ -148,7 +152,26 @@ switch (UrlParser::getAction()) {
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
-		\$html->addComponent(\$page);
+		\$html->addComponent(\$page);";
+
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            if (array_key_exists('FOREIGN_KEY', $column)) {
+                $gridVarName = $column['FOREIGN_KEY']['referenced_table_name'];
+                $gridDraw = $this->buildGrid($column['FOREIGN_KEY']['referenced_table_name'], $gridVarName);
+
+                $file .= "
+        {$gridDraw}
+        
+        \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
+        \$tabContainer->addComponent(\$tabItem);
+        \$tabItem->addComponent(new HtmlContainer(\$gridVarName->draw()));\n";
+            }
+        }
+
+
+        echo "
+        \$panel->addComponent(\$tabContainer);
+        \$html->addComponent(\$panel);
 		echo \$html->draw();
 		break;
 	case 'list':
@@ -169,7 +192,7 @@ switch (UrlParser::getAction()) {
      * Return the path where the page file will be stored
      * @return string
      */
-    public function getPageFilePath(): string
+    #[Pure] public function getPageFilePath(): string
     {
         if ($this->isWriteOnLiveDirectory()) {
             return $this->getConfig()['live_page_dir'] . '/' . $this->getTable()->getName() . '.page';
@@ -182,7 +205,7 @@ switch (UrlParser::getAction()) {
      * Check if the page file already exists in the filesystem
      * @return bool
      */
-    public function pageFileExists(): bool
+    #[Pure] public function pageFileExists(): bool
     {
         return file_exists($this->getPageFilePath());
     }
@@ -191,7 +214,7 @@ switch (UrlParser::getAction()) {
      * Generates and saves class to file
      * @return PageGenerator
      */
-    public function savePageToFile()
+    public function savePageToFile(): static
     {
         $this->processClass();
         $file = $this->getPageFilePath();
@@ -365,6 +388,11 @@ switch (UrlParser::getAction()) {
 
     }
 
+    /**
+     * @param string $table_name
+     * @param string $grid_name
+     * @return string
+     */
     public function buildGrid(string $table_name, string $grid_name = 'grid'): string
     {
         $tableDetails = $this->getDbTableDetails($table_name);

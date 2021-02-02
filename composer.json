@@ -10,7 +10,7 @@
   ],
   "config": {
     "platform": {
-      "php": "7.3"
+      "php": "8"
     },
     "vendor-dir": "vendor",
     "preferred-install": "dist",
