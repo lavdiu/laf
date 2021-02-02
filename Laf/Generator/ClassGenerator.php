@@ -59,7 +59,6 @@ class ClassGenerator
     {
         $this->table = $table;
         $this->config = $config;
-        $this->populateForeignKeys();
     }
 
     /**
@@ -67,7 +66,8 @@ class ClassGenerator
      */
     public function processBaseClass()
     {
-        $this->tableInspector = new TableInspector($table->getName());
+        $this->tableInspector = new TableInspector($this->getTable()->getName());
+        $this->populateForeignKeys();
 
         $file = "<?php
 
