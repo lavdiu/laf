@@ -5,6 +5,7 @@ namespace Laf\Generator;
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
 use Laf\Database\Table;
+use Laf\Util\UrlParser;
 use Laf\Util\Util;
 
 class PageGenerator
@@ -330,6 +331,7 @@ switch (UrlParser::getAction()) {
      * Returns the built sql to select the list
      * and a list of columns
      * @param string $tableName
+     * @param array $filters
      * format: [
      *  sql = "sql statement"
      *  columns [
@@ -345,7 +347,7 @@ switch (UrlParser::getAction()) {
      * @return array
      */
     #[ArrayShape(['sql' => "string", 'columns' => "array"])]
-    private function getDbTableDetails(string $tableName): array
+    private function getDbTableDetails(string $tableName, array $filters = []): array
     {
         $columns = [];
         $joins = [];
@@ -393,6 +395,10 @@ switch (UrlParser::getAction()) {
         $sql .= "\n\tFROM {$tableName} {$tableAlias}";
         $sql .= "\n\t" . implode("\n\t", $joins);
         $sql .= "\n\tWHERE 1=1 ";
+
+        if(isset($filters['table_name']) && isset($filters['column_name']) && $filters['table_name'] != '' && $filters['column_name'] !=''){
+            $sql .= " AND {$filters['table_name']}.{$filters['column_name']} = ((int)UrlParser::getId());\n";
+        }
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
