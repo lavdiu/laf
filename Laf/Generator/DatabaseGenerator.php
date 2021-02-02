@@ -60,7 +60,7 @@ class DatabaseGenerator
 	{
 		echo "\nStarting to generate Classes";
 		foreach ($this->getTables() as $table) {
-			$tg = new TableGenerator(new Table($table['table_name']), $this->getConfig());
+			$tg = new ClassGenerator(new Table($table['table_name']), $this->getConfig());
 			$tg->saveBaseClassToFile()
 				->saveClassToFile();
 			echo "\nProcessed table: " . $table['table_name'];

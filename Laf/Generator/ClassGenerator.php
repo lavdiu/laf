@@ -11,7 +11,7 @@ use Laf\UI\Form\FormElementInterface;
 use Laf\Util\Settings;
 use Laf\Util\Util;
 
-class TableGenerator
+class ClassGenerator
 {
 
     /**
@@ -64,7 +64,7 @@ class TableGenerator
     }
 
     /**
-     * @return TableGenerator
+     * @return ClassGenerator
      */
     public function processBaseClass()
     {
@@ -250,7 +250,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 
     /**
      * Generates and saves class to file
-     * @return TableGenerator
+     * @return ClassGenerator
      */
     public function saveBaseClassToFile()
     {
@@ -319,7 +319,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 
     /**
      * Generates and saves class to file
-     * @return TableGenerator
+     * @return ClassGenerator
      */
     public function saveClassToFile()
     {

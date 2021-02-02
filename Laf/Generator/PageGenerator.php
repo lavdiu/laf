@@ -66,8 +66,12 @@ class PageGenerator
         return $labels;
     }
 
-    public function processClass()
+    /**
+     *
+     */
+    public function generatePageFile(): void
     {
+        $this->tableInspector = new TableInspector($this->getTable()->getName());;
         $namespace = $this->getConfig()['namespace'];
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
@@ -162,10 +166,10 @@ switch (UrlParser::getAction()) {
 
 
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
-                    $gridVarName = $table['TABLE_NAME'];
-                    $gridDraw = $this->buildGrid($tableName, $gridVarName);
+                $gridVarName = $table['TABLE_NAME'];
+                $gridDraw = $this->buildGrid($tableName, $gridVarName);
 
-                    $file .= "
+                $file .= "
         {$gridDraw}
         
         \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
@@ -223,9 +227,9 @@ switch (UrlParser::getAction()) {
      */
     public function savePageToFile(): static
     {
-        $this->processClass();
+        $this->generatePageFile();
         $file = $this->getPageFilePath();
-        file_put_contents($file, $this->getpageFile());
+        file_put_contents($file, $this->getPageFile());
         return $this;
     }
 
@@ -251,7 +255,6 @@ switch (UrlParser::getAction()) {
     public function setTable(Table $table): void
     {
         $this->table = $table;
-        $this->tableInspector = new TableInspector($table->getName());
     }
 
     /**
