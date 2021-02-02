@@ -349,8 +349,9 @@ switch (UrlParser::getAction()) {
         $columns = [];
         $joins = [];
         $joinedTables = [$tableName];
+        $ti = new TableInspector($tableName);
 
-        foreach ($this->getTableInspector()->getColumns() as $c) {
+        foreach ($ti as $c) {
             $columnName = $c['COLUMN_NAME'];
             $tableAlias = $tableName;
 
@@ -390,6 +391,7 @@ switch (UrlParser::getAction()) {
         }
         $sql .= "\n\tFROM {$tableName} {$tableAlias}";
         $sql .= "\n\t" . implode("\n\t", $joins);
+        $sql .= "\n\tWHERE 1=1 ";
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
@@ -401,11 +403,12 @@ switch (UrlParser::getAction()) {
     /**
      * @param string $table_name
      * @param string $grid_name
+     * @param array|null[] $filters
      * @return string
      */
-    public function buildGrid(string $table_name, string $grid_name = 'grid'): string
+    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = []): string
     {
-        $tableDetails = $this->getDbTableDetails($table_name);
+        $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
 
         $className = $this->getTable()->getNameAsClassname();
