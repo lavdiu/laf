@@ -26,12 +26,26 @@ class TableInspector
      */
     private $primaryColumnName = null;
 
+    /**
+     * @var bool
+     */
+    private $hasForeignKeys = false;
+
 
     public function __construct(string $table)
     {
         $this->table = $table;
         $this->inspect();
     }
+
+    /**
+     * @return bool
+     */
+    public function hasForeignKeys(): bool
+    {
+        return $this->hasForeignKeys;
+    }
+
 
     /**
      * @return null
@@ -141,6 +155,9 @@ class TableInspector
 		";
         $res = $db->query($sql);
         while ($r = $res->fetchObject()) {
+
+            $this->hasForeignKeys = true;
+
             $this->columns[$r->column_name]['FOREIGN_KEY'] = [
                 'column_name' => $r->column_name,
                 'constraint_name' => $r->constraint_name,

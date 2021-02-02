@@ -152,26 +152,34 @@ switch (UrlParser::getAction()) {
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
-		\$html->addComponent(\$page);";
+		\$html->addComponent(\$page);\n";
 
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            if (array_key_exists('FOREIGN_KEY', $column)) {
-                $gridVarName = $column['FOREIGN_KEY']['referenced_table_name'];
-                $gridDraw = $this->buildGrid($column['FOREIGN_KEY']['referenced_table_name'], $gridVarName);
+        if ($this->getTableInspector()->hasForeignKeys()) {
+            $file .= "
+        \$tabContainer = new TabContainer();
+        \$panel = new Div();
+        \$panel->setContainerType(ContainerType::TYPE_FLUID);\n\n";
 
-                $file .= "
+
+            foreach ($this->getTableInspector()->getColumns() as $column) {
+                if (array_key_exists('FOREIGN_KEY', $column)) {
+                    $gridVarName = $column['FOREIGN_KEY']['referenced_table_name'];
+                    $gridDraw = $this->buildGrid($column['FOREIGN_KEY']['referenced_table_name'], $gridVarName);
+
+                    $file .= "
         {$gridDraw}
         
         \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
         \$tabContainer->addComponent(\$tabItem);
         \$tabItem->addComponent(new HtmlContainer(\$gridVarName->draw()));\n";
+                }
             }
+            $file .= "
+        \$panel->addComponent(\$tabContainer);
+        \$html->addComponent(\$panel);";
         }
 
-
         $file .= "
-        \$panel->addComponent(\$tabContainer);
-        \$html->addComponent(\$panel);
 		echo \$html->draw();
 		break;
 	case 'list':
