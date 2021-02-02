@@ -31,6 +31,11 @@ class TableInspector
      */
     private $hasForeignKeys = false;
 
+    /**
+     * @var bool
+     */
+    private $hasReferencingTables = false;
+
 
     public function __construct(string $table)
     {
@@ -44,6 +49,14 @@ class TableInspector
     public function hasForeignKeys(): bool
     {
         return $this->hasForeignKeys;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasReferencingTables(): bool
+    {
+        return $this->hasReferencingTables;
     }
 
 
@@ -183,6 +196,31 @@ class TableInspector
         $first = array_shift($cols);//discard
         $second = array_shift($cols);
         return $second['COLUMN_NAME'];
+    }
+
+    /**
+     * @param string $tableName
+     * @return array
+     * @throws MissingConfigParamException
+     */
+    public function getTablesReferencingThisTable(string $tableName): array
+    {
+        $db = DB::getInstance();
+        $settings = Settings::getInstance();
+
+        $sql = "
+        SELECT
+            DISTINCT TABLE_NAME
+        FROM
+          information_schema.KEY_COLUMN_USAGE
+        WHERE
+          REFERENCED_TABLE_NAME = '{$tableName}'
+          AND REFERENCED_COLUMN_NAME = '{$this->primaryColumnName}'
+          AND TABLE_SCHEMA = '{$settings->getProperty('database.database_name')}'
+		";
+        $res = Db::getAllAssoc();
+        $this->hasReferencingTables = count($res) > 0;
+        return $res;
     }
 
 }
