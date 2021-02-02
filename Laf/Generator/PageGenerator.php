@@ -168,7 +168,7 @@ switch (UrlParser::getAction()) {
 
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
                 $gridVarName = $table['TABLE_NAME'];
-                $gridDraw = $this->buildGrid($gridVarName, $gridVarName);
+                $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
 
                 $file .= "
         {$gridDraw}
@@ -396,7 +396,7 @@ switch (UrlParser::getAction()) {
         $sql .= "\n\t" . implode("\n\t", $joins);
         $sql .= "\n\tWHERE 1=1 ";
 
-        if(isset($filters['table_name']) && isset($filters['column_name']) && $filters['table_name'] != '' && $filters['column_name'] !=''){
+        if (isset($filters['table_name']) && isset($filters['column_name']) && $filters['table_name'] != '' && $filters['column_name'] != '') {
             $sql .= " AND {$filters['table_name']}.{$filters['column_name']} = ((int)UrlParser::getId());\n";
         }
 
