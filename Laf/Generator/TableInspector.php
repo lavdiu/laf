@@ -225,7 +225,7 @@ class TableInspector
           AND REFERENCED_COLUMN_NAME = '{$this->primaryColumnName}'
           AND TABLE_SCHEMA = '{$settings->getProperty('database.database_name')}'
 		";
-        $this->referencingTables = Db::get($sql);
+        $this->referencingTables = Db::getAllAssoc($sql);
     }
 
 }
