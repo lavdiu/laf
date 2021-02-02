@@ -173,7 +173,7 @@ switch (UrlParser::getAction()) {
         {$gridDraw}
         
         \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
-        \$tabItem->addComponent(new HtmlContainer(\$gridVarName->draw()));
+        \$tabItem->addComponent(new HtmlContainer(\${$gridVarName}->draw()));
         \$tabContainer->addComponent(\$tabItem);\n";
             }
             $file .= "
@@ -407,7 +407,7 @@ switch (UrlParser::getAction()) {
     {
         $tableDetails = $this->getDbTableDetails($table_name);
         $labels = $this->getLabels();
-        
+
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
 
