@@ -161,7 +161,7 @@ switch (UrlParser::getAction()) {
         \$panel->setContainerType(ContainerType::TYPE_FLUID);\n\n";
 
 
-            foreach ($this->getTableInspector()->getTablesReferencingThisTable() as $table) {
+            foreach ($this->getTableInspector()->getReferencingTables() as $table) {
                     $gridVarName = $table;
                     $gridDraw = $this->buildGrid($tableName, $gridVarName);
 

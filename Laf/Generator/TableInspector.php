@@ -32,9 +32,9 @@ class TableInspector
     private $hasForeignKeys = false;
 
     /**
-     * @var bool
+     * @var array
      */
-    private $hasReferencingTables = false;
+    private $referencingTables = [];
 
 
     public function __construct(string $table)
@@ -56,7 +56,15 @@ class TableInspector
      */
     public function hasReferencingTables(): bool
     {
-        return $this->hasReferencingTables;
+        return count($this->referencingTables) > 0;
+    }
+
+    /**
+     * @return array
+     */
+    public function getReferencingTables(): array
+    {
+        return $this->referencingTables;
     }
 
 
@@ -118,6 +126,7 @@ class TableInspector
     {
         $this->populateColumnsData();
         $this->populateForeignKeyData();
+        $this->populateReferencingTables();
     }
 
     /**
@@ -199,11 +208,9 @@ class TableInspector
     }
 
     /**
-     * @param string $tableName
-     * @return array
      * @throws MissingConfigParamException
      */
-    public function getTablesReferencingThisTable(string $tableName): array
+    public function populateReferencingTables(): void
     {
         $db = DB::getInstance();
         $settings = Settings::getInstance();
@@ -214,13 +221,11 @@ class TableInspector
         FROM
           information_schema.KEY_COLUMN_USAGE
         WHERE
-          REFERENCED_TABLE_NAME = '{$tableName}'
+          REFERENCED_TABLE_NAME = '{$this->getTable()}'
           AND REFERENCED_COLUMN_NAME = '{$this->primaryColumnName}'
           AND TABLE_SCHEMA = '{$settings->getProperty('database.database_name')}'
 		";
-        $res = Db::getAllAssoc();
-        $this->hasReferencingTables = count($res) > 0;
-        return $res;
+        $this->referencingTables = Db::getAllAssoc();
     }
 
 }
