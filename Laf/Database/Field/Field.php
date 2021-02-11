@@ -253,7 +253,7 @@ class Field
         /**
          * for float/double/numeric types, try to parse the numbers with different formats, such as ##,###.## ##.###,## ###,## ###.##
          */
-        if(in_array($this->getType(), [FieldType::TYPE_DOUBLE, FieldType::TYPE_FLOAT, FieldType::TYPE_NUMERIC]) && str_contains($value, ',')){
+        if(in_array($this->getType(), [TypeFloat::class]) && str_contains($value, ',')){
             $value = Util::toFloat($value);
         }
 
