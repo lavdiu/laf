@@ -249,6 +249,14 @@ class Field
 	 */
 	public function setValue($value): Field
 	{
+
+        /**
+         * for float/double/numeric types, try to parse the numbers with different formats, such as ##,###.## ##.###,## ###,## ###.##
+         */
+        if(in_array($this->getType(), [FieldType::TYPE_DOUBLE, FieldType::TYPE_FLOAT, FieldType::TYPE_NUMERIC]) && str_contains($value, ',')){
+            $value = Util::toFloat($value);
+        }
+
 		if ($this->type->isValid($value)) {
 			$tmpVal = $this->sanitize($value);
 			if ($this->value !== $tmpVal) {

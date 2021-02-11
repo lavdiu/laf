@@ -180,12 +180,7 @@ class Form implements ComponentInterface
 				$value = trim($this->getSubmittedFieldValue($field->getName()));
 			}
 
-            /**
-             * for float/double/numeric types, try to parse the numbers with different formats, such as ##,###.## ##.###,## ###,## ###.##
-             */
-			if(in_array($field->getType(), [FieldType::TYPE_DOUBLE, FieldType::TYPE_FLOAT, FieldType::TYPE_NUMERIC]) && str_contains($value, ',')){
-			    $value = Util::toFloat($value);
-            }
+
 
 			if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
 				if ($field->isDocumentField()) {
