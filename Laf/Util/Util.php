@@ -86,4 +86,24 @@ class Util
 	{
 		return str_rot13($name);
 	}
+
+    /**
+     * @param string $number
+     * @return float
+     */
+    public static function toFloat(string $number) : float {
+        $dotPos = strrpos($number, '.');
+        $commaPos = strrpos($number, ',');
+        $sep = (($dotPos > $commaPos) && $dotPos) ? $dotPos :
+            ((($commaPos > $dotPos) && $commaPos) ? $commaPos : false);
+
+        if (!$sep) {
+            return floatval(preg_replace("/[^0-9]/", "", $number));
+        }
+
+        return floatval(
+            preg_replace("/[^0-9]/", "", substr($number, 0, $sep)) . '.' .
+            preg_replace("/[^0-9]/", "", substr($number, $sep+1, strlen($number)))
+        );
+    }
 }

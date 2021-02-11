@@ -2,6 +2,7 @@
 
 namespace Laf\UI\Form;
 
+use Laf\Database\Field\FieldType;
 use Laf\Filesystem\Document;
 use Laf\Database\BaseObject;
 use Laf\Database\Field\Field;
@@ -178,6 +179,14 @@ class Form implements ComponentInterface
 			if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
 				$value = trim($this->getSubmittedFieldValue($field->getName()));
 			}
+
+            /**
+             * for float/double/numeric types, try to parse the numbers with different formats, such as ##,###.## ##.###,## ###,## ###.##
+             */
+			if(in_array($field->getType(), [FieldType::TYPE_DOUBLE, FieldType::TYPE_FLOAT, FieldType::TYPE_NUMERIC]) && str_contains($value, ',')){
+			    $value = Util::toFloat($value);
+            }
+
 			if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
 				if ($field->isDocumentField()) {
 					$value = Document::upload($field->getNameRot13());
