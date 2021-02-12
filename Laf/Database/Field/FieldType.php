@@ -20,6 +20,7 @@ interface FieldType
     const TYPE_DATETIME = 'datetime';
     const TYPE_TIME = 'time';
     const TYPE_BLOB = 'blob';
+    const TYPE_BOOL = 'bool';
 
     public function getValueDbSanitized($value);
 
