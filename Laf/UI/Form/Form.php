@@ -3,6 +3,7 @@
 namespace Laf\UI\Form;
 
 use Laf\Database\Field\FieldType;
+use Laf\Database\Field\TypeBool;
 use Laf\Filesystem\Document;
 use Laf\Database\BaseObject;
 use Laf\Database\Field\Field;
@@ -188,6 +189,12 @@ class Form implements ComponentInterface
 				}
 				$field->setValue($field->getType()->formatForDb($value));
 			}
+            /**
+             * boolean fields show up as check boxes. WHen checkbox is not checked, it doesn't submit a var with empty result or 0.
+             */
+			if(get_class($field->getType()) == TypeBool::class){
+                $field->setValue($field->getType()->formatForDb($value));
+            }
 		}
 
 		if (
