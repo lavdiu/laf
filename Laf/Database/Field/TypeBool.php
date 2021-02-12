@@ -13,8 +13,12 @@ class TypeBool implements FieldType
      */
     public function isValid($value)
     {
-        if (is_bool($value))
+        if (is_bool($value)) {
             return true;
+        }
+        if (is_null($value)) {
+            return true;
+        }
         return filter_var($value, FILTER_VALIDATE_BOOL) !== false;
     }
 
