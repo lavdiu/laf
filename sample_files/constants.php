@@ -8,8 +8,8 @@ $settings->setProperty('email_smtp_config', array(
     'Host' => 'smtp.gmail.com',
     'Port' => 587,
     'SMTPAuth' => true,
-    'Username' => 'noreply@intrepicure.com',
-    'Password' => 'xnrcopgzkhbdueri',
+    'Username' => 'email@domain.com',
+    'Password' => 'passwordd',
     'debug' => 0,
     'SMTPDebug' => 0,
     'SMTPSecure' => 'tls',
@@ -24,7 +24,7 @@ $_server_name = filter_input(INPUT_SERVER, 'SERVER_NAME');
 $_protocol = filter_input(INPUT_SERVER, 'HTTPS') != '' || filter_input(INPUT_SERVER, 'SERVER_PORT') == 443 ? 'https' : 'http';
 
 
-if(in_array($_server_name, ['dev.local'])){
+if (in_array($_server_name, ['dev.local'])) {
     error_reporting(E_ALL);
     ini_set("display_errors", 1);
 }
