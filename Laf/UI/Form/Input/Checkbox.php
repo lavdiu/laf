@@ -22,7 +22,7 @@ class Checkbox extends Text implements FormElementInterface, ComponentInterface
         $newVal = null;
         if($this->getValue() == 1){
             $newVal = 'Yes';
-        }else if($this->getValue() == 0{
+        }else if($this->getValue() == 0){
             $newVal = 'No';
         }else{
             $newVal = '&nbsp;';
