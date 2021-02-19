@@ -5,8 +5,8 @@ namespace Laf\UI\Form;
 
 class FormMode
 {
-    const View = 1;
-    const Update = 2;
-    const Insert = 3;
+    const VIEW = 1;
+    const UPDATE = 2;
+    const INSERT = 3;
 }
 
