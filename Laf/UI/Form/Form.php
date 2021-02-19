@@ -140,23 +140,6 @@ class Form implements ComponentInterface
 		return $this;
 	}
 
-	/**
-	 * @return int
-	 */
-	public function getMode(): int
-	{
-		return $this->mode;
-	}
-
-	/**
-	 * @param int $mode
-	 * @return \Laf\UI\Form\Form
-	 */
-	public function setMode(int $mode)
-	{
-		$this->mode = $mode;
-		return $this;
-	}
 
 	/**
 	 * Process the form and store it in the db
