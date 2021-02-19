@@ -276,6 +276,9 @@ class Modal implements ComponentInterface
             $formStartTag = $formEndTag = "";
         }
         foreach ($this->getComponents() as $c) {
+            if ($c->getDrawMode() == '')
+                $c->setDrawMode($this->getDrawMode());
+
             $components .= $c->draw();
         }
 

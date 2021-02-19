@@ -22,6 +22,9 @@ class GenericContainer implements ComponentInterface
 			class='{$this->getCssClassesForHtml()}'
 		>\n";
 		foreach ($this->getComponents() as $component) {
+            if ($component->getDrawMode() == '')
+                $component->setDrawMode($this->getDrawMode());
+
 			$component->setDrawMode($this->getDrawMode());
 			$component->setFormRowDisplayMode($this->getFormRowDisplayMode());
 			$html .= "\n\t\t" . $component->draw();

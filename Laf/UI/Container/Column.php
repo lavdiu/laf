@@ -18,7 +18,9 @@ class Column extends GenericContainer implements ComponentInterface
 			class='{$this->getCssClassesForHtml()}'
 		>\n";
 		foreach ($this->getComponents() as $component) {
-			$component->setDrawMode($this->getDrawMode());
+            if ($component->getDrawMode() == '')
+                $component->setDrawMode($this->getDrawMode());
+
 			$component->setFormRowDisplayMode($this->getFormRowDisplayMode());
 			$html .= "\n\t\t" . $component->draw();
 		}
