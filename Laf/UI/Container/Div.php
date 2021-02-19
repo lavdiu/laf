@@ -39,7 +39,6 @@ class Div implements ComponentInterface
             if ($component->getDrawMode() == '')
                 $component->setDrawMode($this->getDrawMode());
 
-			$component->setDrawMode($this->getDrawMode());
 			$component->setFormRowDisplayMode($this->getFormRowDisplayMode());
 			$html .= "\n\t\t" . $component->draw();
 		}
