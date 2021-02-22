@@ -71,7 +71,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
 		<a {$params}  
 			style='{$this->getCssStyleForHtml()}' 
 			class='{$this->getCssClassesForHtml()}'
-			role='button' data-toggle='dropdown' id='{$id}' aria-haspopup='true' aria-expanded='false'>
+			role='button' data-toggle='dropdown' data-bs-toggle='dropdown' id='{$id}' aria-haspopup='true' aria-expanded='false'>
 		    {$text}
 		</a>
 		<div class='dropdown-menu" . ($this->rightAlign ? ' dropdown-menu-right' : '') . "' aria-labelledby='{$id}'>";

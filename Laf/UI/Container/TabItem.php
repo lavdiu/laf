@@ -96,6 +96,7 @@ class TabItem extends GenericContainer implements ComponentInterface
 		return "\n\t\t\t<li class='nav-item'><a class='nav-link{$active}' 
 			id='{$this->getTitleNoSpaces()}-tab' 
 			data-toggle='tab' 
+			data-bs-toggle='tab' 
 			href='#{$this->getTitleNoSpaces()}-content' 
 			role='tab' 
 			style='text-decoration:none;color:#000000'

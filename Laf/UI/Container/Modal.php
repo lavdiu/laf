@@ -294,13 +294,13 @@ class Modal implements ComponentInterface
 				{$formStartTag}
 				<div class='modal-header'>
 					<h5 class='modal-title' id='{$this->getId()}Label}'>{$this->getTitle()}</h5>
-					<button type='button' class='close' data-dismiss='modal' aria-label='Close'><span aria-hidden='true'>&times;</span></button>
+					<button type='button' class='close' data-dismiss='modal' data-bs-dismiss='modal' aria-label='Close'><span aria-hidden='true'>&times;</span></button>
 				</div>
 				<div class='modal-body'>
 				{$components}	
 				</div>
 				<div class='modal-footer'>
-					<button type='button' class='btn btn-outline-secondary' data-dismiss='modal'>{$this->getCancelLabel()}</button>
+					<button type='button' class='btn btn-outline-secondary' data-dismiss='modal' data-bs-dismiss='modal'>{$this->getCancelLabel()}</button>
 					{$footerButtons}
 				</div>
 				{$formEndTag}
@@ -323,7 +323,9 @@ class Modal implements ComponentInterface
         $btn = new Link();
         $btn->setValue('Open Modal')
             ->addAttribute('data-toggle', 'modal')
+            ->addAttribute('data-bs-toggle', 'modal')
             ->addAttribute('data-target', '#' . $this->getId())
+            ->addAttribute('data-bs-target', '#' . $this->getId())
             ->setCssClasses(explode(' ', $cssClasses))
             ->addAttribute('href', 'javascript:;');
         return $btn;

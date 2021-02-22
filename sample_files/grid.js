@@ -335,6 +335,7 @@ class Grid {
             var dropdownToggleButton = document.createElement('button');
             dropdownToggleButton.className = "btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split";
             dropdownToggleButton.setAttribute('data-toggle', 'dropdown');
+            dropdownToggleButton.setAttribute('data-bs-toggle', 'dropdown');
             dropdownToggleButton.setAttribute('aria-haspopup', 'true');
             dropdownToggleButton.setAttribute('aria-expande', 'false');
 
@@ -482,6 +483,7 @@ class Grid {
                 actionButtonsDropdown_button.className = "btn btn-outline-secondary btn-sm dropdown-toggle";
                 actionButtonsDropdown_button.setAttribute('type', 'button');
                 actionButtonsDropdown_button.setAttribute('data-toggle', 'dropdown');
+                actionButtonsDropdown_button.setAttribute('data-bs-toggle', 'dropdown');
                 actionButtonsDropdown_button.setAttribute('aria-haspopup', 'true');
                 actionButtonsDropdown_button.setAttribute('aria-expanded', 'false');
                 actionButtonsDropdown_button.innerHTML = "<i class='fa fa-cog'></i>";
