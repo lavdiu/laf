@@ -67,7 +67,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 		}
 
 		$html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}: " . ($this->isRequired() ? '*' : '') . "</label>
             <div class='col-sm-10'>
             <select {$params}

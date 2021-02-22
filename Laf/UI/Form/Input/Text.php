@@ -118,7 +118,7 @@ class Text implements FormElementInterface, ComponentInterface
 			->addCssClass('rounded')
 			->addCssClass('p-2');
 		$html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}: " . "</label>
             <div class='col-sm-10'>
                 <div
@@ -187,7 +187,7 @@ class Text implements FormElementInterface, ComponentInterface
 			$params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
 
 		$html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
             <div class='col-sm-10'>
                 <input 

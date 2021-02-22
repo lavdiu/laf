@@ -63,7 +63,7 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 			$params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
 
 		$html = "
-        <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='form-group row {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+        <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='form-group row  mb-2 {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <div>";
 		foreach ($this->getOptions() as $ok => $ov) {
 			$html .= "
