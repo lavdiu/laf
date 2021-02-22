@@ -991,26 +991,27 @@ class PhpGrid
 		<div class='d-flex justify-content-between'>
 			<div id='{$gridName}_paginationInfoSection' class='m-0 py-2 small'></div>
 			<div class='row m-0 py-2'>
-				<span class='dropdown'>
-				  <button title='Choose how many rows to show per page' class='btn btn-outline-secondary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' data-bs-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
-				  <span class='dropdown-menu text-right' aria-labelledby='{$gridName}_pagesPerRowSelector'>
-				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(10);\">10</a>
-				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(50);\">50</a>
-				    <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(100);\">100</a>
-				    <!-- <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(1000);\">1000</a> -->
-				    <!-- <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(0);\">All</a> -->
-				  </span>
-				</span>
-				&nbsp;&nbsp;
-				<nav aria-label='Navigation'>
-					<ul class='Laf-SimpleTable-Pagination pagination pagination-sm'>
-						<li class='page-item'><a id='{$gridName}_paginationFirstPage' href='javascript:;' class='page-link' title='First Page'><i class='fa fa-angle-double-left'></i></a></li>
-						<li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
-						<li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
-						<li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
-						<li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
-					</ul>
-				</nav>
+			    <div class='col'>
+                    <span class='dropdown'>
+                      <button title='Choose how many rows to show per page' class='btn btn-outline-secondary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' data-bs-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
+                      <span class='dropdown-menu text-right' aria-labelledby='{$gridName}_pagesPerRowSelector'>
+                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(10);\">10</a>
+                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(50);\">50</a>
+                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(100);\">100</a>
+                      </span>
+                    </span>
+				</div>
+                <div class='col'>
+                    <nav aria-label='Navigation'>
+                        <ul class='Laf-SimpleTable-Pagination pagination pagination-sm'>
+                            <li class='page-item'><a id='{$gridName}_paginationFirstPage' href='javascript:;' class='page-link' title='First Page'><i class='fa fa-angle-double-left'></i></a></li>
+                            <li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
+                            <li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
+                            <li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
+                            <li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
+                        </ul>
+                    </nav>
+				</div>
 			</div>
 		</div>
 	</div>
