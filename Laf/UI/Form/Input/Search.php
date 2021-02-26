@@ -14,12 +14,12 @@ class Search extends Text implements FormElementInterface, ComponentInterface
         return parent::drawUpdateMode();
     }
 
-	/**
-	 * Returns the CSS class unique to the UI component
-	 * @return string
-	 */
-	public function getComponentCssControlClass(): string
-	{
-		return str_replace('\\', '-', static::class);
-	}
+    /**
+     * Returns the CSS class unique to the UI component
+     * @return string
+     */
+    public function getComponentCssControlClass(): string
+    {
+        return str_replace('\\', '-', static::class);
+    }
 }

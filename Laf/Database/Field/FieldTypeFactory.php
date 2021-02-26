@@ -11,9 +11,6 @@ class FieldTypeFactory
     public static function getClass(string $type)
     {
         switch ($type) {
-            case FieldType::TYPE_TEXT:
-                return new TypeText();
-                break;
             case FieldType::TYPE_DATE:
                 return new TypeDate();
                 break;
@@ -42,6 +39,7 @@ class FieldTypeFactory
             case FieldType::TYPE_REAL:
                 return new TypeFloat();
                 break;
+            case FieldType::TYPE_TEXT:
             default:
                 return new TypeText();
                 break;

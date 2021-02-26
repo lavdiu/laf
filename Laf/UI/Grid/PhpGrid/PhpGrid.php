@@ -666,7 +666,7 @@ class PhpGrid
     /**
      * @return bool
      */
-    protected function isValid() : bool
+    protected function isValid(): bool
     {
         if (strlen($this->getSqlQuery()) < 10) {
             $this->errorMessage = "Missing SQL Query";
@@ -888,7 +888,7 @@ class PhpGrid
             return null;
         }
 
-        $fileName = $this->getGridName() . date(' (Y-m-d Hi)').'.csv';
+        $fileName = $this->getGridName() . date(' (Y-m-d Hi)') . '.csv';
 
         ob_clean();
         header('Content-Type: text/csv');
@@ -914,11 +914,11 @@ class PhpGrid
      * Output Json clearing the buffer and setting proper json headers
      * If the results are not generated, it would re-run it
      * @param bool $reload_results
-     * @throws \Exception
      * @return void
+     * @throws \Exception
      */
     #[NoReturn]
-    public function outputJsonWithHeaders(bool $reload_results = false) : void
+    public function outputJsonWithHeaders(bool $reload_results = false): void
     {
         ob_clean();
         header('Content-Type: application/json');

@@ -12,7 +12,7 @@ class TypeFloat implements FieldType
      */
     public function isValid($value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return true;
         return filter_var($value, FILTER_VALIDATE_FLOAT) !== false;
     }
@@ -23,7 +23,7 @@ class TypeFloat implements FieldType
      */
     public function getValueDbSanitized($value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return null;
         return (float)$value;
     }
@@ -54,7 +54,7 @@ class TypeFloat implements FieldType
      */
     public function formatForDb(?string $value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return null;
         return floatval($value);
     }

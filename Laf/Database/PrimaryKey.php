@@ -1,6 +1,7 @@
 <?php
 
 namespace Laf\Database;
+
 use Laf\Database\Field\Field;
 
 /**

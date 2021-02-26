@@ -7,13 +7,13 @@ class Page extends GenericPage
     /**
      * @return string
      */
-    public function draw() : string
+    public function draw(): string
     {
         if (!$this->isEnabled())
             return "";
 
         $this->setHeader("
-    <section class=\"innerbanner\" style=\"background-image:url('".getBannerImage()."');\">
+    <section class=\"innerbanner\" style=\"background-image:url('" . getBannerImage() . "');\">
         <div class='container'>
             <div class='row'>
                 <div class='col-12 text-center innerbanner--wrapper'>

@@ -52,8 +52,8 @@ class TypeVarchar implements FieldType
      */
     public function formatForDb(?string $value)
     {
-	    if (mb_strlen($value) == 0)
-		    return null;
+        if (mb_strlen($value) == 0)
+            return null;
         return (string)$value;
     }
 }

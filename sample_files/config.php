@@ -11,9 +11,7 @@ require_once(__DIR__ . '/functions.php');
  */
 $_autoloads = [
     __DIR__ . '/../vendor/autoload.php',
-    #__DIR__.'/../app/lib/Laf/autoload.php',
-    __DIR__ . '/../app/lib/MyApp/autoload.php',
-
+    __DIR__ . '/../app/lib/MyApp/autoload.php', #set the generated autoloader here
 ];
 foreach ($_autoloads as $_file) {
     if (file_exists($_file)) {

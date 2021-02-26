@@ -269,7 +269,7 @@ class Modal implements ComponentInterface
      */
     public function draw(): ?string
     {
-        $formStartTag = "<form role='form' action='{$this->getFormAction()}' method='{$this->getFormMethod()}' ".($this->getFormHasFiles()?" enctype='multipart/form-data' ":'').">";
+        $formStartTag = "<form role='form' action='{$this->getFormAction()}' method='{$this->getFormMethod()}' " . ($this->getFormHasFiles() ? " enctype='multipart/form-data' " : '') . ">";
         $formEndTag = "</form>";
         $components = $footerButtons = "";
         if (!$this->isIncludeForm()) {

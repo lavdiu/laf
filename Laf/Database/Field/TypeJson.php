@@ -12,7 +12,7 @@ class TypeJson implements FieldType
      */
     public function isValid($value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return true;
         json_decode($value);
         return (json_last_error() == JSON_ERROR_NONE);
@@ -53,7 +53,7 @@ class TypeJson implements FieldType
      */
     public function formatForDb(?string $value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return null;
         return $value;
     }

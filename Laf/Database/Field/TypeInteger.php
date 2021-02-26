@@ -16,7 +16,7 @@ class TypeInteger implements FieldType
      */
     public function isValid($value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return true;
         return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }
@@ -27,7 +27,7 @@ class TypeInteger implements FieldType
      */
     public function getValueDbSanitized($value)
     {
-        if(is_null($value))
+        if (is_null($value))
             return null;
         return (int)$value;
     }
@@ -66,7 +66,7 @@ class TypeInteger implements FieldType
      */
     public function formatForDb(?string $value)
     {
-        if(!is_numeric($value))
+        if (!is_numeric($value))
             return null;
         return (int)$value;
     }
