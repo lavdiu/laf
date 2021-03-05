@@ -49,10 +49,10 @@ class Settings
     /**
      * Get property
      * @param $key
-     * @return string|null
+     * @return mixed
      * @throws MissingConfigParamException
      */
-    public function getProperty($key): ?string
+    public function getProperty($key)
     {
         if ($this->propertyExists($key)) {
             return $this->properties[$key];
@@ -93,10 +93,10 @@ class Settings
 
     /**
      * @param $key
-     * @return string|null
+     * @return mixed
      * @throws MissingConfigParamException
      */
-    public static function get($key): ?string
+    public static function get($key)
     {
         return self::getInstance()->getProperty($key);
     }
@@ -104,9 +104,9 @@ class Settings
 
     /**
      * @param string $key
-     * @param string|null $value
+     * @param mixed $value
      */
-    public static function set(string $key, ?string $value): void
+    public static function set(string $key, $value): void
     {
         self::getInstance()->setProperty($key, $value);
     }
