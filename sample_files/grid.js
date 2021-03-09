@@ -547,7 +547,7 @@ class Grid {
         if (href.includes('{')) {
             for (let column in data) {
                 if (data.hasOwnProperty(column)) {
-                    href = href.replace(('{' + column + '}'), data[column]);
+                    href = href.replaceAll(('{' + column + '}'), data[column]);
                 }
             }
         }
@@ -555,7 +555,7 @@ class Grid {
         var urlParams = new URLSearchParams(window.location.search);
         if (href.includes('[')) {
             for (const [key, value] of urlParams) {
-                href = href.replace(('\[' + key + '\]'), value);
+                href = href.replaceAll(('\[' + key + '\]'), value);
             }
         }
         return href
