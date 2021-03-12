@@ -971,7 +971,7 @@ class PhpGrid
 	     window.grid['{$gridName}'].initialize();
 	});
 </script>
-<div class='table-responsive' style='position:relative'>
+<div class='table-responsive' style='position:relative;overflow: visible'>
 	<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
 		<thead id='{$gridName}_thead' class='thead-light'>
 			<tr>
