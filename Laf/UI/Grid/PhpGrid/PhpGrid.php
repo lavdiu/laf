@@ -110,6 +110,12 @@ class PhpGrid
     protected $allowExport = true;
 
     /**
+     * @var bool
+     */
+    protected $enableWildCardSearch = false;
+
+
+    /**
      * PhpGrid constructor.
      * @param string $gridName
      * @param array $params_list
@@ -582,7 +588,11 @@ class PhpGrid
 
                 $sqlWhere .= "\n\tAND `" . $property . "` " . $operator . " :" . $property;
                 if ($operator == 'LIKE') {
-                    $this->addParam($property, $value . '%');
+                    if ($this->isEnableWildCardSearch()) {
+                        $this->addParam($property, '%' . $value . '%');
+                    } else {
+                        $this->addParam($property, $value . '%');
+                    }
                 } else {
                     $this->addParam($property, $value);
                 }
@@ -1084,4 +1094,24 @@ class PhpGrid
     {
         return array_key_exists('load_grid_by_name', $this->getFilters()) && $this->getFilters()['load_grid_by_name'] == $this->getGridName();
     }
+
+    /**
+     * @return bool
+     */
+    public function isEnableWildCardSearch(): bool
+    {
+        return $this->enableWildCardSearch;
+    }
+
+    /**
+     * @param bool $enableWildCardSearch
+     * @return PhpGrid
+     */
+    public function setEnableWildCardSearch(bool $enableWildCardSearch): PhpGrid
+    {
+        $this->enableWildCardSearch = $enableWildCardSearch;
+        return $this;
+    }
+
+
 }
