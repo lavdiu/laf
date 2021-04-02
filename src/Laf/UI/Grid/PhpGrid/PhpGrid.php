@@ -112,6 +112,11 @@ class PhpGrid
     /**
      * @var bool
      */
+    protected $debug = false;
+
+    /**
+     * @var bool
+     */
     protected $enableWildCardSearch = false;
 
 
@@ -535,6 +540,25 @@ class PhpGrid
 
 
     /**
+     * @return bool
+     */
+    public function getDebug(): bool
+    {
+        return $this->debug;
+    }
+
+    /**
+     * @param bool $debug
+     * @return PhpGrid
+     */
+    public function setDebug(bool $debug): PhpGrid
+    {
+        $this->debug = $debug;
+        return $this;
+    }
+
+
+    /**
      * @param bool $getAllRows
      */
     protected function generateSql(bool $getAllRows = false): void
@@ -947,9 +971,9 @@ class PhpGrid
                 'rowsPerPage' => $this->getRowsPerPage(),
                 'allowExport' => $this->getAllowExport(),
                 'rowCount' => $this->getRowCount(),
-                'user_query' => $sql = (isLive() ? null : $this->getSqlQuery()),
-                'generated_query' => $sql = (isLive() ? null : $this->getGeneratedSqlQuery()),
-                'generated_counter_query' => $sql = (isLive() ? null : $this->getGeneratedSqlCountQuery()),
+                'user_query' => $sql = ($this->getDebug() ? $this->getSqlQuery() : null),
+                'generated_query' => $sql = ($this->getDebug() ? $this->getGeneratedSqlQuery() : null),
+                'generated_counter_query' => $sql = ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
                 'rows' => $this->data
             ];
             echo json_encode($data);

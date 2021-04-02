@@ -502,7 +502,7 @@ class Grid {
 
 
                         //check if it has attributes
-                        for(var attribProperty in currentActionButton.attributeList){
+                        for (var attribProperty in currentActionButton.attributeList) {
                             _item.setAttribute(attribProperty, currentActionButton.attributeList[attribProperty]);
                         }
 
@@ -1005,6 +1005,9 @@ class Column {
     }
 
     get label() {
+        if(this._label == null){
+            return "";
+        }
         return this._label;
     }
 
@@ -1013,6 +1016,9 @@ class Column {
     }
 
     get format() {
+        if(this._format == null){
+            return "";
+        }
         return this._format;
     }
 
@@ -1021,6 +1027,9 @@ class Column {
     }
 
     get href() {
+        if(this._href == null){
+            return "";
+        }
         return this._href;
     }
 
@@ -1029,6 +1038,9 @@ class Column {
     }
 
     get target() {
+        if(this._target == null){
+            return "";
+        }
         return this._target;
     }
 
@@ -1037,6 +1049,9 @@ class Column {
     }
 
     get innerElementCssStyle() {
+        if(this._innerElementCssStyle == null){
+            return "";
+        }
         return this._innerElementCssStyle;
     }
 
@@ -1045,6 +1060,9 @@ class Column {
     }
 
     get innerElementCssClass() {
+        if(this._innerElementCssClass == null){
+            return "";
+        }
         return this._innerElementCssClass;
     }
 
@@ -1053,14 +1071,21 @@ class Column {
     }
 
     get outerElementCssStyle() {
+        if(this._outerElementCssStyle == null){
+            return "";
+        }
         return this._outerElementCssStyle;
     }
 
     set outerElementCssStyle(value) {
+
         this._outerElementCssStyle = value;
     }
 
     get outerElementCssClass() {
+        if(this._outerElementCssClass == null){
+            return "";
+        }
         return this._outerElementCssClass;
     }
 
@@ -1069,6 +1094,9 @@ class Column {
     }
 
     get visible() {
+        if(this._visible == null){
+            return "";
+        }
         return this._visible;
     }
 

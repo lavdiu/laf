@@ -1,7 +1,7 @@
 {
   "name": "lavdiu/laf",
   "description": "LAF Framework",
-  "type": "project",
+  "type": "library",
   "license": "MIT",
   "authors": [
     {
