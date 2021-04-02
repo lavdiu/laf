@@ -19,7 +19,7 @@
     "optimize-autoloader": true
   },
   "autoload": {
-        "psr-4": {"Laf\\": "Laf"}
+        "psr-4": {"Laf\\": "src/Laf"}
     },
   "require": {
     "php": ">=8.0",
