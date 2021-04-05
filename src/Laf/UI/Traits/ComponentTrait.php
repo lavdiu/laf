@@ -57,7 +57,7 @@ trait ComponentTrait
     /**
      * @var string
      */
-    protected $containerType = "container";
+    protected $containerType = "";
 
     /**
      * @param $class

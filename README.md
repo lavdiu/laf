@@ -1,3 +1,1 @@
 # LAF
-
-* initial deploy
