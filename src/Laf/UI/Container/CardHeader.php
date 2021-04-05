@@ -9,24 +9,30 @@ use Laf\UI\Traits\ComponentTrait;
 
 class CardHeader extends Div implements ComponentInterface
 {
-	use ComponentTrait;
+    use ComponentTrait;
+
+    public function __construct(array $classes = [], array $style = [])
+    {
+        $this->setContainerType("");
+        parent::__construct($classes, $style);
+    }
 
 
-	/**
-	 * @inheritDoc
-	 */
-	public function draw(): ?string
-	{
-		$this->addCssClass('card-header');
-		return parent::draw();
+    /**
+     * @inheritDoc
+     */
+    public function draw(): ?string
+    {
+        $this->addCssClass('card-header');
+        return parent::draw();
 
-	}
+    }
 
-	/**
-	 * @return string
-	 */
-	public function getComponentCssControlClass(): string
-	{
-		return str_replace('\\', '-', static::class);
-	}
+    /**
+     * @return string
+     */
+    public function getComponentCssControlClass(): string
+    {
+        return str_replace('\\', '-', static::class);
+    }
 }

@@ -11,12 +11,10 @@ class CardBody extends Div implements ComponentInterface
 {
     use ComponentTrait;
 
-    /**
-     * Card constructor.
-     */
-    public function __construct()
+    public function __construct(array $classes = [], array $style = [])
     {
         $this->setContainerType("");
+        parent::__construct($classes, $style);
     }
 
     /**
