@@ -65,7 +65,9 @@ class Modal implements ComponentInterface
 
 
     const SISZE_NORMAL = "";
+    const SIZE_SMALL = "modal-sm";
     const SIZE_LARGE = "modal-lg";
+    const SIZE_XLARGE = "modal-xl";
 
 
     public function __construct(string $id)
