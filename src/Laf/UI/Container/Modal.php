@@ -356,9 +356,11 @@ class Modal implements ComponentInterface
 
     /**
      * @param bool $scrollable
+     * @return $this
      */
-    public function setScrollable(bool $scrollable): void
+    public function setScrollable(bool $scrollable): Modal
     {
         $this->scrollable = $scrollable;
+        return $this;
     }
 }
