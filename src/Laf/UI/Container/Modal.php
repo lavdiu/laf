@@ -64,6 +64,11 @@ class Modal implements ComponentInterface
     protected $formId = "";
 
 
+    /**
+     * @var bool
+     */
+    protected $scrollable = true;
+
     const SISZE_NORMAL = "";
     const SIZE_SMALL = "modal-sm";
     const SIZE_LARGE = "modal-lg";
@@ -290,13 +295,13 @@ class Modal implements ComponentInterface
 
 
         $html = "
-	<div class='modal fade' id='{$this->getId()}' tabindex='-1' role='dialog' aria-labelledby='{$this->getId()}Label' aria-hidden='true'>
-		<div class='modal-dialog {$this->getSize()}' role='document'>
+	<div class='modal fade' id='{$this->getId()}' tabindex='-1' role='dialog' aria-labelledby='{$this->getId()}Label' aria-hidden='true' data-bs-keyboard='true'>
+		<div class='modal-dialog {$this->getSize()} " . ($this->isScrollable() ? 'modal-dialog-scrollable' : '') . "' role='document'>
 			<div class='modal-content'>
 				{$formStartTag}
 				<div class='modal-header'>
 					<h5 class='modal-title' id='{$this->getId()}Label}'>{$this->getTitle()}</h5>
-					<button type='button' class='close' data-dismiss='modal' data-bs-dismiss='modal' aria-label='Close'><span aria-hidden='true'>&times;</span></button>
+					<button type='button' class='btn-close' data-dismiss='modal' data-bs-dismiss='modal' aria-label='Close'></button>
 				</div>
 				<div class='modal-body'>
 				{$components}	
@@ -339,5 +344,21 @@ class Modal implements ComponentInterface
     public function getComponentCssControlClass(): string
     {
         return str_replace('\\', '-', static::class);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isScrollable(): bool
+    {
+        return $this->scrollable;
+    }
+
+    /**
+     * @param bool $scrollable
+     */
+    public function setScrollable(bool $scrollable): void
+    {
+        $this->scrollable = $scrollable;
     }
 }
