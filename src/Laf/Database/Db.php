@@ -227,10 +227,10 @@ class Db
     /**
      * @param string $sql
      * @param array $params
-     * @return mixed
+     * @return array|null
      * @throws \Exception
      */
-    public static function getRowAssoc(string $sql, $params = [])
+    public static function getRowAssoc(string $sql, $params = []): ?array
     {
         $db = self::getInstance();
         $stmt = $db->prepare($sql);
@@ -246,10 +246,10 @@ class Db
     /**
      * @param string $sql
      * @param array $params
-     * @return mixed
+     * @return array|null
      * @throws \Exception
      */
-    public static function getAllAssoc(string $sql, $params = [])
+    public static function getAllAssoc(string $sql, $params = []): ?array
     {
         $db = self::getInstance();
         $stmt = $db->prepare($sql);
@@ -324,17 +324,17 @@ class Db
      * @param string $sql
      * @param array $params
      * @param string $classNamme
-     * @return \stdClass
+     * @return \stdClass|null
      * @throws \Exception
      */
-    public static function getRowObject(string $sql, $params = [], $classNamme = 'stdClass')
+    public static function getRowObject(string $sql, $params = [], $classNamme = 'stdClass'): ?\stdClass
     {
         $db = self::getInstance();
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $object = $stmt->fetchObject($classNamme);
         if ($object === false) {
-            new \stdClass();
+            return new \stdClass();
         } else {
             return $object;
         }
@@ -344,7 +344,7 @@ class Db
      * @param string $sql
      * @param array $params
      * @param int $columnIndex default 0
-     * @return string
+     * @return string|null
      * @throws \Exception
      */
     public static function getOne(string $sql, $params = [], $columnIndex = 0): ?string
@@ -398,7 +398,7 @@ class Db
      * @param $hash
      * @return mixed
      */
-    public static function getFieldNameFromHash($hash)
+    public static function getFieldNameFromHash($hash): ?string
     {
         return str_rot13($hash);
     }
