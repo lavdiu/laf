@@ -125,12 +125,7 @@ class Db
         try {
             $this->startTimer();
             $count = $this->getConnection()->exec($sql);
-        } catch (\PDOException $ex) {
-            $this->setErrorMessage($ex->getMessage());
-            $this->setErrorTrace($ex->getTrace());
-            $this->setErrorTraceString($ex->getTrace());
-            throw $ex;
-        } catch (\Exception $ex) {
+        } catch (\PDOException | \Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
