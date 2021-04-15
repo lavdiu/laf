@@ -72,20 +72,11 @@ class Db
             $this->getConnection()->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->getConnection()->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
             $this->getConnection()->setAttribute(\PDO::ATTR_ORACLE_NULLS, \PDO::NULL_EMPTY_STRING);
-        } catch (\PDOException $ex) {
+        } catch (\PDOException | \Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
-            $settings = Settings::getInstance();
-            header('location:' . $settings->getProperty('homepage') . 'under_maintenance.html');
-            return null;
-        } catch (\Exception $ex) {
-            $this->setErrorMessage($ex->getMessage());
-            $this->setErrorTrace($ex->getTrace());
-            $this->setErrorTraceString($ex->getTrace());
-            $settings = Settings::getInstance();
-            header('location:' . $settings->getProperty('homepage') . 'under_maintenance.html');
-            die;
+            throw $ex;
         } finally {
             $this->stopTimer();
         }
@@ -95,7 +86,7 @@ class Db
     /**
      * Runs a query and returns the result set
      * @param $sql
-     * @return \PDOStatement
+     * @return \PDOStatement|null
      */
     public function query($sql): ?\PDOStatement
     {
@@ -108,16 +99,11 @@ class Db
         try {
             $this->startTimer();
             $statement = $this->getConnection()->query($sql);
-        } catch (\PDOException $ex) {
+        } catch (\PDOException | \Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
-            return new \PDOStatement();
-        } catch (\Exception $ex) {
-            $this->setErrorMessage($ex->getMessage());
-            $this->setErrorTrace($ex->getTrace());
-            $this->setErrorTraceString($ex->getTrace());
-            return new \PDOStatement();
+            throw $ex;
         } finally {
             $this->stopTimer();
         }
@@ -143,12 +129,12 @@ class Db
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
-            return -1;
+            throw $ex;
         } catch (\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
-            return -1;
+            throw $ex;
         } finally {
             $this->stopTimer();
         }
