@@ -549,16 +549,11 @@ class Db
         try {
             $this->startTimer();
             $statement = $this->getConnection()->prepare($sql);
-        } catch (\PDOException $ex) {
+        } catch (\PDOException | \Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
-            return new \PDOStatement();
-        } catch (\Exception $ex) {
-            $this->setErrorMessage($ex->getMessage());
-            $this->setErrorTrace($ex->getTrace());
-            $this->setErrorTraceString($ex->getTrace());
-            return new \PDOStatement();
+            throw $ex;
         } finally {
             $this->stopTimer();
         }
