@@ -677,14 +677,14 @@ class BaseObject
             return false;
         }
 
-        if ($this->getRecordId() == '') {
+        if (trim($this->getRecordId()) == '') {
             $this->addLoggerError("Delete method failed: Invalid record id provided", [$this->getRecordId()]);
             return false;
         }
 
         $this->deleteSql = "DELETE FROM `{$this->getTable()->getName()}` ";
         $this->deleteSql .= "\nWHERE `{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}`=:primaryKeyField;";
-        $executeValues = [':primaryKeyField' => (int)$this->getRecordId()];
+        $executeValues = [':primaryKeyField' => $this->getRecordId()];
 
         $this->addLoggerDebug("DELETE SQL", [$this->deleteSql]);
         $this->addLoggerDebug("DELETE SQL PARAMS", [json_encode($executeValues)]);
