@@ -698,12 +698,12 @@ class BaseObject
             $this->addLoggerError("INSERT SQL failed", [$this->deleteSql, json_encode($executeValues)]);
             $this->addLoggerError("Error Message", [$ex->getMessage()]);
             $this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-            throw new \Exception($ex->getMessage());
+            throw $ex;
         } catch (\Exception $ex) {
             $this->addLoggerError("INSERT SQL failed with an unknown Exception", [$this->deleteSql, json_encode($executeValues)]);
             $this->addLoggerError("Error Message", [$ex->getMessage()]);
             $this->addLoggerDebug("Exception", [$ex->getTraceAsString()]);
-            throw new \Exception($ex->getMessage());
+            throw $ex;
         }
 
         if ($count === false) {
