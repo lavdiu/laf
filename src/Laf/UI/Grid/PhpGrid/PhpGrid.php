@@ -119,6 +119,16 @@ class PhpGrid
      */
     protected $enableWildCardSearch = false;
 
+    /**
+     * @var bool
+     */
+    protected bool $showSearchBar = true;
+
+    /**
+     * @var bool
+     */
+    protected bool $showTitle = true;
+
 
     /**
      * PhpGrid constructor.
@@ -1001,6 +1011,8 @@ class PhpGrid
 <script type='text/javascript'>
 	grid['{$gridName}'] = new Grid('{$gridName}');
 	window.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
+	window.grid['{$gridName}'].showTitleBar = {$this->getShowTitle()};
+	window.grid['{$gridName}'].showSearchBar = {$this->getShowSearchBar()};
 	\$(document).ready(function () {
 	     window.grid['{$gridName}'].initialize();
 	});
@@ -1008,7 +1020,7 @@ class PhpGrid
 <div class='table-responsive' style='position:relative;overflow: visible'>
 	<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
 		<thead id='{$gridName}_thead' class='thead-light'>
-			<tr>
+			<tr id='{$gridName}_title_row'>
 				<th style='text-align: left'  id='{$gridName}_title'></th>
 				<th style='text-align: right' id='{$gridName}_buttons'></th>
 			</tr>
@@ -1137,5 +1149,41 @@ class PhpGrid
         return $this;
     }
 
+    /**
+     * @return bool
+     */
+    public function getShowSearchBar(): bool
+    {
+        return $this->showSearchBar;
+    }
+
+    /**
+     * @param bool $showSearchBar
+     * @return PhpGrid
+     */
+    public function setShowSearchBar(bool $showSearchBar): PhpGrid
+    {
+        $this->showSearchBar = $showSearchBar;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getShowTitle(): bool
+    {
+        return $this->showTitle;
+    }
+
+    /**
+     * @param bool $showTitle
+     * @return PhpGrid
+     */
+    public function setShowTitle(bool $showTitle): PhpGrid
+    {
+        $this->showTitle = $showTitle;
+        return $this;
+    }
 
 }
+

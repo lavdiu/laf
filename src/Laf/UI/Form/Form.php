@@ -159,7 +159,15 @@ class Form implements ComponentInterface
         }
 
         foreach ($object->getTable()->getFields() as $field) {
-            $value = trim(filter_input($this->getMethodForFilter(), $field->getNameRot13()));
+            #$value = trim(filter_input($this->getMethodForFilter(), $field->getNameRot13()));
+
+            if ($this->getMethodForFilter() == self::METHOD_GET) {
+                $value = $_GET[$field->getNameRot13()] ?? null;
+            } else if ($this->getMethodForFilter() == self::METHOD_GET) {
+                $value = $_POST[$field->getNameRot13()] ?? null;
+            }
+            $value = trim($value);
+
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
                 $value = trim($this->getSubmittedFieldValue($field->getName()));
             }

@@ -44,6 +44,8 @@ class Grid {
         this._contentPaginationTd = null;
         this._contentPaginationInfoSection = null;
         this._contentPaginationRowsPerPageSelector = null;
+        this._showTitleBar = true;
+        this._showSearchBar = true;
     }
 
     /**
@@ -140,6 +142,7 @@ class Grid {
         this.contentPaginationLastPage = document.getElementById(this.name + '_paginationLastPage');
         this.contentPaginationCurrPage = document.getElementById(this.name + '_paginationCurrPage');
         this.contentLoadingOverlay = document.getElementById(this.name + '_loader');
+        this.contentGridTitleRow = document.getElementById(this.name + '_title_row');
         this.contentGridTitle = document.getElementById(this.name + '_title');
         this.contentGridButtons = document.getElementById(this.name + '_buttons');
         this.contentTheadColumnHeaders = this.contentThead.getElementsByTagName('tr')[1];
@@ -269,37 +272,41 @@ class Grid {
             this.contentTheadColumnHeaders.appendChild(th);
 
 
-            //draw the search field
-            var input = document.createElement('input');
-            input.setAttribute('type', 'text');
-            input.setAttribute('placeholder', 'Search');
-            //input.style.cssText = "border:0;width:100%;height:100%;padding:1px;margin:0;";
-            input.className = 'form-control form-control-sm';
-            input.setAttribute('fieldName', column.fieldName);
-            input.setAttribute('gridName', this.name);
-            if (typeof this.filters[column.fieldName] !== 'undefined') {
-                input.value = this.filters[column.fieldName];
-            }
-            input.onkeydown = function (event) {
-                if (event.key === 'Enter') {
-                    //I can't get the setter to fire when assigning a new member to this.filters. hence this ugly workaround
-                    var _filters = window.grid[this.getAttribute('gridName')].filters;
-                    _filters[this.getAttribute('fieldName')] = this.value.trim();
-                    window.grid[this.getAttribute('gridName')].filters = _filters;
-                    console.log("Search filters ");
-                    console.log(window.grid[this.getAttribute('gridName')].filters);
+            if (this.showSearchBar) {
+                //draw the search field
+                var input = document.createElement('input');
+                input.setAttribute('type', 'text');
+                input.setAttribute('placeholder', 'Search');
+                //input.style.cssText = "border:0;width:100%;height:100%;padding:1px;margin:0;";
+                input.className = 'form-control form-control-sm';
+                input.setAttribute('fieldName', column.fieldName);
+                input.setAttribute('gridName', this.name);
+                if (typeof this.filters[column.fieldName] !== 'undefined') {
+                    input.value = this.filters[column.fieldName];
                 }
-            };
-            var td = document.createElement('th');
-            td.appendChild(input);
-            this.contentTheadColumnSearchRow.appendChild(td);
+                input.onkeydown = function (event) {
+                    if (event.key === 'Enter') {
+                        //I can't get the setter to fire when assigning a new member to this.filters. hence this ugly workaround
+                        var _filters = window.grid[this.getAttribute('gridName')].filters;
+                        _filters[this.getAttribute('fieldName')] = this.value.trim();
+                        window.grid[this.getAttribute('gridName')].filters = _filters;
+                        console.log("Search filters ");
+                        console.log(window.grid[this.getAttribute('gridName')].filters);
+                    }
+                };
+                var td = document.createElement('th');
+                td.appendChild(input);
+                this.contentTheadColumnSearchRow.appendChild(td);
+            }
         }
         var emptySearchRowTh = document.createElement('th');
         var emptySearchRowTh2 = document.createElement('th');
         emptySearchRowTh.innerHTML = "&nbsp;";
         emptySearchRowTh2.innerHTML = "&nbsp;";
 
-        this.contentTheadColumnSearchRow.appendChild(emptySearchRowTh);
+        if (this.showSearchBar) {
+            this.contentTheadColumnSearchRow.appendChild(emptySearchRowTh);
+        }
         this.contentTheadColumnHeaders.appendChild(emptySearchRowTh2);
 
         if (this.columnCountVisible > 3) {
@@ -309,6 +316,10 @@ class Grid {
             this.contentGridTitle.colSpan = 4
         }
         this.contentGridTitle.innerText = this.title;
+        if (!this.showTitleBar) {
+            this.contentGridTitleRow.style.visibility = 'hidden';
+            this.contentTheadColumnSearchRow.style.visibility = 'hidden';
+        }
         this.drawGridExportbutton();
     }
 
@@ -1005,7 +1016,7 @@ class Column {
     }
 
     get label() {
-        if(this._label == null){
+        if (this._label == null) {
             return "";
         }
         return this._label;
@@ -1016,7 +1027,7 @@ class Column {
     }
 
     get format() {
-        if(this._format == null){
+        if (this._format == null) {
             return "";
         }
         return this._format;
@@ -1027,7 +1038,7 @@ class Column {
     }
 
     get href() {
-        if(this._href == null){
+        if (this._href == null) {
             return "";
         }
         return this._href;
@@ -1038,7 +1049,7 @@ class Column {
     }
 
     get target() {
-        if(this._target == null){
+        if (this._target == null) {
             return "";
         }
         return this._target;
@@ -1049,7 +1060,7 @@ class Column {
     }
 
     get innerElementCssStyle() {
-        if(this._innerElementCssStyle == null){
+        if (this._innerElementCssStyle == null) {
             return "";
         }
         return this._innerElementCssStyle;
@@ -1060,7 +1071,7 @@ class Column {
     }
 
     get innerElementCssClass() {
-        if(this._innerElementCssClass == null){
+        if (this._innerElementCssClass == null) {
             return "";
         }
         return this._innerElementCssClass;
@@ -1071,7 +1082,7 @@ class Column {
     }
 
     get outerElementCssStyle() {
-        if(this._outerElementCssStyle == null){
+        if (this._outerElementCssStyle == null) {
             return "";
         }
         return this._outerElementCssStyle;
@@ -1083,7 +1094,7 @@ class Column {
     }
 
     get outerElementCssClass() {
-        if(this._outerElementCssClass == null){
+        if (this._outerElementCssClass == null) {
             return "";
         }
         return this._outerElementCssClass;
@@ -1094,7 +1105,7 @@ class Column {
     }
 
     get visible() {
-        if(this._visible == null){
+        if (this._visible == null) {
             return "";
         }
         return this._visible;
@@ -1127,6 +1138,25 @@ class Column {
     set data(value) {
         this._data = value;
     }
+
+    set showSearchBar(value) {
+        this._showSearchBar = value;
+    }
+
+    get showSearchBar() {
+        return this._showSearchBar;
+    }
+
+    set showTitleBar(value) {
+        this._showTitleBar = value;
+    }
+
+    get showTitleBar() {
+        return this._showTitleBar;
+    }
+
+
 }
 
 var grid = [];
+window.Grid = Grid;
