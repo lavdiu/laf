@@ -233,7 +233,7 @@ class Grid {
             columnTitle.classList.add('float-left');
 
             var columnSortButton = document.createElement('a');
-            columnSortButton.className = 'float-right btn btn-sm btn-outline-secondary';
+            columnSortButton.className = 'float-end btn btn-sm btn-outline-secondary';
             columnSortButton.href = 'javascript:;';
             columnSortButton.setAttribute('fieldName', column.fieldName);
             columnSortButton.setAttribute('gridName', this.name);
@@ -272,8 +272,8 @@ class Grid {
             this.contentTheadColumnHeaders.appendChild(th);
 
 
+            //draw the search field
             if (this.showSearchBar) {
-                //draw the search field
                 var input = document.createElement('input');
                 input.setAttribute('type', 'text');
                 input.setAttribute('placeholder', 'Search');
@@ -304,9 +304,7 @@ class Grid {
         emptySearchRowTh.innerHTML = "&nbsp;";
         emptySearchRowTh2.innerHTML = "&nbsp;";
 
-        if (this.showSearchBar) {
-            this.contentTheadColumnSearchRow.appendChild(emptySearchRowTh);
-        }
+        this.contentTheadColumnSearchRow.appendChild(emptySearchRowTh);
         this.contentTheadColumnHeaders.appendChild(emptySearchRowTh2);
 
         if (this.columnCountVisible > 3) {
@@ -316,10 +314,14 @@ class Grid {
             this.contentGridTitle.colSpan = 4
         }
         this.contentGridTitle.innerText = this.title;
+
         if (!this.showTitleBar) {
-            this.contentGridTitleRow.style.visibility = 'hidden';
-            this.contentTheadColumnSearchRow.style.visibility = 'hidden';
+            this.contentGridTitleRow.style.display = 'none';
         }
+        if (!this.showSearchBar) {
+            this.contentTheadColumnSearchRow.style.display = 'none';
+        }
+
         this.drawGridExportbutton();
     }
 
@@ -345,7 +347,6 @@ class Grid {
 
             var dropdownToggleButton = document.createElement('button');
             dropdownToggleButton.className = "btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split";
-            dropdownToggleButton.setAttribute('data-toggle', 'dropdown');
             dropdownToggleButton.setAttribute('data-bs-toggle', 'dropdown');
             dropdownToggleButton.setAttribute('aria-haspopup', 'true');
             dropdownToggleButton.setAttribute('aria-expande', 'false');
@@ -493,7 +494,6 @@ class Grid {
                 var actionButtonsDropdown_button = document.createElement('button');
                 actionButtonsDropdown_button.className = "btn btn-outline-secondary btn-sm dropdown-toggle";
                 actionButtonsDropdown_button.setAttribute('type', 'button');
-                actionButtonsDropdown_button.setAttribute('data-toggle', 'dropdown');
                 actionButtonsDropdown_button.setAttribute('data-bs-toggle', 'dropdown');
                 actionButtonsDropdown_button.setAttribute('aria-haspopup', 'true');
                 actionButtonsDropdown_button.setAttribute('aria-expanded', 'false');
@@ -1016,9 +1016,6 @@ class Column {
     }
 
     get label() {
-        if (this._label == null) {
-            return "";
-        }
         return this._label;
     }
 
@@ -1027,9 +1024,6 @@ class Column {
     }
 
     get format() {
-        if (this._format == null) {
-            return "";
-        }
         return this._format;
     }
 
@@ -1038,9 +1032,6 @@ class Column {
     }
 
     get href() {
-        if (this._href == null) {
-            return "";
-        }
         return this._href;
     }
 
@@ -1049,9 +1040,6 @@ class Column {
     }
 
     get target() {
-        if (this._target == null) {
-            return "";
-        }
         return this._target;
     }
 
@@ -1060,9 +1048,6 @@ class Column {
     }
 
     get innerElementCssStyle() {
-        if (this._innerElementCssStyle == null) {
-            return "";
-        }
         return this._innerElementCssStyle;
     }
 
@@ -1071,9 +1056,6 @@ class Column {
     }
 
     get innerElementCssClass() {
-        if (this._innerElementCssClass == null) {
-            return "";
-        }
         return this._innerElementCssClass;
     }
 
@@ -1082,21 +1064,14 @@ class Column {
     }
 
     get outerElementCssStyle() {
-        if (this._outerElementCssStyle == null) {
-            return "";
-        }
         return this._outerElementCssStyle;
     }
 
     set outerElementCssStyle(value) {
-
         this._outerElementCssStyle = value;
     }
 
     get outerElementCssClass() {
-        if (this._outerElementCssClass == null) {
-            return "";
-        }
         return this._outerElementCssClass;
     }
 
@@ -1105,9 +1080,6 @@ class Column {
     }
 
     get visible() {
-        if (this._visible == null) {
-            return "";
-        }
         return this._visible;
     }
 
@@ -1154,9 +1126,7 @@ class Column {
     get showTitleBar() {
         return this._showTitleBar;
     }
-
-
 }
 
-var grid = [];
 window.Grid = Grid;
+var grid = [];
