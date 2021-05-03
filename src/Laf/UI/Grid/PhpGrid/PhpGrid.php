@@ -1011,8 +1011,8 @@ class PhpGrid
 <script type='text/javascript'>
 	grid['{$gridName}'] = new Grid('{$gridName}');
 	window.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
-	window.grid['{$gridName}'].showTitleBar = ".(var_export($this->getShowTitle(), true).";
-	window.grid['{$gridName}'].showSearchBar = ".(var_export($this->getShowSearchBar(), true).";
+	window.grid['{$gridName}'].showTitleBar = ".(var_export($this->getShowTitle(), true)).";
+	window.grid['{$gridName}'].showSearchBar = ".(var_export($this->getShowSearchBar(), true)).";
 	\$(document).ready(function () {
 	     window.grid['{$gridName}'].initialize();
 	});
