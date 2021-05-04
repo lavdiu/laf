@@ -1090,4 +1090,12 @@ class BaseObject
         }
     }
 
+    /**
+     * @return string|null
+     */
+    public static function getIcon(): ?string
+    {
+        return '';
+    }
+
 }
