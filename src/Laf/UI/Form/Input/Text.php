@@ -118,7 +118,7 @@ class Text implements FormElementInterface, ComponentInterface
             ->addCssClass('p-2');
         $html = "
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}: " . "</label>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}: " . "</label>
             <div class='col-sm-10'>
                 <div
                     id='{$this->getId()}'
@@ -187,7 +187,7 @@ class Text implements FormElementInterface, ComponentInterface
 
         $html = "
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
             <div class='col-sm-10'>
                 <input 
                     class='{$this->getCssClassesForHtml()}' 
