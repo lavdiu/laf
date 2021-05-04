@@ -159,11 +159,10 @@ class Form implements ComponentInterface
         }
 
         foreach ($object->getTable()->getFields() as $field) {
-            #$value = trim(filter_input($this->getMethodForFilter(), $field->getNameRot13()));
 
-            if ($this->getMethodForFilter() == self::METHOD_GET) {
+            if ($this->getMethod() == self::METHOD_GET) {
                 $value = $_GET[$field->getNameRot13()] ?? null;
-            } else if ($this->getMethodForFilter() == self::METHOD_POST) {
+            } else if ($this->getMethod() == self::METHOD_POST) {
                 $value = $_POST[$field->getNameRot13()] ?? null;
             }
             $value = trim($value);
@@ -220,21 +219,6 @@ class Form implements ComponentInterface
     }
 
     /**
-     * Returns the method type to be used in filter_input
-     * @return int|null
-     */
-    public function getMethodForFilter()
-    {
-        if ($this->getMethod() == self::METHOD_POST)
-            return INPUT_POST;
-        else if ($this->getMethod() == self::METHOD_GET) {
-            return INPUT_GET;
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * @return string
      */
     public function getMethod(): string
@@ -260,9 +244,10 @@ class Form implements ComponentInterface
     public function fieldIsSubmitted($fieldName)
     {
         $fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
-        if ($this->getMethodForFilter() == INPUT_GET) {
+
+        if ($this->getMethod() == self::METHOD_GET) {
             return array_key_exists($fieldNameRot13, $_GET);
-        } else if ($this->getMethodForFilter() == INPUT_POST) {
+        } else if ($this->getMethod() == self::METHOD_GET) {
             return array_key_exists($fieldNameRot13, $_POST);
         } else {
             return false;
@@ -649,14 +634,11 @@ class Form implements ComponentInterface
      */
     public function getSubmittedFieldValue(string $fieldName): ?string
     {
-        $fieldNameRot13 = Util::scrambleFieldOrTableName($fieldName);
-        if ($this->isSubmitted($fieldNameRot13)) {
-            if (array_key_exists($fieldName, $this->submittedFieldValues)) {
-                return $this->submittedFieldValues[$fieldName];
-            }
-            $value = trim(filter_input($this->getMethodForFilter(), $fieldNameRot13));
-            return $value;
-        } else return null;
+        if (array_key_exists($fieldName, $this->submittedFieldValues)) {
+            return $this->submittedFieldValues[$fieldName];
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -665,7 +647,8 @@ class Form implements ComponentInterface
      * @param string $value
      * @return Form
      */
-    public function setSubmittedFieldValue(string $fieldName, string $value): Form
+    public
+    function setSubmittedFieldValue(string $fieldName, string $value): Form
     {
         $this->submittedFieldValues[$fieldName] = $value;
         return $this;
