@@ -93,7 +93,7 @@ use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
-use LafShell\Factory;
+use {$instanceName}\Factory;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
@@ -428,7 +428,7 @@ switch (UrlParser::getAction()) {
 
         foreach ($tableDetails['columns'] as $alias => $column) {
             if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\${$grid_name}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())));";
+                $file .= "\n\t\t\${$grid_name}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success')));";
             } else {
                 $file .= "\n\t\t\${$grid_name}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
             }
