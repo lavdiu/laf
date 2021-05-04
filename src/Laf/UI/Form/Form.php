@@ -163,7 +163,7 @@ class Form implements ComponentInterface
 
             if ($this->getMethodForFilter() == self::METHOD_GET) {
                 $value = $_GET[$field->getNameRot13()] ?? null;
-            } else if ($this->getMethodForFilter() == self::METHOD_GET) {
+            } else if ($this->getMethodForFilter() == self::METHOD_POST) {
                 $value = $_POST[$field->getNameRot13()] ?? null;
             }
             $value = trim($value);
