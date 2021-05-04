@@ -525,6 +525,7 @@ class Grid {
                 actionButtonsDropdown.appendChild(actionButtonsDropdown_menu);
                 actionButtonsTd.appendChild(actionButtonsDropdown);
                 actionButtonsTd.style.textAlign = 'center';
+                actionButtonsTd.style.width = '60px';
             }
 
             tr.appendChild(actionButtonsTd);
