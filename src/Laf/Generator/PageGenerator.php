@@ -93,7 +93,7 @@ use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
-use {$instanceName}\Factory;
+use {$namespace}\Factory;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
