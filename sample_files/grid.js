@@ -465,7 +465,9 @@ class Grid {
                 if (column.href != null) {
                     innerElement = document.createElement('a');
                     innerElement.href = this.formatLinkHref(this.rows[rowIndex], column.href);
-                    innerElement.target = column.target;
+                    if (column.target != null) {
+                        innerElement.target = column.target;
+                    }
                 } else {
                     innerElement = document.createElement('span');
                 }
