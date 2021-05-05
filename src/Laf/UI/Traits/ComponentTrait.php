@@ -5,6 +5,8 @@ namespace Laf\UI\Traits;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Container\GenericContainer;
 use Laf\UI\Form\DrawMode;
+use Laf\Util\Util;
+
 
 trait ComponentTrait
 {
@@ -168,7 +170,7 @@ trait ComponentTrait
      */
     public function getDrawMode(): ?string
     {
-        return $this->drawMode;
+        return Util::coalesce($this->drawMode, 'view');
     }
 
     /**
