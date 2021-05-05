@@ -2,8 +2,6 @@
 
 namespace Laf\UI\Page;
 
-use Laf\Util\Settings;
-
 class AdminPage extends GenericPage
 {
 
