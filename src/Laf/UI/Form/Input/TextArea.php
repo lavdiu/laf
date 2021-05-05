@@ -40,9 +40,9 @@ class TextArea extends Text implements FormElementInterface, ComponentInterface
             $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
 
         $html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}: " . ($this->isRequired() ? '*' : '') . "</label>
-            <div class='col-sm-10'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
+            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
             <textarea 
                 class='{$this->getCssClassesForHtml()}' 
                 style='{$this->getCssStyleForHtml()}' 
@@ -50,7 +50,7 @@ class TextArea extends Text implements FormElementInterface, ComponentInterface
                 " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "")
             . ">{$this->getValue()}</textarea>
                 " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            </div>
+            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
         return $html;

@@ -67,9 +67,9 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         }
 
         $html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group mb-2 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}: " . ($this->isRequired() ? '*' : '') . "</label>
-            <div class='col-sm-10'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
+            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
             <select {$params}
                 class='{$this->getCssClassesForHtml()}' 
                 style='{$this->getCssStyleForHtml()}' 
@@ -78,7 +78,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
                 {$options}
                 </select>
                 " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            </div>
+            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
         return $html;

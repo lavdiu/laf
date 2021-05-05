@@ -28,13 +28,13 @@ class File extends Text implements FormElementInterface, ComponentInterface
 
 		}
 		return "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='form-group {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->hasCssClass('d-none') || $this->isHidden() ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}: </label>
-            <div class='col-sm-10'>
+        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->hasCssClass('d-none') || $this->isHidden() ? " d-none" : "") . "'>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
+            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
                 <div class='bg-light rounded p-2' id='{$this->getId()}'>
                 {$content}
                 </div>
-            </div>
+            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 	}
 
@@ -76,16 +76,13 @@ class File extends Text implements FormElementInterface, ComponentInterface
 		foreach ($attributes as $key => $value)
 			$params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
 		$html = "
-        <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='form-group {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='form-label'>{$this->getLabel()}: </label>
-            <div class='col-sm-10'>
-            <input {$params}
-                class='{$this->getCssClassesForHtml()}' 
-                style='{$this->getCssStyleForHtml()}' 
-                " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
-                /><input type='hidden' name='{$this->getField()->getNameRot13()}' value='1' />
+        <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
+            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
+            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
+            <input {$params} class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "/>
+            <input type='hidden' name='{$this->getField()->getNameRot13()}' value='1' />
                 " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            </div>
+            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
 		return $html;
