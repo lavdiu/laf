@@ -136,7 +136,7 @@ class Html
         $html .= $this->getHtmlHeader();
         $html .= "\n</head>";
 
-        $html .= "\n\n<body>";
+        $html .= "\n\n<body style='background-color:#EEEEEE'>";
         $html .= $this->getMenu();
         foreach ($this->getComponents() as $component) {
             $html .= $component->draw();
