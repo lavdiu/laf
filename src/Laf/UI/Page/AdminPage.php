@@ -16,10 +16,6 @@ class AdminPage extends GenericPage
 
         $this->addCssClass('p-2');
 
-        if (!$this->hasLinks()) {
-            $this->setHeader("<div>");
-            $this->setFooter("</div>");
-        }
         return parent::draw();
     }
 }
