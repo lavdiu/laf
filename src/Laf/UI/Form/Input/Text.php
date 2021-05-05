@@ -107,7 +107,7 @@ class Text implements FormElementInterface, ComponentInterface
         }
 
         $this->addCssClass('form-control-plaintext');
-        $this->addCssClass('border border-secondary');
+        $this->addCssClass('border border-secondary border-1');
 
         $params = '';
         foreach ($attributes as $key => $value)

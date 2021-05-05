@@ -15,7 +15,7 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
     public function drawViewMode()
     {
         $this->addCssClass('form-control-plaintext');
-        $this->addCssClass('border border-secondary');
+        $this->addCssClass('border border-secondary border-1');
         $this->setValue($this->getSelectedLabel());
         return $this->drawUpdateMode();
     }
