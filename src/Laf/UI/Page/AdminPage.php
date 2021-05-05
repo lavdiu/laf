@@ -16,9 +16,7 @@ class AdminPage extends GenericPage
         if (!$this->isEnabled())
             return "";
 
-        $settings = Settings::getInstance();
-        $personClass = '\\' . $settings->getProperty('project.package_name') . '\\Person';
-        $user = $personClass::getLoggedUserInstance();
+        $this->addCssClass('p-2');
 
         if (!$this->hasLinks()) {
             $this->setHeader("<div>");
