@@ -39,7 +39,7 @@ class TabContainer extends GenericContainer implements ComponentInterface
          */
         $html .= "\n\t\t<ul class='nav nav-tabs' id='{$this->getId()}_tab_links' role='tablist'>";
         foreach ($this->getComponents() as $key => $component) {
-            if ($component->getDrawMode() == '') {
+            if ($component->getDrawMode() == '' && $this->getDrawMode() != '') {
                 $component->setDrawMode($this->getDrawMode());
             }
             $component->setFormRowDisplayMode($this->getFormRowDisplayMode());
