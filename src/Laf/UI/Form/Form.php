@@ -508,7 +508,7 @@ class Form implements ComponentInterface
         if ($this->isShowSubmitButton())
             $this->getSubmitButton()->setName($this->getName() . '_submit');
         $html .= "
-            <div class='form-group {$this->getFormRowDisplayMode()} text-right'> <!-- footer -->
+            <div class='row {$this->getFormRowDisplayMode()} text-right'> <!-- footer -->
                 <label class='col-sm-2 col-form-label'>&nbsp;</label>
                 <div class='col-sm-10 text-end'>
                     {$prevNextBtn}
