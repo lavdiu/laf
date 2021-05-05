@@ -170,7 +170,7 @@ trait ComponentTrait
      */
     public function getDrawMode(): ?string
     {
-        return Util::coalesce($this->drawMode, 'view');
+        return Util::coalesce($this->drawMode, '');
     }
 
     /**
