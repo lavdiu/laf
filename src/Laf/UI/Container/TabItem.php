@@ -44,7 +44,7 @@ class TabItem extends GenericContainer implements ComponentInterface
         $html = "\n\t\t\t<div class='tab-pane fade show{$active}' id='{$this->getTitleNoSpaces()}-content' role='tabpanel' aria-labelledby='{$this->getId()}'>";
         $html .= "\n\t\t\t\t<div class='container-fluid py-4'>";
         foreach ($this->getComponents() as $component) {
-            if ($component->getDrawMode() == '') {
+            if ($component->getDrawMode() == '' && $this->getDrawMode() != '') {
                 $component->setDrawMode($this->getDrawMode());
             }
             $component->setFormRowDisplayMode($this->getFormRowDisplayMode());
