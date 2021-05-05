@@ -23,8 +23,9 @@ class GenericPage implements ComponentInterface
     protected $titleIcon = "";
     protected $enabled = true;
     protected $header = "";
-    protected $footer = "";
-    protected $notification = "";
+    protected $footerComponents = [];
+    protected $footerHtml = "";
+    protected $bodyHtml = "";
 
     /**
      * @param $link
@@ -60,7 +61,15 @@ class GenericPage implements ComponentInterface
         if (!$this->isEnabled())
             return "";
 
-        $header = "";
+        foreach ($this->getComponents() as $component) {
+
+            $this->bodyHtml .= $component->draw();
+        }
+
+        foreach ($this->getFooterComponents() as $footerComponent) {
+
+            $this->footerHtml .= $footerComponent->draw();
+        }
 
         if ($this->hasLinks() || get_class($this) == 'Laf\UI\Page\AdminPage') {
             $icon = $this->getTitleIcon() != "" ? "<i class='{$this->getTitleIcon()}'></i>" : "";
@@ -73,30 +82,22 @@ class GenericPage implements ComponentInterface
                 ->addCssClass('pb-5')
                 ->addCssClass($this->getComponentCssControlClass());
 
-            $header = "
-        <div class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}'>
-            <nav class='navbar navbar-expand navbar-light bg-light <!--sticky-top-->'>
-                <div class=''><span class='navbar-brand'>&nbsp; {$icon} {$this->getTitle()}</span></div>
-                <ul class='navbar-nav me-auto mr-auto'></ul>
-                <nav class='navbar-nav ms-auto btn-group'>
-                    {$links}
-                </nav>
-            </nav> 
+            $html = "
+        <div class='p-2 {$this->getCssClassesForHtml()}'>
+            <div class='card border-dark' style='{$this->getCssStyleForHtml()}'>
+                <div class='card-header bg-light border-dark'>
+                    <div class='row'>
+                        <div class='col'>&nbsp; <span class='fw-bold text-uppercase text-decoration-none fs-5'>{$icon} {$this->getTitle()}</span></div>
+                        <div class='col'>&nbsp;</div>
+                        <div class='col text-end'>{$links}</div>
+                    </div>
+                </div>
+                <div class='card-body'>{$this->bodyHtml}</div>
+                " . ($this->hasFooterComponents() ? "<div class='card-footer'>{$this->footerHtml}</div>" : "") . "
+            </div>
+        </div>
         ";
         }
-
-        $html = $this->getHeader();
-        $html .= $header;
-        $html .= $this->getNotification();
-
-        foreach ($this->getComponents() as $component) {
-
-            $html .= $component->draw();
-        }
-        if ($this->hasLinks() || get_class($this) == 'Laf\UI\Page\AdminPage') {
-            $html .= "</div>";
-        }
-        $html .= $this->getFooter();
         return $html;
     }
 
@@ -168,57 +169,22 @@ class GenericPage implements ComponentInterface
         return $this;
     }
 
+
     /**
-     * @return string
+     * @return ComponentInterface[]
      */
-    public function getHeader(): string
+    public function getFooterComponents(): array
     {
-        return $this->header;
+        return $this->footerComponents;
     }
 
     /**
-     * @param string $header
-     * @return GenericPage
+     * @param ComponentInterface $component
+     * @return ComponentInterface
      */
-    public function setHeader(string $header): GenericPage
+    public function addFooterComponent(ComponentInterface $component): ComponentInterface
     {
-        $this->header = $header;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getNotification(): string
-    {
-        return $this->notification;
-    }
-
-    /**
-     * @param string $notification
-     * @return GenericPage
-     */
-    public function setNotification(string $notification): GenericPage
-    {
-        $this->notification = $notification;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFooter(): string
-    {
-        return $this->footer;
-    }
-
-    /**
-     * @param string $footer
-     * @return GenericPage
-     */
-    public function setFooter(string $footer): GenericPage
-    {
-        $this->footer = $footer;
+        $this->footerComponents[] = $component;
         return $this;
     }
 
@@ -229,5 +195,13 @@ class GenericPage implements ComponentInterface
     public function getComponentCssControlClass(): string
     {
         return str_replace('\\', '-', static::class);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function hasFooterComponents(): bool
+    {
+        return count($this->getFooterComponents()) > 0;
     }
 }

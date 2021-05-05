@@ -1,191 +1,50 @@
 <?php
 
-namespace Laf\UI\Page;
 
+namespace Laf\UI\Container;
 
 use Laf\UI\ComponentInterface;
+use Laf\UI\Form\DrawMode;
 use Laf\UI\Traits\ComponentTrait;
-use Laf\Util\Settings;
 
-/**
- * Class GenericPage
- * @package Laf\UI\Page
- */
-class GenericPage implements ComponentInterface
+class GenericContainer implements ComponentInterface
 {
     use ComponentTrait;
 
     /**
-     * @var array
+     * Div constructor.
+     * @param array $classes use array values as classes
+     * @param array $style use key-> value pair for styles example ['border':'solid 1px red']
      */
-    protected $links = [];
-    protected $title = "";
-    protected $titleIcon = "";
-    protected $enabled = true;
-    protected $header = "";
-    protected $footerComponents = [];
-    protected $footerHtml = "";
-    protected $bodyHtml = "";
-
-    /**
-     * @param $link
-     * @return GenericPage
-     */
-    public function addLink($link): GenericPage
+    function __construct(array $classes = [], array $style = [])
     {
-        $this->links[] = $link;
-        return $this;
+        $this->setCssClasses($classes);
+        $this->setCssStyles($style);
+        $this->setDrawMode(DrawMode::VIEW);
     }
 
-    /**
-     * @return GenericPage
-     */
-    public function enable(): GenericPage
-    {
-        $this->enabled = true;
-    }
-
-    /**
-     * @return GenericPage
-     */
-    public function disable(): GenericPage
-    {
-        $this->enabled = false;
-    }
 
     /**
      * @return string
      */
-    public function draw(): string
+    public function draw(): ?string
     {
-        if (!$this->isEnabled())
-            return "";
-
+        $this->addCssClass(static::getComponentCssControlClass());
+        $this->addCssClass($this->getContainerType());
+        $html = "\n\t<div
+			style='{$this->getCssStyleForHtml()}' 
+			class='{$this->getCssClassesForHtml()}'
+		>\n";
         foreach ($this->getComponents() as $component) {
-
-            $this->bodyHtml .= $component->draw();
-        }
-
-        foreach ($this->getFooterComponents() as $footerComponent) {
-
-            $this->footerHtml .= $footerComponent->draw();
-        }
-
-        if ($this->hasLinks() || get_class($this) == 'Laf\UI\Page\AdminPage') {
-            $icon = $this->getTitleIcon() != "" ? "<i class='{$this->getTitleIcon()}'></i>" : "";
-            $links = "";
-            foreach ($this->getLinks() as $link) {
-                $links .= $link->draw();
+            if ($component->getDrawMode() == '') {
+                $component->setDrawMode($this->getDrawMode());
             }
 
-            $this->addCssClass($this->getContainerType())
-                ->addCssClass('pb-5')
-                ->addCssClass($this->getComponentCssControlClass());
-
-            $html = "
-        <div class='p-2 {$this->getCssClassesForHtml()}'>
-            <div class='card border-dark' style='{$this->getCssStyleForHtml()}'>
-                <div class='card-header bg-light border-dark'>
-                    <div class='row'>
-                        <div class='col'>&nbsp; <span class='fw-bold text-uppercase text-decoration-none fs-5'>{$icon} {$this->getTitle()}</span></div>
-                        <div class='col'>&nbsp;</div>
-                        <div class='col text-end'>{$links}</div>
-                    </div>
-                </div>
-                <div class='card-body'>{$this->bodyHtml}</div>
-                " . ($this->hasFooterComponents() ? "<div class='card-footer'>{$this->footerHtml}</div>" : "") . "
-            </div>
-        </div>
-        ";
+            $component->setFormRowDisplayMode($this->getFormRowDisplayMode());
+            $html .= "\n\t\t" . $component->draw();
         }
+        $html .= "\n\t</div>";
         return $html;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isEnabled(): bool
-    {
-        return $this->enabled;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasLinks()
-    {
-        return sizeof($this->links) > 0;
-    }
-
-    /**
-     * @return string
-     */
-    public function getTitleIcon(): string
-    {
-        return $this->titleIcon;
-    }
-
-    /**
-     * @param string $titleIcon
-     */
-    public function setTitleIcon(?string $titleIcon): void
-    {
-        $this->titleIcon = $titleIcon;
-    }
-
-    /**
-     * @return array
-     */
-    public function getLinks(): array
-    {
-        return $this->links;
-    }
-
-    /**
-     * @param array $links
-     * @return GenericPage
-     */
-    public function setLinks(array $links): GenericPage
-    {
-        $this->links = $links;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getTitle(): string
-    {
-        return $this->title;
-    }
-
-    /**
-     * @param string $title
-     * @return GenericPage
-     */
-    public function setTitle(?string $title): GenericPage
-    {
-        $this->title = $title;
-        return $this;
-    }
-
-
-    /**
-     * @return ComponentInterface[]
-     */
-    public function getFooterComponents(): array
-    {
-        return $this->footerComponents;
-    }
-
-    /**
-     * @param ComponentInterface $component
-     * @return ComponentInterface
-     */
-    public function addFooterComponent(ComponentInterface $component): ComponentInterface
-    {
-        $this->footerComponents[] = $component;
-        return $this;
     }
 
     /**
@@ -197,11 +56,4 @@ class GenericPage implements ComponentInterface
         return str_replace('\\', '-', static::class);
     }
 
-    /**
-     * @return bool
-     */
-    protected function hasFooterComponents(): bool
-    {
-        return count($this->getFooterComponents()) > 0;
-    }
 }
