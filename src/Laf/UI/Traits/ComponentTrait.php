@@ -174,10 +174,10 @@ trait ComponentTrait
     }
 
     /**
-     * @param string $mode Options in DrawMode::view insert update
+     * @param null|string $mode Options in DrawMode::view insert update
      * @return ComponentInterface
      */
-    public function setDrawMode(string $mode): ComponentInterface
+    public function setDrawMode(?string $mode): ComponentInterface
     {
         $this->drawMode = $mode;
         return $this;
