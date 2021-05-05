@@ -12,6 +12,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
     public function drawViewMode()
     {
         $this->addCssClass('form-control-plaintext');
+        $this->addCssClass('border border-secondary');
         $this->setValue($this->getSelectedLabel());
         return parent::drawViewMode();
     }

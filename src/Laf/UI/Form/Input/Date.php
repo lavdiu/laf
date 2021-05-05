@@ -37,6 +37,7 @@ class Date extends Text implements FormElementInterface, ComponentInterface
 		}
 		$this->setValue($date->format('F d, Y'));
 		$this->addCssClass('form-control-plaintext');
+		$this->addCssClass('border border-secondary');
 		return parent::drawViewMode();
 	}
 
