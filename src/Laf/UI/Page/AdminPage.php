@@ -14,8 +14,6 @@ class AdminPage extends GenericPage
         if (!$this->isEnabled())
             return "";
 
-        $this->addCssClass('p-2');
-
         return parent::draw();
     }
 }

@@ -79,7 +79,6 @@ class GenericPage implements ComponentInterface
             }
 
             $this->addCssClass($this->getContainerType())
-                ->addCssClass('pb-5')
                 ->addCssClass($this->getComponentCssControlClass());
 
             $html = "
