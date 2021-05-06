@@ -775,7 +775,10 @@ class PhpGrid
 
 
         } catch (\Throwable $ex) {
-            $this->errorMessage = 'An error has occurred while generating grid data';
+            $this->errorMessage = 'An error has occurred while generating grid data. ';
+            if($this->getDebug()){
+                $this->errorMessage .= json_encode($ex->getMessage(). ' - '. $ex->getTraceAsString());
+            }
             throw $ex;
         }
         return true;
