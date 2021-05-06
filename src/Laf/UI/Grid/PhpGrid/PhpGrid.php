@@ -774,9 +774,9 @@ class PhpGrid
             }
 
 
-        } catch (\Exception $ex) {
+        } catch (\Throwable $ex) {
             $this->errorMessage = 'An error has occurred while generating grid data';
-            return false;
+            throw $ex;
         }
         return true;
     }
