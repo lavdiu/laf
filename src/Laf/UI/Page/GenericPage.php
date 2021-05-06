@@ -77,11 +77,12 @@ class GenericPage implements ComponentInterface
             foreach ($this->getLinks() as $link) {
                 $links .= $link->draw();
             }
+        }
 
-            $this->addCssClass($this->getContainerType())
-                ->addCssClass($this->getComponentCssControlClass());
+        $this->addCssClass($this->getContainerType())
+            ->addCssClass($this->getComponentCssControlClass());
 
-            $html = "
+        $html = "
         <div class='p-2 {$this->getCssClassesForHtml()}'>
             <div class='card border-dark shadow' style='{$this->getCssStyleForHtml()}'>
                 <div class='card-header bg-light border-dark'>
@@ -96,7 +97,7 @@ class GenericPage implements ComponentInterface
             </div>
         </div>
         ";
-        }
+
         return $html;
     }
 
