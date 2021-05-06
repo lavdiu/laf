@@ -97,7 +97,6 @@ class GenericPage implements ComponentInterface
             </div>
         </div>
         ";
-
         return $html;
     }
 
