@@ -733,7 +733,7 @@ class PhpGrid
      * and return it
      * @param bool $getAllRows
      * @return bool
-     * @throws \Exception
+     * @throws \Throwable
      */
     public function execute(bool $getAllRows = false): bool
     {
@@ -782,10 +782,7 @@ class PhpGrid
     }
 
     /**
-     * @throws IOException
-     * @throws WriterNotOpenedException
-     * @throws \PhpOffice\PhpSpreadsheet\Exception
-     * @throws Exception
+     * @throws \Exception
      */
     public function bootstrap()
     {
@@ -802,8 +799,8 @@ class PhpGrid
 
     /**
      * Export data to Excel using Spreadsheet
-     * @throws \PhpOffice\PhpSpreadsheet\Exception
-     * @throws Exception
+     * @return null
+     * @throws \Throwable
      */
     public function exportToExcelPhpExcel()
     {
