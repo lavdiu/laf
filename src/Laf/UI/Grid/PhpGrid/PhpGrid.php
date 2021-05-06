@@ -779,7 +779,6 @@ class PhpGrid
             if($this->getDebug()){
                 $this->errorMessage .= json_encode($ex->getMessage(). ' - '. $ex->getTraceAsString());
             }
-            throw $ex;
         }
         return true;
     }
