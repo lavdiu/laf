@@ -35,7 +35,7 @@ class Text implements FormElementInterface, ComponentInterface
      * @param string $drawMode
      * @return Text
      */
-    public function setDrawMode(string $drawMode): ComponentInterface
+    public function setDrawMode(?string $drawMode): ComponentInterface
     {
         $this->drawMode = $drawMode;
         return $this;
