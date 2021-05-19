@@ -20,7 +20,6 @@ class Div implements ComponentInterface
     {
         $this->setCssClasses($classes);
         $this->setCssStyles($style);
-        $this->setDrawMode(DrawMode::VIEW);
     }
 
 

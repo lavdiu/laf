@@ -73,10 +73,10 @@ interface ComponentInterface
     public function hasCssStyleItem(string $property): bool;
 
     /**
-     * @param string $mode Options in DrawMode::
+     * @param null|string $mode Options in DrawMode::
      * @return ComponentInterface
      */
-    public function setDrawMode(string $mode): ComponentInterface;
+    public function setDrawMode(?string $mode): ComponentInterface;
 
     /**
      * @return string|null
