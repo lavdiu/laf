@@ -180,7 +180,10 @@ switch (UrlParser::getAction()) {
             $file .= "
             
         \$panel->addComponent(\$tabContainer);
-        \$html->addComponent(\$panel);";
+        \$page2 = new AdminPage();
+        \$page2->setTitle('Nderlidhjet tjera')
+            ->addComponent(new HtmlContainer(\$tabContainer->draw()));
+        \$panel->addComponent(\$page2);";
         }
 
         $file .= "
@@ -428,7 +431,7 @@ switch (UrlParser::getAction()) {
 
         foreach ($tableDetails['columns'] as $alias => $column) {
             if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\${$grid_name}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success')));";
+                $file .= "\n\t\t\${$grid_name}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
             } else {
                 $file .= "\n\t\t\${$grid_name}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
             }
