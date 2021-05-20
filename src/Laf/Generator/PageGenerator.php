@@ -181,7 +181,7 @@ switch (UrlParser::getAction()) {
             
         \$panel->addComponent(\$tabContainer);
         \$page2 = new AdminPage();
-        \$page2->setTitle('Nderlidhjet tjera')
+        \$page2->setTitle('Related information')
             ->addComponent(new HtmlContainer(\$tabContainer->draw()));
         \$panel->addComponent(\$page2);";
         }
