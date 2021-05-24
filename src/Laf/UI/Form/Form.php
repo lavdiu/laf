@@ -247,7 +247,7 @@ class Form implements ComponentInterface
 
         if ($this->getMethod() == self::METHOD_GET) {
             return array_key_exists($fieldNameRot13, $_GET);
-        } else if ($this->getMethod() == self::METHOD_GET) {
+        } else if ($this->getMethod() == self::METHOD_POST) {
             return array_key_exists($fieldNameRot13, $_POST);
         } else {
             return false;
