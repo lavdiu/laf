@@ -179,11 +179,10 @@ switch (UrlParser::getAction()) {
             }
             $file .= "
             
-        \$panel->addComponent(\$tabContainer);
         \$page2 = new AdminPage();
         \$page2->setTitle('Related information')
             ->addComponent(new HtmlContainer(\$tabContainer->draw()));
-        \$panel->addComponent(\$page2);";
+        \$html->addComponent(\$page2);";
         }
 
         $file .= "
