@@ -264,7 +264,7 @@ class Field
 				$this->setUpdatedOnTs();
 			}
 		} else {
-			throw new Exception\InvalidValueException(sprintf('Invalid Value for type:%s and field: %s:%s ', get_class($this->getType()), $this->getTableName(), $this->getName()));
+			throw new Exception\InvalidValueException(sprintf('Invalid Value of \'%s\' for type:%s and field: %s:%s ', $value, get_class($this->getType()), $this->getTableName(), $this->getName()));
 		}
 		return $this;
 	}
