@@ -27,6 +27,9 @@ class TypeInteger implements FieldType
      */
     public function getValueDbSanitized($value)
     {
+        if(mb_strlen($value) == 0){
+            return null;
+        }
         if (is_null($value))
             return null;
         return (int)$value;
