@@ -12,6 +12,9 @@ class TypeFloat implements FieldType
      */
     public function isValid($value)
     {
+        if(mb_strlen($value) == 0){
+            return true;
+        }
         if (is_null($value))
             return true;
         return filter_var($value, FILTER_VALIDATE_FLOAT) !== false;
