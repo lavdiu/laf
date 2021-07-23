@@ -87,9 +87,9 @@ class GenericPage implements ComponentInterface
             <div class='card border-dark shadow' style='{$this->getCssStyleForHtml()}'>
                 <div class='card-header bg-light border-dark'>
                     <div class='row'>
-                        <div class='col'>&nbsp; <span class='fw-bold text-uppercase text-decoration-none fs-5'>{$icon} {$this->getTitle()}</span></div>
-                        <div class='col'>&nbsp;</div>
-                        <div class='col text-end'>{$links}</div>
+                        <div class='col-lg-8 col-sm-12'>&nbsp; <span class='fw-bold text-uppercase text-decoration-none fs-5'>{$icon} {$this->getTitle()}</span></div>
+                        <!--<div class='col'>&nbsp;</div>-->
+                        <div class='col-lg-4 col-sm-12 text-end'>{$links}</div>
                     </div>
                 </div>
                 <div class='card-body'>{$this->bodyHtml}</div>
