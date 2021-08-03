@@ -10,8 +10,9 @@ class Time extends Text implements FormElementInterface, ComponentInterface
 {
     public function drawViewMode()
     {
-        if (mb_strlen($this->getValue()) == 0)
-            return "";
+        if (trim($this->getValue()) == '') {
+            return parent::drawUpdateMode();
+        }
         $date = \Datetime::createFromFormat('H:i:s', $this->getValue());
         if ($date === false) {
             $date = new \DateTime();
