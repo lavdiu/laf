@@ -69,7 +69,7 @@ class PageGenerator
 
     private function getAllFieldsCommentedOut(string $instanceName, bool $skip_row_metadata = false) : string
     {
-        $html = "/**\n\t\$form->setComponents([])";
+        $html = "\n/**\n\t\$form->setComponents([])";
 
         foreach($this->getTableInspector()->getColumns() as $column){
             if($skip_row_metadata && in_array($column['COLUMN_NAME'], ['created_on', 'created_by', 'updated_on', 'updated_by'])){
