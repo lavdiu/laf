@@ -74,7 +74,7 @@ class PageGenerator
         \$form->setComponents([]]);";
 
         foreach($this->getTableInspector()->getColumns() as $column){
-                $html .= "\t\$form->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."());";
+                $html .= "\n\t\$form->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."FormElement());";
         }
 
         $html .= "\n*/";
