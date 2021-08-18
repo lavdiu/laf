@@ -120,7 +120,7 @@ use Laf\UI\Container\TabItem;
 \$html = Factory::GeneralPage();
 \$page = new AdminPage();
 
-\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>\"" . ucfirst($className) . "'</a>');
+\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>" . ucfirst($className) . "</a>\");
 \$page->setTitleIcon('far fa-list-alt');
 
 
