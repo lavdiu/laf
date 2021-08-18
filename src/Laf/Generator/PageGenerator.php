@@ -67,12 +67,16 @@ class PageGenerator
         return $labels;
     }
 
-    private function getAllFieldsCommentedOut(string $instanceName) : string
+    private function getAllFieldsCommentedOut(string $instanceName, bool $skip_row_metadata = false) : string
     {
         $html = "/**\n\t\$form->setComponents([])";
 
         foreach($this->getTableInspector()->getColumns() as $column){
-                $html .= "\n\t\t->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."FormElement())";
+            if($skip_row_metadata && in_array($column['COLUMN_NAME'], ['created_on', 'created_by', 'updated_on', 'updated_by'])){
+                continue;
+            }else {
+                $html .= "\n\t\t->addComponent(\${$instanceName}->get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "FormElement())";
+            }
         }
 
         $html .= ";\n*/";
@@ -132,6 +136,7 @@ switch (UrlParser::getAction()) {
 	case 'update':
         \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::UPDATE);
+		{$this->getAllFieldsCommentedOut($instanceName, true)}
 		\$page->addComponent(\$form);
 
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
@@ -140,6 +145,7 @@ switch (UrlParser::getAction()) {
 		break;
 	case 'new':
 	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
+	    {$this->getAllFieldsCommentedOut($instanceName, true)}
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
