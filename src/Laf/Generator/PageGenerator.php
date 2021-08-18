@@ -69,13 +69,13 @@ class PageGenerator
 
     private function getAllFieldsCommentedOut(string $instanceName) : string
     {
-        $html = "/**\n\t\$form->setComponents([]]);";
+        $html = "/**\n\t\$form->setComponents([]])";
 
         foreach($this->getTableInspector()->getColumns() as $column){
-                $html .= "\n\t\$form->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."FormElement());";
+                $html .= "\n\t\t->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."FormElement())";
         }
 
-        $html .= "\n*/";
+        $html .= ";\n*/";
 
         return $html;
     }
