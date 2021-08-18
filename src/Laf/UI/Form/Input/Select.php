@@ -61,10 +61,11 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         $options = "<option value=''>&nbsp;</option>";
 
         foreach ($this->getOptions() as $ok => $ov) {
-            if ($ok == $this->getValue())
+            if ($ok == $this->getValue() && mb_strlen($ok) == mb_strlen($this->getValue())) {
                 $options .= "\n\t\t\t\t<option value='{$ok}' selected='selected'>{$ov}</option>";
-            else
+            } else {
                 $options .= "\n\t\t\t\t<option value='{$ok}'>{$ov}</option>";
+            }
         }
 
         $html = "
@@ -79,7 +80,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
                 {$options}
                 </select>
                 " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
+            " . ($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
         return $html;
