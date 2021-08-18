@@ -67,6 +67,21 @@ class PageGenerator
         return $labels;
     }
 
+    private function getAllFieldsCommentedOut(string $instanceName) : string
+    {
+        $html = "
+        /**
+        \$form->setComponents([]]);";
+
+        foreach($this->getTableInspector()->getColumns() as $column){
+                $html .= "\t\$form->addComponent(\${$instanceName}->get".Util::tableFieldNameToMethodName($column['COLUMN_NAME'])."());";
+        }
+
+        $html .= "\n*/";
+
+        return $html;
+    }
+
     /**
      *
      */
@@ -100,12 +115,12 @@ use Laf\UI\Container\TabItem;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
-
 \$form = \${$instanceName}->getForm();
+{$this->getAllFieldsCommentedOut($instanceName)}
 \$html = Factory::GeneralPage();
 \$page = new AdminPage();
 
-\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"'>\" . ucfirst(\${$instanceName}->getTable()->getNameAsClassname()) . '</a>');
+\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>\"" . ucfirst($className) . "'</a>');
 \$page->setTitleIcon('far fa-list-alt');
 
 
@@ -117,7 +132,7 @@ if (\$form->isSubmitted()) {
 
 switch (UrlParser::getAction()) {
 	case 'update':
-
+        \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::UPDATE);
 		\$page->addComponent(\$form);
 
@@ -126,6 +141,7 @@ switch (UrlParser::getAction()) {
 		echo \$html->draw();
 		break;
 	case 'new':
+	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
@@ -143,6 +159,7 @@ switch (UrlParser::getAction()) {
 		UrlParser::redirectToListPage();
 		break;
 	case 'view':
+	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::VIEW);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['list']}', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
@@ -420,11 +437,10 @@ switch (UrlParser::getAction()) {
         $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
 
-        $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
 
         $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
-        \${$grid_name}->setTitle('{$className} {$labels['list']}')
+        \${$grid_name}->setTitle('{$tableName} {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
