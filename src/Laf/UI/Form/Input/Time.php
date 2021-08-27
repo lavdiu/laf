@@ -17,7 +17,13 @@ class Time extends Text implements FormElementInterface, ComponentInterface
         if ($date === false) {
             $date = new \DateTime();
         }
-        $this->setValue($date->format('H:i A'));
+        $format = 'H:i A';
+        try {
+            $format = \Laf\Util\Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+
+        $this->setValue($date->format($format));
         return parent::drawViewMode();
     }
 
@@ -32,7 +38,13 @@ class Time extends Text implements FormElementInterface, ComponentInterface
         if ($date === false) {
             $date = new \DateTime();
         }
-        $this->setValue($date->format('H:i A'));
+        $format = 'H:i A';
+        try {
+            $format = \Laf\Util\Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+
+        $this->setValue($date->format($format));
         return parent::drawUpdateMode();
     }
 
