@@ -11,14 +11,26 @@ class TypeDate implements FieldType
     {
         if (is_null($value))
             return true;
-        $f = \DateTime::createFromFormat('Y-m-d', $value);
+
+        $format = 'Y-m-d';
+        try {
+            $format = Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+        $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
     }
 
     public function getValueDbSanitized($value)
     {
-        $dt = \DateTime::createFromFormat('Y-m-d', $value);
+        $format = 'Y-m-d';
+        try {
+            $format = Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+
+        $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
         return $dt->format('Y-m-d');
     }

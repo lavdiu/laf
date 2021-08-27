@@ -15,7 +15,14 @@ class TypeTime implements FieldType
     {
         if (is_null($value))
             return true;
-        $f = \DateTime::createFromFormat('H:i:s', $value);
+
+        $format = 'H:i:s';
+        try {
+            $format = Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+
+        $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
     }
@@ -26,7 +33,13 @@ class TypeTime implements FieldType
      */
     public function getValueDbSanitized($value)
     {
-        $dt = \DateTime::createFromFormat('H:i:s', $value);
+        $format = 'H:i:s';
+        try {
+            $format = Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+
+        $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
         return $dt->format('H:i:s');
     }
