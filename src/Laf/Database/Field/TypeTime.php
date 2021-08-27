@@ -65,7 +65,7 @@ class TypeTime implements FieldType
 
     /**
      * Return the field value formatted for the db store
-     * @param string $value
+     * @param null|string $value
      * @return null|string
      */
     public function formatForDb(?string $value)
