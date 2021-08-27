@@ -279,15 +279,20 @@ class BaseObject
     public function softDelete()
     {
         $this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
-        if (!$this->getTable()->hasField('deleted')) {
-            $this->addLoggerError("Soft delete method failed: No 'deleted' property found", []);
-            return false;
-        }
-
         $this->reload();
-        $this->setFieldValue('deleted', 1);
-        $this->store();
-        return true;
+        if ($this->getTable()->hasField('record_status_id')) {
+            $this->addLoggerError("Soft Deleting by setting record_status_id to 0", []);
+            $this->setFieldValue('record_status_id', 0);
+            $this->store();
+            return true;
+        } else if ($this->getTable()->hasField('deleted')) {
+            $this->addLoggerError("Soft deleting by setting deleted field to 0", []);
+            $this->setFieldValue('deleted', 1);
+            $this->store();
+            return true;
+        }
+        $this->addLoggerError("Soft delete method failed: No 'deleted' or record_status_id property found", []);
+        return false;
     }
 
     /**
