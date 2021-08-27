@@ -16,7 +16,7 @@ class DateTime extends Text implements FormElementInterface, ComponentInterface
         if ($this->getValue() == '') {
             return parent::drawUpdateMode();
         }
-        $date = \Datetime::createFromFormat('Y-m-d H:i', $this->getField()->getValue());
+        $date = \Datetime::createFromFormat('Y-m-d H:i:s', $this->getField()->getValue());
         if ($date === false) {
             $date = new \DateTime();
         }
