@@ -3,6 +3,7 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\Date;
+use Laf\Util\Settings;
 
 class TypeDate implements FieldType
 {
@@ -48,7 +49,12 @@ class TypeDate implements FieldType
      */
     public function formatForDb(?string $value)
     {
-        $dt = \DateTime::createFromFormat('Y-m-d', $value);
+        $format = 'Y-m-d';
+        try {
+            $format = Settings::get('locale.time.format');
+        } catch (\Exception $ex) {
+        }
+        $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
         return $dt->format('Y-m-d');
     }
