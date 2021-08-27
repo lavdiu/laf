@@ -13,7 +13,7 @@ class Date extends Text implements FormElementInterface, ComponentInterface
     public function drawUpdateMode()
     {
 
-        $this->setType(InputType::Date);
+        $this->setType(InputType::Text);
         $this->addCssClass('date-picker');
         if ($this->getValue() == '') {
             return parent::drawUpdateMode();
