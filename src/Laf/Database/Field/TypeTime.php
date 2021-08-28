@@ -17,11 +17,6 @@ class TypeTime implements FieldType
             return true;
 
         $format = 'H:i:s';
-        try {
-            $format = Settings::get('locale.time.format');
-        } catch (\Exception $ex) {
-        }
-
         $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);

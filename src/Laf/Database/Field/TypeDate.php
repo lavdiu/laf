@@ -13,10 +13,6 @@ class TypeDate implements FieldType
             return true;
 
         $format = 'Y-m-d';
-        try {
-            $format = Settings::get('locale.date.format');
-        } catch (\Exception $ex) {
-        }
         $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);

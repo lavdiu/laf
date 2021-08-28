@@ -18,10 +18,6 @@ class TypeDateTime implements FieldType
             return true;
 
         $format = 'Y-m-d H:i:s';
-        try {
-            $format = Settings::get('locale.datetime.format');
-        } catch (\Exception $ex) {
-        }
         $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
