@@ -19,7 +19,7 @@ class TypeDateTime implements FieldType
 
         $format = 'Y-m-d H:i:s';
         try {
-            $format = Settings::get('locale.time.format');
+            $format = Settings::get('locale.datetime.format');
         } catch (\Exception $ex) {
         }
         $f = \DateTime::createFromFormat($format, $value);
@@ -35,7 +35,7 @@ class TypeDateTime implements FieldType
     {
         $format = 'Y-m-d H:i:s';
         try {
-            $format = Settings::get('locale.time.format');
+            $format = Settings::get('locale.datetime.format');
         } catch (\Exception $ex) {
         }
         $dt = \DateTime::createFromFormat($format, $value);
@@ -71,7 +71,7 @@ class TypeDateTime implements FieldType
     {
         $format = 'Y-m-d H:i:s';
         try {
-            $format = Settings::get('locale.time.format');
+            $format = Settings::get('locale.datetime.format');
         } catch (\Exception $ex) {
         }
         $dt = \DateTime::createFromFormat($format, $value);

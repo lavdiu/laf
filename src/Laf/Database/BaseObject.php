@@ -564,13 +564,8 @@ class BaseObject
             return false;
         }
 
-        $dateTimeFormat = 'Y-m-d H:i:s';
-        try {
-            $dateTimeFormat = Settings::get('locale.datetime.format');
-        } catch (\Exception $ex) {
-        }
         if ($this->getTable()->hasField('updated_on')) {
-            $this->setFieldValueRaw('updated_on', date($dateTimeFormat));
+            $this->setFieldValueRaw('updated_on', date('Y-m-d H:i:s'));
         }
         if ($this->getTable()->hasField('updated_by')) {
             $this->setFieldValue('updated_by', $personClass::getLoggedUserId());
