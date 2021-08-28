@@ -460,8 +460,8 @@ class BaseObject
                 $prepareColumns[] = "`{$field->getName()}`";
                 $prepareValues[] = ":{$field->getName()}";
 
-                if (((string)$field->getValueForDbInsert()) != '') {
-                    $executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+                if (((string)$field->getValue()) != '') {
+                    $executeValues[':' . $field->getName()] = $field->getValue();
                 } else {
                     $executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
                 }
@@ -469,7 +469,7 @@ class BaseObject
             } else {
                 $prepareColumns[] = "`{$field->getName()}`";
                 $prepareValues[] = ":{$field->getName()}";
-                $executeValues[':' . $field->getName()] = $field->getValueForDbInsert();
+                $executeValues[':' . $field->getName()] = $field->getValue();
             }
         }
 
@@ -600,8 +600,8 @@ class BaseObject
                     $type = $field->getType()->getPdoType();
                     if (mb_strlen($field->getValue()) == 0)
                         $type = \PDO::PARAM_NULL;
-                    $stmt->bindValue(':' . $field->getName(), $field->getValueForDbInsert(), $type);
-                    $this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValueForDbInsert()]);
+                    $stmt->bindValue(':' . $field->getName(), $field->getValue(), $type);
+                    $this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValue()]);
                 }
             }
             $stmt->bindValue(':primaryKeyField', $this->getRecordId(), \PDO::PARAM_INT);
@@ -983,7 +983,7 @@ class BaseObject
     {
         $msg = [];
         foreach ($this->getTable()->getFields() as $field) {
-            if ($field->isRequired() && ((string)$field->getValueForDbInsert()) == '' && !$field->isPrimaryKey()) {
+            if ($field->isRequired() && ((string)$field->getValue()) == '' && !$field->isPrimaryKey()) {
                 $msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
             }
         }
