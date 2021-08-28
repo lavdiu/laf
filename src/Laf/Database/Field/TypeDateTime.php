@@ -76,6 +76,6 @@ class TypeDateTime implements FieldType
         }
         $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
-        return $dt->format($format);
+        return $dt->format('Y-m-d H:i:s');
     }
 }
