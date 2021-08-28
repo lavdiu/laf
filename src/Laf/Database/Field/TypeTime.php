@@ -34,11 +34,6 @@ class TypeTime implements FieldType
     public function getValueDbSanitized($value)
     {
         $format = 'H:i:s';
-        try {
-            $format = Settings::get('locale.time.format');
-        } catch (\Exception $ex) {
-        }
-
         $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
         return $dt->format('H:i:s');

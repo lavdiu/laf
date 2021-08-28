@@ -25,11 +25,6 @@ class TypeDate implements FieldType
     public function getValueDbSanitized($value)
     {
         $format = 'Y-m-d';
-        try {
-            $format = Settings::get('locale.date.format');
-        } catch (\Exception $ex) {
-        }
-
         $dt = \DateTime::createFromFormat($format, $value);
         if ($dt === false) return null;
         return $dt->format('Y-m-d');
