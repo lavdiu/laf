@@ -439,15 +439,8 @@ class BaseObject
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
 
-
-        $dateTimeFormat = 'Y-m-d H:i:s';
-        try {
-            $dateTimeFormat = Settings::get('locale.datetime.format');
-        } catch (\Exception $ex) {
-        }
         if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
-
-            $this->setFieldValue('created_on', date($dateTimeFormat));
+            $this->setFieldValueRaw('created_on', date('Y-m-d H:i:s'));
         }
         if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()) < 1) {
             $this->setFieldValue('created_by', $personClass::getLoggedUserId());
@@ -577,7 +570,7 @@ class BaseObject
         } catch (\Exception $ex) {
         }
         if ($this->getTable()->hasField('updated_on')) {
-            $this->setFieldValue('updated_on', date($dateTimeFormat));
+            $this->setFieldValueRaw('updated_on', date($dateTimeFormat));
         }
         if ($this->getTable()->hasField('updated_by')) {
             $this->setFieldValue('updated_by', $personClass::getLoggedUserId());
@@ -1101,12 +1094,7 @@ class BaseObject
     public function touch(): void
     {
         if ($this->getTable()->hasField('updated_on')) {
-            $dateTimeFormat = 'Y-m-d H:i:s';
-            try {
-                $dateTimeFormat = Settings::get('locale.datetime.format');
-            } catch (\Exception $ex) {
-            }
-            $this->setFieldValue('updated_on', date($dateTimeFormat));
+            $this->setFieldValueRaw('updated_on', date('Y-m-d H:i:s'));
             $this->store();
         }
     }
