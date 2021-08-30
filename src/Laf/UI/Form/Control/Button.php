@@ -59,6 +59,7 @@ class Button implements FormElementInterface, ComponentInterface
      */
     public function draw(): ?string
     {
+        $html = "";
 
         /**
          * add a css class to track component name
@@ -89,7 +90,7 @@ class Button implements FormElementInterface, ComponentInterface
         }
 
         if ($this->getWrapInDiv()) {
-            $html = "
+            $html .= "
         <div id='{$this->getId()}_container' class='form-group {$this->getFormRowDisplayMode()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='col-sm-2 col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . ($this->getLabel() != '' ? ' *' : '') . "</label>
             <div class='col-sm-10'>
