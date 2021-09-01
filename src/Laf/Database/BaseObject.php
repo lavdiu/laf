@@ -2,6 +2,7 @@
 
 namespace Laf\Database;
 
+use Laf\Database\Field\FieldType;
 use Laf\Exception;
 use Laf\Database\Field\Field;
 use Laf\Exception\MissingFieldValueException;
@@ -13,6 +14,7 @@ use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Grid\SimpleTable;
 use Laf\Util\Settings;
 use Laf\Util\UrlParser;
+use Laf\Util\Util;
 
 class BaseObject
 {
@@ -450,20 +452,19 @@ class BaseObject
         $this->insertSql = "INSERT INTO `{$this->getTable()->getName()}` (";
         $prepareColumns = $prepareValues = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
+            if ($field->isAutoIncrement()) {
+                continue;
+            }
             if ($field->isPrimaryKey()) {
-                /**
-                 * skip AI fields if there is no value set
-                 */
-                if ($field->isAutoIncrement() && strlen(trim($field->getValue())) < 1) {
-                    continue;
-                }
                 $prepareColumns[] = "`{$field->getName()}`";
                 $prepareValues[] = ":{$field->getName()}";
 
                 if (((string)$field->getValue()) != '') {
                     $executeValues[':' . $field->getName()] = $field->getValue();
-                } else {
-                    $executeValues[':' . $field->getName()] = \Laf\Util\Util::uuid();
+                } else if (in_array($field->getType()->getPdoType(), [FieldType::TYPE_VARCHAR, FieldType::TYPE_TEXT, FieldType::TYPE_CHAR])) {
+                    $executeValues[':' . $field->getName()] = Util::uuid();
+                }else{
+                    throw new \Exception("Missing PK Field value. Field is not AI and it doesn't match any of the required data types for auto-population");
                 }
 
             } else {
@@ -576,6 +577,9 @@ class BaseObject
         $this->updateSql .= "\nSET ";
         $prepareColumns = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
+            if ($field->isAutoIncrement()) {
+                continue;
+            }
             if ($field->hasChanged()) {
                 $prepareColumns[] = "`{$field->getName()}`=:{$field->getName()}";
             }
@@ -596,8 +600,11 @@ class BaseObject
             $stmt = $db->prepare($this->updateSql);
 
             foreach ($this->getTable()->getFields() as $field) {
-                if ($field->hasChanged()) {
+                if ($field->isAutoIncrement()) {
+                    continue;
+                }
 
+                if ($field->hasChanged()) {
                     $type = $field->getType()->getPdoType();
                     if (mb_strlen($field->getValue()) == 0)
                         $type = \PDO::PARAM_NULL;
