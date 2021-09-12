@@ -260,7 +260,8 @@ class Form implements ComponentInterface
      */
     public function isSubmitted()
     {
-        return isset($_POST['form_submit']) || isset($_GET['form_submit']);
+        return (isset($_POST['form_submit']) || isset($_GET['form_submit']))
+            && $this->getObject()->getTable()->getNameRot13() == (($_POST['form_submit'] ?? $_GET['form_submit']) ?? '');
     }
 
     /**
@@ -512,7 +513,7 @@ class Form implements ComponentInterface
                 <div class='col text-end'>
                     {$prevNextBtn}
                     {$this->getSubmitButton()->draw()}
-                    <input type='hidden' name='form_submit' id='form_submit' />
+                    <input type='hidden' name='form_submit' id='form_submit' value='{$this->getObject()->getTable()->getNameRot13()}'/>
                     <input type='hidden' name='{$this->getObject()->getTable()->getNameRot13()}' id='{$this->getObject()->getTable()->getNameRot13()}' value='" . rand(10000, 99999) . "' />
                 </div>
             </div> <!-- footer -->
