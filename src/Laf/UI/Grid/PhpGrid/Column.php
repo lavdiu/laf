@@ -36,7 +36,7 @@ class Column
      */
     public function __construct(?string $fieldName = null, ?string $label = null, bool $visible = true, bool $exportable = true, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, string $innerElementAttributes = null, string $outerElementAttributes = null)
     {
-        $this->fieldName = $fieldName;
+        $this->fieldName = trim($fieldName);
         $this->label = $label;
         $this->href = $href;
         $this->target = $target;
@@ -126,7 +126,7 @@ class Column
      */
     public function setFieldName(string $fieldName): Column
     {
-        $this->fieldName = $fieldName;
+        $this->fieldName = trim($fieldName);
         return $this;
     }
 
