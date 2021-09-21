@@ -71,9 +71,9 @@ class GenericPage implements ComponentInterface
             $this->footerHtml .= $footerComponent->draw();
         }
 
+        $links = "";
         $icon = $this->getTitleIcon() != "" ? "<i class='{$this->getTitleIcon()}'></i>" : "";
         if ($this->hasLinks() || get_class($this) == 'Laf\UI\Page\AdminPage') {
-            $links = "";
             foreach ($this->getLinks() as $link) {
                 $links .= $link->draw();
             }
