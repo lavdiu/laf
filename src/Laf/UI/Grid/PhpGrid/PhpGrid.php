@@ -813,7 +813,7 @@ class PhpGrid
         $_column = 'A';
         $_row = 1;
         $workbook = new Spreadsheet();
-        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xslx';
+        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xlsx';
 
         $sheet = $workbook->getActiveSheet();
 
@@ -876,7 +876,7 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
-        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xslx';
+        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xlsx';
 
         ob_clean();
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
