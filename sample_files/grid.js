@@ -408,7 +408,7 @@ class Grid {
         var fileName = _data.name;
         var worksheet = XLSX.utils.json_to_sheet(_data.rows);
         var workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
+        XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0,30));
         var bin = XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.xlsx'), {bookType: 'xlsx'});
         this.hideLoadingIcon();
     }
