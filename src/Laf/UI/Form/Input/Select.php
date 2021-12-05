@@ -104,11 +104,11 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         $where = '';
         if ($this->getField()->hasDbSelectionCriteria()) {
             foreach ($this->getField()->getDbSelectionCriteria() as $key => $value) {
-                $where .= " AND {$key}='{$value}'";
+                $where .= " AND `{$key}`='{$value}'";
             }
         }
 
-        $sql = "SELECT {$pkFieldName}, {$field} FROM $fkTable WHERE 1=1 {$where} ORDER BY {$field} ASC";
+        $sql = "SELECT `{$pkFieldName}`, `{$field}` FROM `{$fkTable}` WHERE 1=1 {$where} ORDER BY `{$field}` ASC";
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
         $stmt->execute();
