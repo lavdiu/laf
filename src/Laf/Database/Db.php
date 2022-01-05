@@ -3,6 +3,7 @@
 namespace Laf\Database;
 
 use Laf\Util\Settings;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class Db
@@ -21,6 +22,8 @@ class Db
     private $error_trace_string;
     private $error_trace;
     private $has_error;
+    private SqlErrorLoggerInterface $sqlErrorLogger;
+    private LoggerInterface $logger;
     private static $instance;
 
     /**
@@ -72,10 +75,11 @@ class Db
             $this->getConnection()->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->getConnection()->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
             $this->getConnection()->setAttribute(\PDO::ATTR_ORACLE_NULLS, \PDO::NULL_EMPTY_STRING);
-        } catch (\PDOException | \Exception $ex) {
+        } catch (\PDOException|\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
+            $this->handleSqlErrorLogging(null, null, $ex);
             throw $ex;
         } finally {
             $this->stopTimer();
@@ -99,10 +103,11 @@ class Db
         try {
             $this->startTimer();
             $statement = $this->getConnection()->query($sql);
-        } catch (\PDOException | \Exception $ex) {
+        } catch (\PDOException|\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
+            $this->handleSqlErrorLogging(null, $sql, $ex);
             throw $ex;
         } finally {
             $this->stopTimer();
@@ -125,10 +130,11 @@ class Db
         try {
             $this->startTimer();
             $count = $this->getConnection()->exec($sql);
-        } catch (\PDOException | \Exception $ex) {
+        } catch (\PDOException|\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
+            $this->handleSqlErrorLogging(null, $sql, $ex);
             throw $ex;
         } finally {
             $this->stopTimer();
@@ -549,10 +555,11 @@ class Db
         try {
             $this->startTimer();
             $statement = $this->getConnection()->prepare($sql);
-        } catch (\PDOException | \Exception $ex) {
+        } catch (\PDOException|\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
             $this->setErrorTraceString($ex->getTrace());
+            $this->handleSqlErrorLogging(null, $sql, $ex);
             throw $ex;
         } finally {
             $this->stopTimer();
@@ -590,4 +597,54 @@ class Db
         $db->execute($sql);
     }
 
+    /**
+     * @return SqlErrorLoggerInterface
+     */
+    public function getSqlErrorLogger(): SqlErrorLoggerInterface
+    {
+        return $this->sqlErrorLogger;
+    }
+
+    /**
+     * @param SqlErrorLoggerInterface $sqlErrorLogger
+     */
+    public function setSqlErrorLogger(SqlErrorLoggerInterface $sqlErrorLogger): void
+    {
+        $this->sqlErrorLogger = $sqlErrorLogger;
+    }
+
+    /**
+     * @return LoggerInterface
+     */
+    public function getLogger(): LoggerInterface
+    {
+        return $this->logger;
+    }
+
+    /**
+     * @param LoggerInterface $logger
+     */
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
+    }
+
+    private function handleSqlErrorLogging(?string $customMessage, ?string $sqlQuery, \Throwable $ex): void
+    {
+        if (!$this->getSqlErrorLogger()) {
+            return;
+        }
+
+        $l = $this->getSqlErrorLogger();
+        $l->setCustomMessage($customMessage);
+        $l->setSqlQuery($sqlQuery);
+        $l->setErrorMessage($ex->getMessage());
+        $l->setFile($ex->getFile());
+        $l->setLineNumber($ex->getLine());
+        $l->setTraceAsString($ex->getTraceAsString());
+        $l->storeLogEntry();
+    }
+
+
 }
+
