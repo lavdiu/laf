@@ -600,7 +600,7 @@ class Db
     /**
      * @return SqlErrorLoggerInterface
      */
-    public function getSqlErrorLogger(): SqlErrorLoggerInterface
+    public function getSqlErrorLogger(): ?SqlErrorLoggerInterface
     {
         return $this->sqlErrorLogger;
     }
