@@ -50,7 +50,7 @@ class Db
      */
     public static function getInstance(): Db
     {
-        if (!is_a(self::$instance, 'Db')) {
+        if (!is_a(self::$instance, 'Laf\Database\Db')) {
             $settings = Settings::getInstance();
             self::$instance = new Db();
             self::$instance->hostName = $settings->getProperty('database.hostname');
