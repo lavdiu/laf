@@ -22,7 +22,7 @@ class Db
     private $error_trace_string;
     private $error_trace;
     private $has_error;
-    private SqlErrorLoggerInterface $sqlErrorLogger;
+    private ?SqlErrorLoggerInterface $sqlErrorLogger = null;
     private LoggerInterface $logger;
     private static $instance;
 
