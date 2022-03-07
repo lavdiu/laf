@@ -611,7 +611,11 @@ class PhpGrid
             $searchParams = urldecode($filters['searchParams']);
             $searchParams = json_decode($searchParams);
 
-            for ($i = 0; $i < count($searchParams); $i++) {
+            $searchParamsCount = 0;
+            if(is_countable($searchParams)){
+                $searchParamsCount = count($searchParams);
+            }
+            for ($i = 0; $i < $searchParamsCount; $i++) {
                 $filterItem = $searchParams[$i];
                 $operator = $this->getOperator($filterItem->operator);
                 $value = $filterItem->value;
