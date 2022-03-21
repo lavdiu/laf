@@ -537,7 +537,7 @@ class Form implements ComponentInterface
      */
     public function setAction(?string $action)
     {
-        if (mb_strlen($action) > 0)
+        if (mb_strlen($action??'') > 0)
             $this->action = $action;
         else if (isset($_SERVER['REQUEST_URI']))
             $this->action = $_SERVER['REQUEST_URI'];

@@ -856,7 +856,7 @@ class BaseObject
             return true;
         }
 
-        if (trim($this->getTable()->getPrimaryKey()->getFirstField()->getValue()) != '') {
+        if (trim($this->getTable()->getPrimaryKey()->getFirstField()->getValue()??'') != '') {
             return true;
         }
         return false;
