@@ -444,10 +444,10 @@ class BaseObject
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
 
-        if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()) < 1) {
+        if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()??'') < 1) {
             $this->setFieldValueRaw('created_on', date('Y-m-d H:i:s'));
         }
-        if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()) < 1) {
+        if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()??'') < 1) {
             $this->setFieldValue('created_by', $personClass::getLoggedUserId());
         }
 
@@ -609,7 +609,7 @@ class BaseObject
 
                 if ($field->hasChanged()) {
                     $type = $field->getType()->getPdoType();
-                    if (mb_strlen($field->getValue()) == 0)
+                    if (mb_strlen($field->getValue()??'') == 0)
                         $type = \PDO::PARAM_NULL;
                     $stmt->bindValue(':' . $field->getName(), $field->getValue(), $type);
                     $this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValue()]);
