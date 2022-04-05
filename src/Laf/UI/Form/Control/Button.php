@@ -99,10 +99,10 @@ class Button implements FormElementInterface, ComponentInterface
         $html .= "\t<button {$params}
                     class='{$this->getCssClassesForHtml()}' 
                     style='{$this->getCssStyleForHtml()}'  
-                    " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
+                    " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
                 >{$this->getValueForHtml()}</button>";
         if ($this->getWrapInDiv()) {
-            $html .= ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-Button Button-muted'>{$this->getHint()}</small>" : "") . "
+            $html .= ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-Button Button-muted'>{$this->getHint()}</small>" : "") . "
             </div>
         </div>";
         }

@@ -61,7 +61,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         $options = "<option value=''>&nbsp;</option>";
 
         foreach ($this->getOptions() as $ok => $ov) {
-            if ($ok == $this->getValue() && mb_strlen($ok) == mb_strlen($this->getValue())) {
+            if ($ok == $this->getValue() && mb_strlen($ok??'') == mb_strlen($this->getValue()??'')) {
                 $options .= "\n\t\t\t\t<option value='{$ok}' selected='selected'>{$ov}</option>";
             } else {
                 $options .= "\n\t\t\t\t<option value='{$ok}'>{$ov}</option>";
@@ -75,11 +75,11 @@ class Select extends Text implements FormElementInterface, ComponentInterface
             <select {$params}
                 class='{$this->getCssClassesForHtml()}' 
                 style='{$this->getCssStyleForHtml()}' 
-                " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
                 >
                 {$options}
                 </select>
-                " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
             " . ($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 

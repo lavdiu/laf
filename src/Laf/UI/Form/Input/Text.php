@@ -185,8 +185,8 @@ class Text implements FormElementInterface, ComponentInterface
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
             " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-                <input class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' {$params} " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . " />
-                " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
+                <input class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' {$params} " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . " />
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
             ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 

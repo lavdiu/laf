@@ -47,9 +47,9 @@ class TextArea extends Text implements FormElementInterface, ComponentInterface
                 class='{$this->getCssClassesForHtml()}' 
                 style='{$this->getCssStyleForHtml()}' 
                 {$params}
-                " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "")
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "")
             . ">{$this->getValue()}</textarea>
-                " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
             ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
