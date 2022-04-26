@@ -101,7 +101,7 @@ class SimpleTable implements ComponentInterface
             return $this;
         }
         $this->totalRowCount = $totalRowCount;
-        $totalPages = (int)$this->totalRowCount / $this->getRowsPerPage();
+        $totalPages = ((int)($this->totalRowCount / $this->getRowsPerPage()));
         if ($this->totalRowCount % $this->getRowsPerPage() != 0) {
             $totalPages++;
         }
@@ -123,7 +123,7 @@ class SimpleTable implements ComponentInterface
     {
         if ($this->isJsDynamic())
             return 0;
-        return (int)$this->rowsPerPage;
+        return ((int)$this->rowsPerPage);
     }
 
     /**
@@ -132,7 +132,7 @@ class SimpleTable implements ComponentInterface
      */
     public function setRowsPerPage(int $rowsPerPage)
     {
-        $rowsPerPage = (int)$rowsPerPage;
+        $rowsPerPage = ((int)$rowsPerPage);
         if (!is_numeric($rowsPerPage) || $rowsPerPage < 1)
             $rowsPerPage = 10;
         $this->rowsPerPage = $rowsPerPage;
@@ -429,7 +429,7 @@ class SimpleTable implements ComponentInterface
     protected function getRecordsetOffset()
     {
         $offset = $this->getRowsPerPage() * $this->getCurrentPage() - $this->getRowsPerPage();
-        return (int)$offset;
+        return ((int)$offset);
     }
 
     /**
@@ -446,7 +446,7 @@ class SimpleTable implements ComponentInterface
      */
     public function setCurrentPage($page)
     {
-        $page = (int)$page;
+        $page = ((int)$page);
         if (!is_numeric($page) || $page < 1)
             $page = 1;
         $this->currentPage = $page;
