@@ -629,10 +629,20 @@ class Db
         $this->logger = $logger;
     }
 
+    /**
+     * @param string|null $customMessage
+     * @param string|null $sqlQuery
+     * @param \Throwable $ex
+     * @return void
+     * @throws \Exception
+     */
     private function handleSqlErrorLogging(?string $customMessage, ?string $sqlQuery, \Throwable $ex): void
     {
         if (!$this->getSqlErrorLogger()) {
             return;
+        }
+        if (self::getOne("SHOW TABLES LIKE '" . $this->getSqlErrorLogger()->getTableName() . "'") === null) {
+            throw new \Exception(sprintf('Missing sql logger table %s, when attempting to store the error logs', $this->getSqlErrorLogger()->getTableName()));
         }
 
         $l = $this->getSqlErrorLogger();

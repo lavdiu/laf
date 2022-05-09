@@ -30,4 +30,6 @@ interface SqlErrorLoggerInterface
 
     public function storeLogEntry(): bool;
 
+    public function getTableName(): string;
+
 }
