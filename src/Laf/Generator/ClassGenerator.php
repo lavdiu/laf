@@ -488,13 +488,13 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
         foreach ($this->getTableColumns() as $column) {
             $additionalSettings = null;
 
-            if (mb_strstr($column['COLUMN_COMMENT'], 'setLabel') === false) {
+            if (mb_strstr($column['COLUMN_COMMENT']??'', 'setLabel') === false) {
                 $additionalSettings = "\n\t\t\t->setLabel(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
             }
             /*if (mb_strstr($column['COLUMN_COMMENT'], 'setHint') === false) {
                 $additionalSettings .= "\n\t\t\t->setHint(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
             }*/
-            if (mb_strstr($column['COLUMN_COMMENT'], 'setPlaceHolder') === false) {
+            if (mb_strstr($column['COLUMN_COMMENT']??'', 'setPlaceHolder') === false) {
                 $additionalSettings .= "\n\t\t\t->setPlaceHolder(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
             }
 
@@ -507,7 +507,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
 
             $maxLength = preg_replace("/[^0-9,.]/", "", $column['COLUMN_TYPE']);
-            if (mb_strstr($maxLength, ','))
+            if (mb_strstr($maxLength??'', ','))
                 $maxLength = array_sum(explode(',', $maxLength));
 
             if (is_int($maxLength)) {
