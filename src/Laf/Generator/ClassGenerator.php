@@ -502,7 +502,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			->setName(\"{$column['COLUMN_NAME']}\"){$additionalSettings}
 			->setRequired(" . ($column['IS_NULLABLE'] == 'NO' ? 'true' : 'false') . ")
 			->setMaxLength(" . (is_numeric($column['CHARACTER_MAXIMUM_LENGTH']) ? $column['CHARACTER_MAXIMUM_LENGTH'] : '255') . ")
-			->setAutoIncrement(" . (strpos($column['EXTRA'], 'auto_increment') === false ? 'false' : 'true') . ")
+			->setAutoIncrement(" . (strpos($column['EXTRA']??'', 'auto_increment') === false ? 'false' : 'true') . ")
 			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true' : 'false') . ")
 			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
 
