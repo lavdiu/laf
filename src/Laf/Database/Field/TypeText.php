@@ -54,6 +54,6 @@ class TypeText implements FieldType
     {
         if (mb_strlen($value) == 0)
             return null;
-        return (string)trim($value);
+        return (string)trim($value??'');
     }
 }

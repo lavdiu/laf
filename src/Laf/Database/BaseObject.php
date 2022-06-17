@@ -692,7 +692,7 @@ class BaseObject
             return false;
         }
 
-        if (trim($this->getRecordId()) == '') {
+        if (trim($this->getRecordId()??'') == '') {
             $this->addLoggerError("Delete method failed: Invalid record id provided", [$this->getRecordId()]);
             return false;
         }

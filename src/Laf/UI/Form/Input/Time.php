@@ -10,7 +10,7 @@ class Time extends Text implements FormElementInterface, ComponentInterface
 {
     public function drawViewMode()
     {
-        if (trim($this->getValue()) == '') {
+        if (trim($this->getValue()??'') == '') {
             return parent::drawViewMode();
         }
         $date = \Datetime::createFromFormat('H:i:s', $this->getValue());
