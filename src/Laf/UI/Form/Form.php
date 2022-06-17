@@ -165,10 +165,10 @@ class Form implements ComponentInterface
             } else if ($this->getMethod() == self::METHOD_POST) {
                 $value = $_POST[$field->getNameRot13()] ?? null;
             }
-            $value = trim($value);
+            $value = trim($value??'');
 
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
-                $value = trim($this->getSubmittedFieldValue($field->getName()));
+                $value = trim($this->getSubmittedFieldValue($field->getName())??'');
             }
 
 
