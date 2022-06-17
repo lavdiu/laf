@@ -14,6 +14,7 @@ class Db
     private $database;
     private $userName;
     private $password;
+    private $port;
     private $connection;
     private $sql;
     private $time_start;
@@ -33,12 +34,13 @@ class Db
      * @param $userName
      * @param $password
      */
-    public function __construct($hostName = null, $database = null, $userName = null, $password = null)
+    public function __construct($hostName = null, $database = null, $userName = null, $password = null, $port = 3306)
     {
         $this->hostName = $hostName;
         $this->database = $database;
         $this->userName = $userName;
         $this->password = $password;
+        $this->port = $port;
         $this->setHasError(false);
     }
 
@@ -57,6 +59,7 @@ class Db
             self::$instance->database = $settings->getProperty('database.database_name');
             self::$instance->userName = $settings->getProperty('database.username');
             self::$instance->password = $settings->getProperty('database.password');
+            self::$instance->port = $settings->getProperty('database.port');
             self::$instance->connect();
         }
         return self::$instance;
@@ -213,6 +216,25 @@ class Db
     {
         $this->password = $password;
     }
+
+    /**
+     * @return int|mixed
+     */
+    public function getPort(): mixed
+    {
+        return $this->port;
+    }
+
+    /**
+     * @param int|mixed $port
+     * @return Db
+     */
+    public function setPort(mixed $port): Db
+    {
+        $this->port = $port;
+        return $this;
+    }
+
 
     /**
      * @return mixed
