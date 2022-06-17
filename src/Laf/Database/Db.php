@@ -74,7 +74,7 @@ class Db
     {
         try {
             $this->startTimer();
-            $this->connection = new \PDO("mysql:dbname={$this->getDatabase()};host={$this->getHostName()};charset=utf8mb4", $this->getUserName(), $this->getPassword());
+            $this->connection = new \PDO("mysql:dbname={$this->getDatabase()};host={$this->getHostName()};port={$this->getPort()};charset=utf8mb4", $this->getUserName(), $this->getPassword());
             $this->getConnection()->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->getConnection()->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
             $this->getConnection()->setAttribute(\PDO::ATTR_ORACLE_NULLS, \PDO::NULL_EMPTY_STRING);
