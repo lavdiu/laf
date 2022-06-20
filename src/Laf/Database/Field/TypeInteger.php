@@ -16,7 +16,7 @@ class TypeInteger implements FieldType
      */
     public function isValid($value)
     {
-        if (mb_strlen($value) == 0) {
+        if (mb_strlen($value??'') == 0) {
             return true;
         }
         if (is_null($value))
@@ -30,7 +30,7 @@ class TypeInteger implements FieldType
      */
     public function getValueDbSanitized($value)
     {
-        if (mb_strlen($value) == 0) {
+        if (mb_strlen($value??'') == 0) {
             return null;
         }
         if (is_null($value))

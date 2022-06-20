@@ -12,7 +12,7 @@ class TypeFloat implements FieldType
      */
     public function isValid($value)
     {
-        if(mb_strlen($value) == 0){
+        if(mb_strlen($value??'') == 0){
             return true;
         }
         if (is_null($value))
