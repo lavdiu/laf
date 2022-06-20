@@ -165,10 +165,10 @@ class Form implements ComponentInterface
             } else if ($this->getMethod() == self::METHOD_POST) {
                 $value = $_POST[$field->getNameRot13()] ?? null;
             }
-            $value = trim($value??'');
+            $value = trim($value ?? '');
 
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
-                $value = trim($this->getSubmittedFieldValue($field->getName())??'');
+                $value = trim($this->getSubmittedFieldValue($field->getName()) ?? '');
             }
 
 
@@ -186,14 +186,29 @@ class Form implements ComponentInterface
             }
         }
 
-        if (
-            $object->getField($object->getTable()->getPrimaryKey()->getFirstField()->getName())->getValue() != '' #if the primary key field is set
-            && ($object->getTable()->getPrimaryKeyCount() != $object->getTable()->getFieldCount()) #but not all table fields are included in primary key (this is for 2 column linker tables)
-        ) {
-            $object->update();
+        $pkField = $object->getField($object->getTable()->getPrimaryKey()->getFirstField()->getName());
+
+
+        if ($pkField->getValue() != '') {
+            if (!$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
+                $object->insert();
+            } else {
+                $object->update();
+            }
         } else {
             $object->insert();
         }
+        /*
+                if (
+                    $pkField->getValue() != '' && $this->getDrawMode() == DrawMode::UPDATE #if the primary key field is set
+                    && ($object->getTable()->getPrimaryKeyCount() != $object->getTable()->getFieldCount()) #but not all table fields are included in primary key (this is for 2 column linker tables)
+                ) {
+                    $object->update();
+                } else {
+                    $object->insert();
+                }
+        */
+
         $this->getObject()->reload();
         return $object->getRecordId();
     }
@@ -337,13 +352,8 @@ class Form implements ComponentInterface
         $this->addCssClass(static::getComponentCssControlClass());
 
         switch ($this->getDrawMode()) {
-            case DrawMode::VIEW:
-                return static::drawViewMode();
-                break;
-            case DrawMode::INSERT:
-                return static::drawUpdateMode();
-                break;
             case DrawMode::UPDATE:
+            case DrawMode::INSERT:
                 return static::drawUpdateMode();
                 break;
             default:
@@ -499,6 +509,8 @@ class Form implements ComponentInterface
             $html .= $component->draw();
         }
 
+        $html .= "<input type='hidden' name='{$this->getName()}_draw_mode' id='{$this->getId()}_draw_mode' value='{$this->getDrawMode()}' />";
+
         $prevNextBtn = "";
         if ($this->hasTabs() && $this->getTabCount() > 1 && $this->isShowNavButtons()) {
             $prevNextBtn = "
@@ -538,7 +550,7 @@ class Form implements ComponentInterface
     public function setAction(?string $action)
     {
 
-        if (mb_strlen($action??'') > 0)
+        if (mb_strlen($action ?? '') > 0)
             $this->action = $action;
         else if (isset($_SERVER['REQUEST_URI']))
             $this->action = $_SERVER['REQUEST_URI'];
