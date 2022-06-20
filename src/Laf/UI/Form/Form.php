@@ -152,8 +152,10 @@ class Form implements ComponentInterface
 
         if (filter_input(INPUT_GET, $object->getTable()->getNameRot13())) {
             $this->setMethod(self::METHOD_GET);
+            $this->setDrawMode($_GET[$this->getName() . '_draw_mode'] ?? '');
         } else if (filter_input(INPUT_POST, $object->getTable()->getNameRot13())) {
             $this->setMethod(self::METHOD_POST);
+            $this->setDrawMode($_POST[$this->getName() . '_draw_mode'] ?? '');
         } else {
             return null;
         }
