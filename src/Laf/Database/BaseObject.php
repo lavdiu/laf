@@ -427,7 +427,7 @@ class BaseObject
             return $this->insert();
         }
 
-        if (mb_strlen($pkFieldValue) > 0 && !$pkField->isAutoIncrement()) {
+        if (mb_strlen($pkFieldValue) > 0 && !$pkField->isAutoIncrement() && $pkField->getOldValue() == '') {
             return $this->insert();
         }
 
