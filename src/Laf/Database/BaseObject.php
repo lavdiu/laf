@@ -418,13 +418,19 @@ class BaseObject
      */
     public function store()
     {
-        $pk = $this->getTable()->getPrimaryKey()->getFirstField()->getValue();
-        if(is_null($pk)){
+        $pkField = $this->getTable()->getPrimaryKey()->getFirstField();
+        $pkFieldValue = $pkField->getValue();
+        if (is_null($pkFieldValue)) {
             return $this->insert();
         }
-        if (mb_strlen($pk) < 1) {
+        if (mb_strlen($pkFieldValue) < 1) {
             return $this->insert();
         }
+
+        if (mb_strlen($pkFieldValue) > 0 && !$pkField->isAutoIncrement()) {
+            return $this->insert();
+        }
+
         return $this->update();
     }
 
@@ -444,10 +450,10 @@ class BaseObject
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
 
-        if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue()??'') < 1) {
+        if ($this->getTable()->hasField('created_on') && mb_strlen($this->getTable()->getField('created_on')->getValue() ?? '') < 1) {
             $this->setFieldValueRaw('created_on', date('Y-m-d H:i:s'));
         }
-        if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue()??'') < 1) {
+        if ($this->getTable()->hasField('created_by') && mb_strlen($this->getTable()->getField('created_by')->getValue() ?? '') < 1) {
             $this->setFieldValue('created_by', $personClass::getLoggedUserId());
         }
 
@@ -466,7 +472,7 @@ class BaseObject
                     $executeValues[':' . $field->getName()] = $field->getValue();
                 } else if (in_array($field->getType()->getPdoType(), [FieldType::TYPE_VARCHAR, FieldType::TYPE_TEXT, FieldType::TYPE_CHAR])) {
                     $executeValues[':' . $field->getName()] = Util::uuid();
-                }else{
+                } else {
                     throw new \Exception("Missing PK Field value. Field is not AI and it doesn't match any of the required data types for auto-population");
                 }
 
@@ -609,7 +615,7 @@ class BaseObject
 
                 if ($field->hasChanged()) {
                     $type = $field->getType()->getPdoType();
-                    if (mb_strlen($field->getValue()??'') == 0)
+                    if (mb_strlen($field->getValue() ?? '') == 0)
                         $type = \PDO::PARAM_NULL;
                     $stmt->bindValue(':' . $field->getName(), $field->getValue(), $type);
                     $this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValue()]);
@@ -692,7 +698,7 @@ class BaseObject
             return false;
         }
 
-        if (trim($this->getRecordId()??'') == '') {
+        if (trim($this->getRecordId() ?? '') == '') {
             $this->addLoggerError("Delete method failed: Invalid record id provided", [$this->getRecordId()]);
             return false;
         }
@@ -859,7 +865,7 @@ class BaseObject
             return true;
         }
 
-        if (trim($this->getTable()->getPrimaryKey()->getFirstField()->getValue()??'') != '') {
+        if (trim($this->getTable()->getPrimaryKey()->getFirstField()->getValue() ?? '') != '') {
             return true;
         }
         return false;
