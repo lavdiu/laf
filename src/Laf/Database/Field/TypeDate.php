@@ -9,7 +9,7 @@ class TypeDate implements FieldType
 {
     public function isValid($value)
     {
-        if (is_null($value) || $value == '')
+        if (is_null($value) || trim($value) == '')
             return true;
 
         $format = 'Y-m-d';
