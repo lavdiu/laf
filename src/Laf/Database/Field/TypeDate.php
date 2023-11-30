@@ -9,13 +9,13 @@ class TypeDate implements FieldType
 {
     public function isValid($value)
     {
-        if (is_null($value))
+        if (is_null($value) || $value == '')
             return true;
 
         $format = 'Y-m-d';
         $f = \DateTime::createFromFormat($format, $value);
         $valid = \DateTime::getLastErrors();
-        return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
+        return $valid === false || ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
     }
 
     public function getValueDbSanitized($value)
