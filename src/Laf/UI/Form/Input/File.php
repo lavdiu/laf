@@ -79,9 +79,9 @@ class File extends Text implements FormElementInterface, ComponentInterface
         <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
             " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-            <input {$params} class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' " . ((mb_strlen($this->getHint()) > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "/>
+            <input {$params} class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "/>
             <input type='hidden' name='{$this->getField()->getNameRot13()}' value='1' />
-                " . ((mb_strlen($this->getHint()) > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
+                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
             ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
