@@ -22,9 +22,9 @@ class File extends Text implements FormElementInterface, ComponentInterface
 			if (!$document->fileFullSizeExists()) {
 				$content = '(file removed)';
 			} else if ($document->isImage())
-				$content = "<a href='?module=document&type=full&id={$this->getValue()}'><img src='?module=document&type=thumbnail&id={$this->getValue()}' style='height:150px;' alt='image' style='{$this->getCssStyleForHtml()}' class='{$this->getCssClassesForHtml()}' /></a>";
+				$content = "<a href='?module=document&submodule=view&id={$this->getValue()}'><img src='?module=document&submodule=thumbnail&id={$this->getValue()}' style='height:150px;' alt='image' style='{$this->getCssStyleForHtml()}' class='{$this->getCssClassesForHtml()}' /></a>";
 			else
-				$content = "<a href='?module=document&type=download&id={$this->getValue()}'>Download File</a>";
+				$content = "<a href='?module=document&submodule=download&id={$this->getValue()}'>Download File</a>";
 
 		}
 		return "
