@@ -141,7 +141,7 @@ class ForeignKey
 
     public function isValidValue($id)
     {
-        $id = trim($id);
+        $id = trim($id??'');
         if ($id == '' || is_null($id))
             return true;
         $db = Db::getInstance();
