@@ -1119,4 +1119,15 @@ class BaseObject
         return '';
     }
 
+    /**
+     * @return array
+     */
+    public function getAllFieldsAsKVArrays(): array
+    {
+        $fields = [];
+        foreach ($this->getTable()->getFields() as $field) {
+            $fields[$field->getName()] = $field->getValue();
+        }
+        return $fields;
+    }
 }
