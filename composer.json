@@ -28,7 +28,7 @@
     "ext-mbstring": "*",
     "ext-pdo": "*",
     "box/spout": "^3.0",
-    "claviska/simpleimage": "^3.3",
+    "claviska/simpleimage": "^4.2.0",
     "monolog/monolog": "^1.24",
     "phpoffice/phpspreadsheet": "^1.10"
   },
