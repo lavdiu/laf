@@ -146,7 +146,7 @@ class Form implements ComponentInterface
      * @return int
      * @throws \Exception
      */
-    public function processForm()
+    public function processForm(string $documentHandlerClass = null)
     {
         $object = $this->getObject();
 
@@ -176,7 +176,11 @@ class Form implements ComponentInterface
 
             if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
                 if ($field->isDocumentField()) {
-                    $value = Document::upload($field->getNameRot13());
+                    if($documentHandlerClass != null) {
+                        $value = $documentHandlerClass::upload($field->getNameRot13());
+                    } else {
+                        $value = Document::upload($field->getNameRot13());
+                    }
                 }
                 $field->setValue($field->getType()->formatForDb($value));
             }
