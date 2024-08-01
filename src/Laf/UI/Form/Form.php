@@ -171,18 +171,19 @@ class Form implements ComponentInterface
 
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
                 $value = trim($this->getSubmittedFieldValue($field->getName()) ?? '');
-            }
-
-
-            if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
-                if ($field->isDocumentField()) {
-                    if($documentHandlerClass != null) {
-                        $value = $documentHandlerClass::upload($field->getNameRot13());
-                    } else {
-                        $value = Document::upload($field->getNameRot13());
+            }else {
+                #only upload and store files if the file is submitted,
+                #if the form is updated and a replacement file is not uploaded, retain the old file id
+                if (mb_strlen($value) > 0 || $this->fieldIsSubmitted($field->getName())) {
+                    if ($field->isDocumentField()) {
+                        if ($documentHandlerClass != null) {
+                            $value = $documentHandlerClass::upload($field->getNameRot13());
+                        } else {
+                            $value = Document::upload($field->getNameRot13());
+                        }
                     }
+                    $field->setValue($field->getType()->formatForDb($value));
                 }
-                $field->setValue($field->getType()->formatForDb($value));
             }
             /**
              * boolean fields show up as check boxes. WHen checkbox is not checked, it doesn't submit a var with empty result or 0.
