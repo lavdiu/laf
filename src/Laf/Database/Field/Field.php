@@ -123,6 +123,11 @@ class Field
 	 */
 	public $dbSelectionCriteria = [];
 
+    /**
+     * @var bool
+     */
+    public $allowHtml = false;
+
 	/**
 	 * Field constructor.
 	 * @param string $name
@@ -259,7 +264,12 @@ class Field
 
 		if ($this->type->isValid($value)) {
 
-			$tmpVal = $this->sanitize($value);
+            $tmpVal = "";
+            if($this->allowHtml()){
+                $tmpVal = strip_tags($value, "<a><b><span><div><table><tr><td><thead><tbody><li><ul><ol><p><img>");
+            }else{
+			    $tmpVal = $this->sanitize($value);
+            }
 			if ($this->value !== $tmpVal) {
 				$this->value = $tmpVal;
 				$this->setUpdatedOnTs();
@@ -850,5 +860,23 @@ class Field
 		return sizeof($this->dbSelectionCriteria) > 0;
 	}
 
+
+    /**
+     * @return bool
+     */
+    public function allowHtml(): bool
+    {
+        return $this->allowHtml;
+    }
+
+    /**
+     * @param bool $allowHtml
+     * @return Field
+     */
+    public function setAllowHtml(bool $allowHtml): Field
+    {
+        $this->allowHtml = $allowHtml;
+        return $this;
+    }
 
 }

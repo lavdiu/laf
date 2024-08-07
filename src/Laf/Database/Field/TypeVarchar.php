@@ -22,7 +22,7 @@ class TypeVarchar implements FieldType
     public function getValueDbSanitized($value)
     {
         $value = strip_tags($value);
-        $value = strip_tags($value);
+        #$value = strip_tags($value);
         return htmlspecialchars($value, ENT_COMPAT);
     }
 
