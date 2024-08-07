@@ -171,6 +171,7 @@ class Form implements ComponentInterface
 
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
                 $value = trim($this->getSubmittedFieldValue($field->getName()) ?? '');
+                $field->setValue($field->getType()->formatForDb($value));
             }else {
                 #only upload and store files if the file is submitted,
                 #if the form is updated and a replacement file is not uploaded, retain the old file id
