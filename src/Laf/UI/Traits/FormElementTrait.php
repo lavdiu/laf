@@ -219,11 +219,7 @@ trait FormElementTrait
      */
     public function getValueForHtml(): ?string
     {
-        if ($this->getField()->allowHtml()) {
-            return nl2br($this->getAttribute('value') ?? '');
-        } else {
-            return nl2br(htmlentities($this->getAttribute('value') ?? ''));
-        }
+        return nl2br(htmlentities($this->getAttribute('value')??''));
     }
 
     /**

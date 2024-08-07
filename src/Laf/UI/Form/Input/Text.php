@@ -134,7 +134,11 @@ class Text implements FormElementInterface, ComponentInterface
      */
     public function getValueForHtml(): ?string
     {
-        return nl2br(htmlentities($this->getAttribute('value')??''));
+        if ($this->getField()->allowHtml()) {
+            return nl2br($this->getAttribute('value') ?? '');
+        } else {
+            return nl2br(htmlentities($this->getAttribute('value') ?? ''));
+        }
     }
 
     /**
