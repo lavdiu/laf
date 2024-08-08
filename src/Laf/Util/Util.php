@@ -113,7 +113,7 @@ class Util
      * @return string
      * Takes a DateTime and outputs seconds, minutes, hours, days, months or years ago
      */
-    function timeAgo(\DateTime $dt): string
+    public static function timeAgo(\DateTime $dt): string
     {
         $timestamp = $dt->getTimestamp();
         $currentTime = time();
