@@ -107,4 +107,35 @@ class Util
             preg_replace("/[^0-9]/", "", substr($number, $sep + 1, strlen($number)))
         );
     }
+
+    /**
+     * @param \DateTime $dt
+     * @return string
+     * Takes a DateTime and outputs seconds, minutes, hours, days, months or years ago
+     */
+    function timeAgo(\DateTime $dt): string
+    {
+        $timestamp = $dt->getTimestamp();
+        $currentTime = time();
+        $timeDifference = $currentTime - $timestamp;
+
+        if ($timeDifference < 60) {
+            return $timeDifference . ' seconds ago';
+        } elseif ($timeDifference < 3600) {
+            $minutes = floor($timeDifference / 60);
+            return $minutes . ' minutes ago';
+        } elseif ($timeDifference < 86400) {
+            $hours = floor($timeDifference / 3600);
+            return $hours . ' hours ago';
+        } elseif ($timeDifference < 2592000) {
+            $days = floor($timeDifference / 86400);
+            return $days . ' days ago';
+        } elseif ($timeDifference < 31536000) {
+            $months = floor($timeDifference / 2592000);
+            return $months . ' months ago';
+        } else {
+            $years = floor($timeDifference / 31536000);
+            return $years . ' years ago';
+        }
+    }
 }
