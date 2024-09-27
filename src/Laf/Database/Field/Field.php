@@ -266,7 +266,7 @@ class Field
 
             $tmpVal = "";
             if($this->allowHtml()){
-                $tmpVal = strip_tags($value, "<a><b><span><div><table><tr><td><thead><tbody><li><ul><ol><p><img>");
+                $tmpVal = strip_tags($value, "<a><b><span><div><table><tr><td><thead><tbody><li><ul><ol><p><img><p><h1><h2><h3><h4><h5><h6><br><hr><strong><em><i><u><s><sub><sup><code><pre><blockquote><cite><abbr><acronym><address><big><small>");
             }else{
 			    $tmpVal = $this->sanitize($value);
             }
