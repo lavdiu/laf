@@ -170,7 +170,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 	 * @param FormElementInterface|null \$formElementOverride
 	 * @return ComponentInterface
 	 */
-	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "FormElement(FormElementInterface \$formElementOverride = null) : ComponentInterface
+	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "FormElement(?FormElementInterface \$formElementOverride = null) : ComponentInterface
 	{
 		return \$this->getField(\"{$column['COLUMN_NAME']}\")->getFormElement(\$formElementOverride);
 	}
