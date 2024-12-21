@@ -17,7 +17,7 @@ class PrimaryKey
      * @param array $fields
      * @param null $table
      */
-    public function __construct(array $fields = null, $table = null)
+    public function __construct(?array $fields = [], ?string $table = null)
     {
         $this->fields = $fields;
         $this->table = $table;

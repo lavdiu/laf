@@ -48,7 +48,7 @@ class Table
      * @param string[] $foreignKey
      * @param Field $displayField
      */
-    public function __construct($name = null, array $fields = null, PrimaryKey $primaryKey = null, array $foreignKey = null, ?Field $displayField = null)
+    public function __construct(?string $name = null, ?array $fields = [], ?PrimaryKey $primaryKey = null, ?array $foreignKey = [], ?Field $displayField = null)
     {
         $this->name = $name;
         $this->fields = $fields;

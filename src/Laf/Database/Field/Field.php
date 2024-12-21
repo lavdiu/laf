@@ -148,7 +148,7 @@ class Field
 	 * @param array $attributes
 	 * @param string $invalidValueErrorMessage
 	 */
-	public function __construct(string $name = null, Table $table = null, string $value = null, string $oldValue = null, int $loadedOnTs = null, int $updatedOnTs = null, FieldType $type = null, int $maxLength = null, int $minLength = null, int $incrementStep = null, bool $required = null, bool $unique = null, bool $autoIncrement = null, string $label = null, string $placeholder = null, string $hint = null, array $attributes = [], string $invalidValueErrorMessage = null)
+	public function __construct(?string $name = null, ?Table $table = null, ?string $value = null, ?string $oldValue = null, ?int $loadedOnTs = null, ?int $updatedOnTs = null, ?FieldType $type = null, ?int $maxLength = null, ?int $minLength = null, ?int $incrementStep = null, ?bool $required = null, ?bool $unique = null, ?bool $autoIncrement = null, ?string $label = null, ?string $placeholder = null, ?string $hint = null, ?array $attributes = [], ?string $invalidValueErrorMessage = null)
 	{
 		$this->name = $name;
 		$this->table = $table;
@@ -779,7 +779,7 @@ class Field
 	 * @param FormElementInterface|null $formElementOverride
 	 * @return FormElementInterface
 	 */
-	public function getFormElement(FormElementInterface $formElementOverride = null): ComponentInterface
+	public function getFormElement(?FormElementInterface $formElementOverride = null): ComponentInterface
 	{
 		if (is_object($formElementOverride) && $formElementOverride != $this->formElement) {
 			$this->formElement = $formElementOverride;

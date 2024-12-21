@@ -41,7 +41,7 @@ class ForeignKey
      * @param Field|null $field
      * @param string|null $referencingTable
      */
-    public function __construct($keyName = null, Table $table = null, Field $field = null, string $referencingTable = null)
+    public function __construct(?string $keyName = null, ?Table $table = null, ?Field $field = null, ?string $referencingTable = null)
     {
         $this->keyName = $keyName;
         $this->table = $table;
