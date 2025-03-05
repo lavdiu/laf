@@ -116,7 +116,7 @@ class Form implements ComponentInterface
      * @param BaseObject $tableObject
      * @param string $action
      */
-    public function __construct(BaseObject $tableObject, string $action = null)
+    public function __construct(BaseObject $tableObject, ?string $action = null)
     {
         $this->setObject($tableObject);
         $this->setAction($action);
@@ -146,7 +146,7 @@ class Form implements ComponentInterface
      * @return int
      * @throws \Exception
      */
-    public function processForm(string $documentHandlerClass = null)
+    public function processForm(?string $documentHandlerClass = null)
     {
         $object = $this->getObject();
 

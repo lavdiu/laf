@@ -34,7 +34,7 @@ class Column
      * @param string $innerElementAttributes
      * @param string $outerElementAttributes
      */
-    public function __construct(?string $fieldName = null, ?string $label = null, bool $visible = true, bool $exportable = true, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, string $innerElementAttributes = null, string $outerElementAttributes = null)
+    public function __construct(?string $fieldName = null, ?string $label = null, bool $visible = true, bool $exportable = true, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, ?string $innerElementAttributes = null, ?string $outerElementAttributes = null)
     {
         $this->fieldName = trim($fieldName);
         $this->label = $label;
