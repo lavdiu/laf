@@ -14,6 +14,16 @@ use Laf\Database\Field\Field;
 class QueryBuilder
 {
     /**
+     * @var bool Debug flag for outputting queries and bindings
+     */
+    protected $debug = false;
+
+    /**
+     * @var \Laf\Logger\LoggerInterface|null
+     */
+    protected $logger = null;
+
+    /**
      * @var string|null
      */
     protected $customSql = null;
@@ -83,6 +93,45 @@ class QueryBuilder
      * @var string|null
      */
     protected $asObjectClass = null;
+
+    /**
+     * Enable or disable debug output
+     * @param bool $debug
+     * @return $this
+     */
+    public function setDebug(bool $debug = true)
+    {
+        $this->debug = $debug;
+        return $this;
+    }
+
+    /**
+     * Attach a PSR logger for debug/info/error output
+     * @param \Laf\Logger\LoggerInterface $logger
+     * @return $this
+     */
+    public function setLogger(\Laf\Logger\LoggerInterface $logger)
+    {
+        $this->logger = $logger;
+        return $this;
+    }
+
+    /**
+     * Log a debug/info message (uses logger if set, otherwise echo if debug)
+     * @param string $message
+     * @param array $context
+     */
+    protected function logDebug($message, array $context = [])
+    {
+        if ($this->logger) {
+            $this->logger->debug($message, $context);
+        } elseif ($this->debug) {
+            echo "[QueryBuilder DEBUG] $message\n";
+            if (!empty($context)) {
+                echo print_r($context, true) . "\n";
+            }
+        }
+    }
 
     public function __construct(Table $table, $alias = null)
     {
@@ -191,6 +240,7 @@ class QueryBuilder
     public function get()
     {
         $sql = $this->customSql ?? $this->buildSelectSql();
+        $this->logDebug('Executing query', ['sql' => $sql, 'bindings' => $this->bindings]);
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
         // Bind all where/orWhere values
@@ -206,6 +256,7 @@ class QueryBuilder
         }
         $stmt->execute();
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $this->logDebug('Query executed, result count: ' . count($results));
         if ($this->asObjectClass) {
             $objects = [];
             foreach ($results as $row) {
