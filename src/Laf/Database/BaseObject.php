@@ -3,6 +3,7 @@
 namespace Laf\Database;
 
 use Laf\Database\Field\FieldType;
+use Laf\Database\Query\Builder;
 use Laf\Exception;
 use Laf\Database\Field\Field;
 use Laf\Exception\MissingFieldValueException;
@@ -1130,4 +1131,57 @@ class BaseObject
         }
         return $fields;
     }
+
+
+    /**
+     * Start a new query builder instance for the model.
+     *
+     * @return Builder
+     */
+    public static function query(): Builder
+    {
+        return new Builder(static::class);
+    }
+
+    /**
+     * A convenient shortcut to start a query with a where clause.
+     *
+     * @param string $column
+     * @param string $operator
+     * @param mixed $value
+     * @return Builder
+     */
+    public static function where(string $column, string $operator, $value): Builder
+    {
+        return (new Builder(static::class))->where($column, $operator, $value);
+    }
+
+    /**
+     * Populates the object's fields from an associative array.
+     * This is a crucial performance improvement, as it avoids hitting the
+     * database again for each object retrieved in a collection.
+     *
+     * @param array $data
+     * @return $this
+     */
+    public function populateFromArray(array $data): self
+    {
+        foreach ($data as $fieldName => $value) {
+            // A helper method on the Table object would be even cleaner.
+            if ($this->getTable()->hasField($fieldName)) { // You may need to add hasField() to your Table class
+                $this->setFieldValue($fieldName, $value);
+            }
+        }
+
+        // After populating, set the recordId to the primary key value
+        // to ensure methods like recordExists() work correctly.
+        $primaryKeyField = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
+        if (isset($data[$primaryKeyField])) {
+            $this->setRecordId($data[$primaryKeyField]);
+        }
+
+        return $this;
+    }
+
+
 }
