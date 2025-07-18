@@ -19,6 +19,27 @@ use Laf\Util\Util;
 class BaseObject
 {
     /**
+     * Returns a QueryBuilder for this object's table
+     * @return QueryBuilder
+     */
+    public static function getQueryBuilder(): \Laf\Database\QueryBuilder
+    {
+        $object = new static();
+        $qb = new \Laf\Database\QueryBuilder($object->getTable());
+        $qb->asObject(static::class);
+        return $qb;
+    }
+
+    /**
+     * Eager loading stub for QueryBuilder
+     * @param string $relation
+     */
+    protected function loadRelation($relation)
+    {
+        // Implement relation loading logic in child classes
+    }
+
+    /**
      * @var Table $table
      */
     private $table;

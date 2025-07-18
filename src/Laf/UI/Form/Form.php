@@ -18,6 +18,15 @@ use Laf\Util\Util;
 
 class Form implements ComponentInterface
 {
+    /**
+     * @var array Field groups for layout (label => [fieldNames])
+     */
+    protected $fieldGroups = [];
+
+    /**
+     * @var array Field visibility conditions (fieldName => callable)
+     */
+    protected $fieldVisibilityConditions = [];
     use ComponentTrait;
 
     const METHOD_GET = 'GET';
@@ -673,6 +682,80 @@ class Form implements ComponentInterface
     {
         $this->submittedFieldValues[$fieldName] = $value;
         return $this;
+    }
+
+    /**
+     * Add fields from the object's table, supporting grouping and visibility.
+     *
+     * @param array|null $fields
+     * @return $this
+     */
+    public function addFieldsFromObject(?array $fields = null): self {
+        $fields = $fields ?? $this->object->getTable()->getFields();
+        // If fieldGroups are defined, add grouped fields
+        if (!empty($this->fieldGroups)) {
+            foreach ($this->fieldGroups as $groupLabel => $fieldNames) {
+                $groupHtml = "<fieldset><legend>{$groupLabel}</legend>";
+                foreach ($fieldNames as $fieldName) {
+                    $field = $this->object->getField($fieldName);
+                    if ($field && $this->isFieldVisible($fieldName)) {
+                        $input = FormElementFactory::create($field);
+                        $groupHtml .= $input->draw();
+                    }
+                }
+                $groupHtml .= "</fieldset>";
+                $this->addComponent(new \Laf\UI\Container\HtmlContainer($groupHtml));
+            }
+        } else {
+            // No groups: add all fields normally
+            foreach ($fields as $field) {
+                if ($this->isFieldVisible($field->getName())) {
+                    $input = FormElementFactory::create($field);
+                    $this->addComponent($input);
+                }
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Define a group of fields for layout purposes.
+     *
+     * @param string $groupLabel
+     * @param array $fieldNames
+     * @return $this
+     */
+    public function groupFields(string $groupLabel, array $fieldNames): self
+    {
+        $this->fieldGroups[$groupLabel] = $fieldNames;
+        return $this;
+    }
+
+    /**
+     * Set a visibility condition for a field.
+     *
+     * @param string $fieldName
+     * @param callable $condition (Form $form): bool
+     * @return $this
+     */
+    public function setFieldVisibilityCondition(string $fieldName, callable $condition): self
+    {
+        $this->fieldVisibilityConditions[$fieldName] = $condition;
+        return $this;
+    }
+
+    /**
+     * Check if a field is visible based on its condition.
+     *
+     * @param string $fieldName
+     * @return bool
+     */
+    public function isFieldVisible(string $fieldName): bool
+    {
+        if (!isset($this->fieldVisibilityConditions[$fieldName])) {
+            return true;
+        }
+        return call_user_func($this->fieldVisibilityConditions[$fieldName], $this);
     }
 
 
