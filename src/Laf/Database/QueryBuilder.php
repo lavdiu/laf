@@ -14,6 +14,15 @@ use Laf\Database\Field\Field;
 class QueryBuilder
 {
     /**
+     * @var string|null Last built SQL query
+     */
+    protected $cachedQuery = null;
+
+    /**
+     * @var array Last built query bindings
+     */
+    protected $cachedBindings = [];
+    /**
      * @var bool Debug flag for outputting queries and bindings
      */
     protected $debug = false;
@@ -237,22 +246,54 @@ class QueryBuilder
         return $sql;
     }
 
-    public function get()
+    /**
+     * Build and cache the SQL query and bindings for execution
+     * Stores them in $cachedQuery and $cachedBindings
+     * @return void
+     */
+    private function buildQuery()
     {
         $sql = $this->customSql ?? $this->buildSelectSql();
-        $this->logDebug('Executing query', ['sql' => $sql, 'bindings' => $this->bindings]);
-        $db = Db::getInstance();
-        $stmt = $db->prepare($sql);
-        // Bind all where/orWhere values
-        foreach ($this->bindings as $param => $value) {
-            $stmt->bindValue($param, $value);
-        }
-        // Bind limit/offset as integers if set
+        $bindings = $this->bindings;
+        // Limit/offset bindings
         if ($this->limit !== null) {
-            $stmt->bindValue(':_limit', $this->limit, PDO::PARAM_INT);
+            $bindings[':_limit'] = $this->limit;
         }
         if ($this->offset !== null) {
-            $stmt->bindValue(':_offset', $this->offset, PDO::PARAM_INT);
+            $bindings[':_offset'] = $this->offset;
+        }
+        $this->cachedQuery = $sql;
+        $this->cachedBindings = $bindings;
+        $this->logDebug('Built query', ['sql' => $sql, 'bindings' => $bindings]);
+    }
+
+    /**
+     * Get the last built query and bindings
+     * @return array ['sql' => string, 'bindings' => array]
+     */
+    public function getCachedQuery(): array
+    {
+        return [
+            'sql' => $this->cachedQuery,
+            'bindings' => $this->cachedBindings,
+        ];
+    }
+
+    public function get()
+    {
+        $this->buildQuery();
+        $sql = $this->cachedQuery;
+        $bindings = $this->cachedBindings;
+        $this->logDebug('Executing query', ['sql' => $sql, 'bindings' => $bindings]);
+        $db = Db::getInstance();
+        $stmt = $db->prepare($sql);
+        // Bind all values
+        foreach ($bindings as $param => $value) {
+            if ($param === ':_limit' || $param === ':_offset') {
+                $stmt->bindValue($param, $value, PDO::PARAM_INT);
+            } else {
+                $stmt->bindValue($param, $value);
+            }
         }
         $stmt->execute();
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
