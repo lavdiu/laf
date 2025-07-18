@@ -223,12 +223,24 @@ class QueryBuilder
             $whereSql = [];
             foreach ($this->wheres as $where) {
                 if (isset($where[0]) && $where[0] === 'OR') {
-                    $whereSql[] = 'OR ' . $where[1] . ' ' . $where[2] . ' ' . $where[3];
+                    // OR condition
+                    $whereSql[] = ['type' => 'OR', 'sql' => $where[1] . ' ' . $where[2] . ' ' . $where[3]];
                 } else {
-                    $whereSql[] = $where[0] . ' ' . $where[1] . ' ' . $where[2];
+                    // Default to AND for all other conditions
+                    $whereSql[] = ['type' => 'AND', 'sql' => $where[0] . ' ' . $where[1] . ' ' . $where[2]];
                 }
             }
-            $sql .= ' WHERE ' . ltrim(join(' ', $whereSql), 'OR ');
+            // Build WHERE clause with correct AND/OR logic
+            $sql .= ' WHERE ';
+            $first = true;
+            foreach ($whereSql as $cond) {
+                if ($first) {
+                    $sql .= $cond['sql'];
+                    $first = false;
+                } else {
+                    $sql .= ' ' . $cond['type'] . ' ' . $cond['sql'];
+                }
+            }
         }
         if ($this->orders) {
             $orderSql = [];
