@@ -19,7 +19,7 @@ class QueryBuilder
     protected $debug = false;
 
     /**
-     * @var \Laf\Logger\LoggerInterface|null
+     * @var Psr\Log\LoggerInterface|null
      */
     protected $logger = null;
 
@@ -107,10 +107,10 @@ class QueryBuilder
 
     /**
      * Attach a PSR logger for debug/info/error output
-     * @param \Laf\Logger\LoggerInterface $logger
+     * @param Psr\Log\LoggerInterface $logger
      * @return $this
      */
-    public function setLogger(\Laf\Logger\LoggerInterface $logger)
+    public function setLogger(Psr\Log\LoggerInterface $logger)
     {
         $this->logger = $logger;
         return $this;
