@@ -251,7 +251,7 @@ class QueryBuilder
      * Stores them in $cachedQuery and $cachedBindings
      * @return void
      */
-    private function buildQuery()
+    public function buildQuery()
     {
         $sql = $this->customSql ?? $this->buildSelectSql();
         $bindings = $this->bindings;
