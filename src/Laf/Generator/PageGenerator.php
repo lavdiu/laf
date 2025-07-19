@@ -178,6 +178,23 @@ switch (UrlParser::getAction()) {
 		\$dd->addLink(\$newLink)
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
+		
+		// Add audit trail section
+		if (method_exists(\${$instanceName}, 'getAuditTrail')) {
+			\$auditTrail = \${$instanceName}->getAuditTrail();
+			if (!empty(\$auditTrail)) {
+				\$auditHtml = '<div class="mt-4"><h5>Audit Trail</h5><div class="table-responsive"><table class="table table-sm">';
+				\$auditHtml .= '<thead><tr><th>Date</th><th>Action</th><th>User ID</th><th>Changes</th></tr></thead><tbody>';
+				foreach (\$auditTrail as \$entry) {
+					\$auditHtml .= '<tr><td>' . \$entry['created_at'] . '</td><td><span class="badge badge-' . 
+						((\$entry['action'] == 'INSERT') ? 'success' : ((\$entry['action'] == 'UPDATE') ? 'warning' : 'danger')) . '">' . 
+						\$entry['action'] . '</span></td><td>' . (\$entry['user_id'] ?? 'System') . '</td><td>' . \$entry['changes_count'] . ' field(s)</td></tr>';
+				}
+				\$auditHtml .= '</tbody></table></div></div>';
+				\$page->addComponent(new HtmlContainer(\$auditHtml));
+			}
+		}
+		
 		\$html->addComponent(\$page);\n";
 
         if ($this->getTableInspector()->hasReferencingTables()) {
@@ -254,7 +271,24 @@ switch (UrlParser::getAction()) {
     {
         $this->generatePageFile();
         $file = $this->getPageFilePath();
-        file_put_contents($file, $this->getPageFile());
+        
+        // Create directory if it doesn't exist
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            if (!mkdir($dir, 0755, true)) {
+                throw new \RuntimeException("Cannot create directory: {$dir}");
+            }
+        }
+        
+        // Check write permissions
+        if (file_exists($file) && !is_writable($file)) {
+            throw new \RuntimeException("File is not writable: {$file}");
+        }
+        
+        if (file_put_contents($file, $this->getPageFile()) === false) {
+            throw new \RuntimeException("Failed to write file: {$file}");
+        }
+        
         return $this;
     }
 

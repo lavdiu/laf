@@ -19,6 +19,15 @@ use Laf\Util\Util;
 class BaseObject
 {
     /**
+     * @var int|null Static property to store the active user ID for all instances
+     */
+    private static $activeUserId = null;
+
+    /**
+     * @var bool Enable/disable audit logging for this object
+     */
+    private $auditLoggingEnabled = true;
+    /**
      * Returns a QueryBuilder for this object's table
      * @return QueryBuilder
      */
@@ -311,8 +320,14 @@ class BaseObject
         } else if ($this->getTable()->hasField('deleted')) {
             $this->addLoggerError("Soft deleting by setting deleted field to 0", []);
             $this->setFieldValue('deleted', 1);
-            $this->store();
-            return true;
+            $result = $this->store();
+            
+            // Log the soft delete operation as DELETE action
+            if ($result) {
+                $this->logAuditEntry(AuditLog::ACTION_DELETE);
+            }
+            
+            return $result;
         }
         $this->addLoggerError("Soft delete method failed: No 'deleted' or record_status_id property found", []);
         return false;
@@ -553,6 +568,10 @@ class BaseObject
         $this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
 
         static::getTable()->getPrimaryKey()->getFirstField()->setValue($this->getRecordId());
+        
+        // Log the insert operation
+        $this->logAuditEntry(AuditLog::ACTION_INSERT);
+        
         return true;
     }
 
@@ -668,6 +687,10 @@ class BaseObject
 
         $this->setAffectedRows($stmt->rowCount());
         $this->addLoggerDebug("UPDATE SQL Affected Records", [$this->getAffectedRows()]);
+        
+        // Log the update operation (only changed fields)
+        $this->logAuditEntry(AuditLog::ACTION_UPDATE);
+        
         return true;
     }
 
@@ -723,6 +746,9 @@ class BaseObject
             $this->addLoggerError("Delete method failed: Invalid record id provided", [$this->getRecordId()]);
             return false;
         }
+
+        // Log the delete operation before deletion (capture all field values)
+        $this->logAuditEntry(AuditLog::ACTION_DELETE);
 
         $this->deleteSql = "DELETE FROM `{$this->getTable()->getName()}` ";
         $this->deleteSql .= "\nWHERE `{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}`=:primaryKeyField;";
@@ -1150,5 +1176,179 @@ class BaseObject
             $fields[$field->getName()] = $field->getValue();
         }
         return $fields;
+    }
+
+    /**
+     * Set the active user ID for all BaseObject instances
+     * @param int|null $userId
+     */
+    public static function setActiveUserId(?int $userId): void
+    {
+        self::$activeUserId = $userId;
+    }
+
+    /**
+     * Get the active user ID
+     * @return int|null
+     */
+    public static function getActiveUserId(): ?int
+    {
+        return self::$activeUserId;
+    }
+
+    /**
+     * Enable or disable audit logging for this object
+     * @param bool $enabled
+     * @return BaseObject
+     */
+    public function setAuditLoggingEnabled(bool $enabled): BaseObject
+    {
+        $this->auditLoggingEnabled = $enabled;
+        return $this;
+    }
+
+    /**
+     * Check if audit logging is enabled
+     * @return bool
+     */
+    public function isAuditLoggingEnabled(): bool
+    {
+        return $this->auditLoggingEnabled;
+    }
+
+    /**
+     * Log audit entry if audit logging is enabled
+     * @param string $action
+     */
+    private function logAuditEntry(string $action): void
+    {
+        if (!$this->auditLoggingEnabled || !class_exists('\\Laf\\Database\\AuditLog')) {
+            return;
+        }
+
+        try {
+            $userId = self::getActiveUserId();
+            
+            if ($action === AuditLog::ACTION_INSERT) {
+                AuditLog::logInsert($this, $userId);
+            } elseif ($action === AuditLog::ACTION_UPDATE) {
+                AuditLog::logUpdate($this, $userId);
+            } elseif ($action === AuditLog::ACTION_DELETE) {
+                AuditLog::logDelete($this, $userId);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't break the main operation
+            $this->addLoggerError('Audit logging failed', [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Retrieve audit logs for this object instance
+     * Uses the class name to determine table name and object's record ID
+     * @param string|null $action Filter by specific action (INSERT, UPDATE, DELETE)
+     * @param int|null $userId Filter by specific user ID
+     * @return AuditLog[] Array of AuditLog objects
+     */
+    public function getAuditLogs(?string $action = null, ?int $userId = null): array
+    {
+        if (!class_exists('\\Laf\\Database\\AuditLog')) {
+            return [];
+        }
+
+        if (!$this->getRecordId()) {
+            return []; // No record ID, can't retrieve audit logs
+        }
+
+        try {
+            // Build search criteria
+            $searchCriteria = [
+                'table_name' => $this->getTable()->getName(),
+                'record_id' => (string)$this->getRecordId()
+            ];
+
+            // Add optional filters
+            if ($action !== null) {
+                $searchCriteria['action'] = $action;
+            }
+
+            if ($userId !== null) {
+                $searchCriteria['user_id'] = $userId;
+            }
+
+            // Retrieve audit logs
+            $auditLogs = AuditLog::bOfind($searchCriteria);
+
+            $this->addLoggerDebug('Retrieved audit logs', [
+                'table' => $this->getTable()->getName(),
+                'record_id' => $this->getRecordId(),
+                'count' => count($auditLogs)
+            ]);
+
+            return $auditLogs;
+
+        } catch (\Exception $e) {
+            $this->addLoggerError('Failed to retrieve audit logs', [$e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * Get audit logs for INSERT operations only
+     * @param int|null $userId Filter by specific user ID
+     * @return AuditLog[]
+     */
+    public function getInsertAuditLogs(?int $userId = null): array
+    {
+        return $this->getAuditLogs(AuditLog::ACTION_INSERT, $userId);
+    }
+
+    /**
+     * Get audit logs for UPDATE operations only
+     * @param int|null $userId Filter by specific user ID
+     * @return AuditLog[]
+     */
+    public function getUpdateAuditLogs(?int $userId = null): array
+    {
+        return $this->getAuditLogs(AuditLog::ACTION_UPDATE, $userId);
+    }
+
+    /**
+     * Get audit logs for DELETE operations only
+     * @param int|null $userId Filter by specific user ID
+     * @return AuditLog[]
+     */
+    public function getDeleteAuditLogs(?int $userId = null): array
+    {
+        return $this->getAuditLogs(AuditLog::ACTION_DELETE, $userId);
+    }
+
+    /**
+     * Get the complete audit trail for this object as a formatted array
+     * @return array Array of formatted audit entries
+     */
+    public function getAuditTrail(): array
+    {
+        $auditLogs = $this->getAuditLogs();
+        $trail = [];
+
+        foreach ($auditLogs as $log) {
+            $changes = json_decode($log->getFieldValue('changes'), true) ?? [];
+            
+            $trail[] = [
+                'id' => $log->getFieldValue('id'),
+                'action' => $log->getFieldValue('action'),
+                'user_id' => $log->getFieldValue('user_id'),
+                'created_at' => $log->getFieldValue('created_at'),
+                'changes' => $changes,
+                'changes_count' => count($changes)
+            ];
+        }
+
+        // Sort by created_at descending (newest first)
+        usort($trail, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+
+        return $trail;
     }
 }
