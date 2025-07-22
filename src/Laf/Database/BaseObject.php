@@ -27,6 +27,21 @@ class BaseObject
      * @var bool Enable/disable audit logging for this object
      */
     private $auditLoggingEnabled = true;
+
+
+    public function auditLogDisable(): static
+    {
+        $this->auditLoggingEnabled = false;
+        return $this;
+    }
+
+    public function auditLogEnable(): static
+    {
+        $this->auditLoggingEnabled = true;
+        return $this;
+    }
+
+
     /**
      * Returns a QueryBuilder for this object's table
      * @return QueryBuilder
@@ -321,12 +336,12 @@ class BaseObject
             $this->addLoggerError("Soft deleting by setting deleted field to 0", []);
             $this->setFieldValue('deleted', 1);
             $result = $this->store();
-            
+
             // Log the soft delete operation as DELETE action
             if ($result) {
                 $this->logAuditEntry(AuditLog::ACTION_DELETE);
             }
-            
+
             return $result;
         }
         $this->addLoggerError("Soft delete method failed: No 'deleted' or record_status_id property found", []);
@@ -568,10 +583,10 @@ class BaseObject
         $this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
 
         static::getTable()->getPrimaryKey()->getFirstField()->setValue($this->getRecordId());
-        
+
         // Log the insert operation
         $this->logAuditEntry(AuditLog::ACTION_INSERT);
-        
+
         return true;
     }
 
@@ -687,10 +702,10 @@ class BaseObject
 
         $this->setAffectedRows($stmt->rowCount());
         $this->addLoggerDebug("UPDATE SQL Affected Records", [$this->getAffectedRows()]);
-        
+
         // Log the update operation (only changed fields)
         $this->logAuditEntry(AuditLog::ACTION_UPDATE);
-        
+
         return true;
     }
 
@@ -1196,25 +1211,6 @@ class BaseObject
         return self::$activeUserId;
     }
 
-    /**
-     * Enable or disable audit logging for this object
-     * @param bool $enabled
-     * @return BaseObject
-     */
-    public function setAuditLoggingEnabled(bool $enabled): BaseObject
-    {
-        $this->auditLoggingEnabled = $enabled;
-        return $this;
-    }
-
-    /**
-     * Check if audit logging is enabled
-     * @return bool
-     */
-    public function isAuditLoggingEnabled(): bool
-    {
-        return $this->auditLoggingEnabled;
-    }
 
     /**
      * Log audit entry if audit logging is enabled
@@ -1222,13 +1218,18 @@ class BaseObject
      */
     private function logAuditEntry(string $action): void
     {
-        if (!$this->auditLoggingEnabled || !class_exists('\\Laf\\Database\\AuditLog')) {
+
+        if (!$this->auditLoggingEnabled) {
+            return;
+        }
+
+        if(!class_exists('\\Laf\\Database\\AuditLog')){
             return;
         }
 
         try {
-            $userId = self::getActiveUserId();
-            
+            $userId = BaseObject::getActiveUserId();
+
             if ($action === AuditLog::ACTION_INSERT) {
                 AuditLog::logInsert($this, $userId);
             } elseif ($action === AuditLog::ACTION_UPDATE) {
@@ -1237,7 +1238,6 @@ class BaseObject
                 AuditLog::logDelete($this, $userId);
             }
         } catch (\Exception $e) {
-            // Log error but don't break the main operation
             $this->addLoggerError('Audit logging failed', [$e->getMessage()]);
         }
     }
@@ -1333,19 +1333,18 @@ class BaseObject
 
         foreach ($auditLogs as $log) {
             $changes = json_decode($log->getFieldValue('changes'), true) ?? [];
-            
+
             $trail[] = [
                 'id' => $log->getFieldValue('id'),
                 'action' => $log->getFieldValue('action'),
                 'user_id' => $log->getFieldValue('user_id'),
-                'created_at' => $log->getFieldValue('created_at'),
+                'created_on' => $log->getFieldValue('created_on'),
                 'changes' => $changes,
                 'changes_count' => count($changes)
             ];
         }
 
-        // Sort by created_at descending (newest first)
-        usort($trail, function($a, $b) {
+        usort($trail, function ($a, $b) {
             return strtotime($b['created_at']) - strtotime($a['created_at']);
         });
 
