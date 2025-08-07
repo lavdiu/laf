@@ -14,6 +14,8 @@ class Db
     private $database;
     private $userName;
     private $password;
+
+    private $engine;
     private $port;
     private $connection;
     private $sql;
@@ -34,13 +36,14 @@ class Db
      * @param $userName
      * @param $password
      */
-    public function __construct($hostName = null, $database = null, $userName = null, $password = null, $port = 3306)
+    public function __construct($hostName = null, $database = null, $userName = null, $password = null, $port = 3306, $engine = 'mysql')
     {
         $this->hostName = $hostName;
         $this->database = $database;
         $this->userName = $userName;
         $this->password = $password;
         $this->port = $port;
+        $this->engine = $engine;
         $this->setHasError(false);
     }
 
@@ -60,6 +63,7 @@ class Db
             self::$instance->userName = $settings->getProperty('database.username');
             self::$instance->password = $settings->getProperty('database.password');
             self::$instance->port = $settings->getProperty('database.port');
+            self::$instance->engine = $settings->getProperty('database.engine')??'mysql';
             self::$instance->connect();
         }
         return self::$instance;
@@ -72,12 +76,20 @@ class Db
      */
     public function connect()
     {
+
         try {
             $this->startTimer();
-            $this->connection = new \PDO("mysql:dbname={$this->getDatabase()};host={$this->getHostName()};port={$this->getPort()};charset=utf8mb4", $this->getUserName(), $this->getPassword());
-            $this->getConnection()->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-            $this->getConnection()->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
-            $this->getConnection()->setAttribute(\PDO::ATTR_ORACLE_NULLS, \PDO::NULL_EMPTY_STRING);
+
+            if ($this->engine == 'mysql') {
+                $this->connection = new \PDO("mysql:dbname={$this->getDatabase()};host={$this->getHostName()};port={$this->getPort()};charset=utf8mb4", $this->getUserName(), $this->getPassword());
+            } else if ($this->engine == 'postgres') {
+                $this->connection = new \PDO("pgsql:dbname={$this->getDatabase()};host={$this->getHostName()};port={$this->getPort()};", $this->getUserName(), $this->getPassword());
+            }
+            $this->connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $this->connection->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
+            $this->connection->setAttribute(\PDO::ATTR_ORACLE_NULLS, \PDO::NULL_EMPTY_STRING);
+
+
         } catch (\PDOException|\Exception $ex) {
             $this->setErrorMessage($ex->getMessage());
             $this->setErrorTrace($ex->getTrace());
