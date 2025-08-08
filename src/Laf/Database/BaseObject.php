@@ -508,7 +508,7 @@ class BaseObject
             $this->setFieldValue('created_by', $personClass::getLoggedUserId());
         }
 
-        $this->insertSql = "INSERT INTO $this->getTable()->getName()}(";
+        $this->insertSql = "INSERT INTO {$this->getTable()->getName()}(";
         $prepareColumns = $prepareValues = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
             if ($field->isAutoIncrement()) {
