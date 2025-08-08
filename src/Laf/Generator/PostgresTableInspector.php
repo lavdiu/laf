@@ -135,7 +135,7 @@ class PostgresTableInspector implements TableInspectorInterface
         $sql = "
         SELECT
             *
-            , CASE WHEN is_primary=1 THEN 'PRI' ELSE WHEN is_unique='UNI' THEN 'UNI' ELSE '' END AS COLUMN_KEY
+            , CASE WHEN is_primary=1 THEN 'PRI' WHEN is_unique='UNI' THEN 'UNI' ELSE '' END AS COLUMN_KEY
         FROM (
         SELECT
             c.*,
