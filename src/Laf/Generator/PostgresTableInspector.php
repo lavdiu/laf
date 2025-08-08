@@ -135,6 +135,7 @@ class PostgresTableInspector implements TableInspectorInterface
         $sql = "
         SELECT
             c.*,
+            null as column_comment,
             (
                 SELECT 1
                 FROM information_schema.table_constraints AS tc
@@ -157,6 +158,7 @@ class PostgresTableInspector implements TableInspectorInterface
 
         $q = $db->query($sql);
         while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
+            $col = array_change_key_case($col, CASE_UPPER);
             $this->columns[$col['column_name']] = $col;
             if ($col['is_primary'] == '1') {
                 $this->setPrimaryColumnName($col['column_name']);
