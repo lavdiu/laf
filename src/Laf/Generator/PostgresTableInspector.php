@@ -160,7 +160,7 @@ class PostgresTableInspector implements TableInspectorInterface
         while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
             $col = array_change_key_case($col, CASE_UPPER);
             $this->columns[$col['COLUMN_NAME']] = $col;
-            if ($col['is_primary'] == '1') {
+            if ($col['IS_PRIMARY'] == '1') {
                 $this->setPrimaryColumnName($col['COLUMN_NAME']);
             }
         }
