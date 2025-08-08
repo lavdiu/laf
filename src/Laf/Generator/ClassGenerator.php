@@ -67,6 +67,9 @@ class ClassGenerator
     public function processBaseClass()
     {
         $this->tableInspector = new TableInspector($this->getTable()->getName());
+        if(Settings::get('database.engine') == 'postgres'){
+            $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
+        }
         $this->populateForeignKeys();
 
         $file = "<?php

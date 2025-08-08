@@ -89,7 +89,10 @@ class PageGenerator
      */
     public function generatePageFile(): void
     {
-        $this->tableInspector = new TableInspector($this->getTable()->getName());;
+        $this->tableInspector = new TableInspector($this->getTable()->getName());
+        if(Settings::get('database.engine') == 'postgres'){
+            $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
+        }
         $namespace = $this->getConfig()['namespace'];
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
