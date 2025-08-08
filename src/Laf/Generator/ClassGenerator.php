@@ -511,10 +511,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true' : 'false') . ")
 			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
 
-            $maxLength = preg_replace("/[^0-9,.]/", "", $column['COLUMN_TYPE']);
-            if (mb_strstr($maxLength??'', ','))
-                $maxLength = array_sum(explode(',', $maxLength));
-
+            $maxLength = $column['CHARACTER_MAXIMUM_LENGTH'];
             if (is_int($maxLength)) {
                 $tmp .= "\n\t\t\$field->setMaxLength({$maxLength});";
             }

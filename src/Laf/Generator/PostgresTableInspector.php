@@ -134,6 +134,10 @@ class PostgresTableInspector implements TableInspectorInterface
         $settings = Settings::getInstance();
         $sql = "
         SELECT
+            *
+            , CASE WHEN is_primary=1 THEN 'PRI' ELSE WHEN is_unique='UNI' THEN 'UNI' ELSE '' END AS COLUMN_KEY
+        FROM (
+        SELECT
             c.*,
             null as column_comment,
             (
@@ -157,22 +161,22 @@ class PostgresTableInspector implements TableInspectorInterface
                     AND tc.table_name = c.table_name
                     AND tc.table_schema = c.table_schema
                     AND kcu.column_name = c.column_name
-            ) AS COLUMN_KEY
-            , c.character_maximum_length as COLUMN_TYPE
+            ) AS is_unique
         FROM
             information_schema.columns AS c
         WHERE
             c.table_schema = 'public'
             AND c.table_name = '{$this->getTable()}'
         ORDER BY
-            c.ordinal_position;
+            c.ordinal_position
+        )f
         ";
 
         $q = $db->query($sql);
         while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
             $col = array_change_key_case($col, CASE_UPPER);
             $this->columns[$col['COLUMN_NAME']] = $col;
-            if ($col['IS_PRIMARY'] == '1') {
+            if ($col['COLUMN_KEY'] == 'PRI') {
                 $this->setPrimaryColumnName($col['COLUMN_NAME']);
             }
         }
