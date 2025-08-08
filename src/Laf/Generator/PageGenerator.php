@@ -5,6 +5,7 @@ namespace Laf\Generator;
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
 use Laf\Database\Table;
+use Laf\Util\Settings;
 use Laf\Util\UrlParser;
 use Laf\Util\Util;
 
@@ -89,9 +90,10 @@ class PageGenerator
      */
     public function generatePageFile(): void
     {
-        $this->tableInspector = new TableInspector($this->getTable()->getName());
         if(Settings::get('database.engine') == 'postgres'){
             $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
+        }else{
+            $this->tableInspector = new TableInspector($this->getTable()->getName());
         }
         $namespace = $this->getConfig()['namespace'];
         $className = $this->getTable()->getNameAsClassname();
@@ -410,9 +412,11 @@ switch (UrlParser::getAction()) {
         $columns = [];
         $joins = [];
         $joinedTables = [$tableName];
-        $ti = new TableInspector($tableName);
+        $ti = null;
         if(Settings::get('database.engine') == 'postgres'){
             $ti = new PostgresTableInspector($tableName);
+        }else{
+            $ti = new TableInspector($tableName);
         }
 
         foreach ($ti->getColumns() as $c) {
@@ -430,9 +434,11 @@ switch (UrlParser::getAction()) {
                 }
                 array_push($joinedTables, $fkTableName);
 
-                $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
+                $referencingTable = null;
                 if(Settings::get('database.engine') == 'postgres'){
                     $referencingTable = new PostgresTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
+                }else{
+                    $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 }
                 $displayCol = $referencingTable->getDisplayColumnName();
 

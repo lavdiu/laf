@@ -66,12 +66,11 @@ class ClassGenerator
      */
     public function processBaseClass()
     {
-        $this->tableInspector = new TableInspector($this->getTable()->getName());
         if(Settings::get('database.engine') == 'postgres'){
             $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
-            error_log("Switching to Postgres inspector");
+        }else{
+            $this->tableInspector = new TableInspector($this->getTable()->getName());
         }
-        error_log("Sticking with Mysql");
         $this->populateForeignKeys();
 
         $file = "<?php
