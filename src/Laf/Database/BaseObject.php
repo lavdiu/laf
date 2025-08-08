@@ -401,17 +401,12 @@ class BaseObject
      */
     public function select($id)
     {
-        $backtick = "`";
-        if(Settings::get('database.engine') == 'postgres'){
-            $backtick = "\"";
-        }
-
         $this->recordId = $id;
         $this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
 
         $idFieldName = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
 
-        $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$backtick}{$idFieldName}{$backtick} = :recordId LIMIT 0,1;";
+        $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 0,1;";
         $this->addLoggerDebug("SELECT SQL", [$this->selectSql]);
         $this->addLoggerDebug("SELECT SQL Params", [$this->getRecordId()]);
 
@@ -513,19 +508,14 @@ class BaseObject
             $this->setFieldValue('created_by', $personClass::getLoggedUserId());
         }
 
-        $backtick = "`";
-        if(Settings::get('database.engine') == 'postgres'){
-            $backtick = "\"";
-        }
-
-        $this->insertSql = "INSERT INTO {$backtick}{$this->getTable()->getName()}{$backtick} (";
+        $this->insertSql = "INSERT INTO $this->getTable()->getName()}(";
         $prepareColumns = $prepareValues = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
             if ($field->isAutoIncrement()) {
                 continue;
             }
             if ($field->isPrimaryKey()) {
-                $prepareColumns[] = "{$backtick}{$field->getName()}{$backtick}";
+                $prepareColumns[] = "{$field->getName()}";
                 $prepareValues[] = ":{$field->getName()}";
 
                 if (((string)$field->getValue()) != '') {
@@ -537,7 +527,7 @@ class BaseObject
                 }
 
             } else {
-                $prepareColumns[] = "{$backtick}{$field->getName()}{$backtick}";
+                $prepareColumns[] = "{$field->getName()}";
                 $prepareValues[] = ":{$field->getName()}";
                 $executeValues[':' . $field->getName()] = $field->getValue();
             }
@@ -627,11 +617,6 @@ class BaseObject
      */
     public function update()
     {
-        $backtick = "`";
-        if(Settings::get('database.engine') == 'postgres'){
-            $backtick = "\"";
-        }
-
         $this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
@@ -651,7 +636,7 @@ class BaseObject
             $this->setFieldValue('updated_by', $personClass::getLoggedUserId());
         }
 
-        $this->updateSql = "UPDATE {$backtick}{$this->getTable()->getName()}{$backtick} ";
+        $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
         $this->updateSql .= "\nSET ";
         $prepareColumns = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
@@ -659,7 +644,7 @@ class BaseObject
                 continue;
             }
             if ($field->hasChanged()) {
-                $prepareColumns[] = "{$backtick}{$field->getName()}{$backtick}=:{$field->getName()}";
+                $prepareColumns[] = "{$field->getName()}=:{$field->getName()}";
             }
         }
 
@@ -779,8 +764,8 @@ class BaseObject
         // Log the delete operation before deletion (capture all field values)
         $this->logAuditEntry(AuditLog::ACTION_DELETE);
 
-        $this->deleteSql = "DELETE FROM {$backtick}{$this->getTable()->getName()}{$backtick} ";
-        $this->deleteSql .= "\nWHERE {$backtick}{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}{$backtick}=:primaryKeyField;";
+        $this->deleteSql = "DELETE FROM $this->getTable()->getName()} ";
+        $this->deleteSql .= "\nWHERE {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} =:primaryKeyField;";
         $executeValues = [':primaryKeyField' => $this->getRecordId()];
 
         $this->addLoggerDebug("DELETE SQL", [$this->deleteSql]);
