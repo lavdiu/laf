@@ -563,7 +563,7 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
     /**
      * @return TableInspector
      */
-    public function getTableInspector(): TableInspector
+    public function getTableInspector(): TableInspectorInterface
     {
         return $this->tableInspector;
     }

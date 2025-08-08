@@ -77,7 +77,7 @@ class TableInspector implements TableInspectorInterface
 
     /**
      * @param null $primaryColumnName
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setPrimaryColumnName($primaryColumnName)
     {
@@ -95,7 +95,7 @@ class TableInspector implements TableInspectorInterface
 
     /**
      * @param string $table
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setTable(string $table): TableInspectorInterface
     {
@@ -113,7 +113,7 @@ class TableInspector implements TableInspectorInterface
 
     /**
      * @param array[] $columns
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setColumns(array $columns): TableInspectorInterface
     {

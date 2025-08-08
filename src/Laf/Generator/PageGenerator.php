@@ -38,7 +38,7 @@ class PageGenerator
     private $writeOnLiveDirectory = false;
 
     /**
-     * @var TableInspector
+     * @var TableInspectorInterface
      */
     private $tableInspector = null;
 
@@ -304,9 +304,9 @@ switch (UrlParser::getAction()) {
     }
 
     /**
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
-    public function getTableInspector(): TableInspector
+    public function getTableInspector(): TableInspectorInterface
     {
         return $this->tableInspector;
     }

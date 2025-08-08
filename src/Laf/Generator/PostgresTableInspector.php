@@ -74,7 +74,7 @@ class PostgresTableInspector implements TableInspectorInterface
 
     /**
      * @param null $primaryColumnName
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setPrimaryColumnName($primaryColumnName)
     {
@@ -92,7 +92,7 @@ class PostgresTableInspector implements TableInspectorInterface
 
     /**
      * @param string $table
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setTable(string $table): TableInspectorInterface
     {
@@ -110,7 +110,7 @@ class PostgresTableInspector implements TableInspectorInterface
 
     /**
      * @param array[] $columns
-     * @return TableInspector
+     * @return TableInspectorInterface
      */
     public function setColumns(array $columns): TableInspectorInterface
     {
