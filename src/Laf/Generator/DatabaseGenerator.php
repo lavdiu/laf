@@ -141,7 +141,6 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
         SELECT table_name
 		FROM information_schema.tables
 		WHERE table_schema = '{$db->getDatabase()}'
-		#AND table_name='person'
 		ORDER BY table_name ASC;";
 
         $q = $db->query($sql);
