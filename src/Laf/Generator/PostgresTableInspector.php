@@ -136,6 +136,7 @@ class PostgresTableInspector implements TableInspectorInterface
         SELECT
             *
             , CASE WHEN is_primary=1 THEN 'PRI' WHEN is_unique='UNI' THEN 'UNI' ELSE '' END AS COLUMN_KEY
+            , WHEN c.column_default LIKE 'nextval(%' THEN 'auto_increment' ELSE null end AS EXTRA
         FROM (
         SELECT
             c.*,
