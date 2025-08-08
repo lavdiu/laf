@@ -61,9 +61,13 @@ class FieldTypeFactory
                 return "new Database\Field\TypeBlob()";
                 break;
             case FieldType::TYPE_DATETIME:
+            case FieldType::TYPE_DATETIME2:
+            case FieldType::TYPE_DATETIME3:
                 return "new Database\Field\TypeDateTime()";
                 break;
             case FieldType::TYPE_TIME:
+            case FieldType::TYPE_TIME2:
+            case FieldType::TYPE_TIME3:
                 return "new Database\Field\TypeTime()";
                 break;
             case FieldType::TYPE_TINY_INTEGER:
@@ -79,6 +83,7 @@ class FieldTypeFactory
                 return "new Database\Field\TypeJson()";
                 break;
             case FieldType::TYPE_VARCHAR:
+            case FieldType::TYPE_VARCHAR2:
                 return "new Database\Field\TypeVarchar()";
                 break;
             case FieldType::TYPE_NUMERIC:
