@@ -143,6 +143,15 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
 		WHERE table_schema = '{$db->getDatabase()}'
 		ORDER BY table_name ASC;";
 
+        if(Settings::get('database.engine') == 'postgres'){
+            $sql = "
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_type = 'BASE TABLE'
+            AND table_schema NOT IN ('pg_catalog', 'information_schema');
+            ";
+        }
+
         $q = $db->query($sql);
         return $q->fetchAll(\PDO::FETCH_ASSOC);
     }
