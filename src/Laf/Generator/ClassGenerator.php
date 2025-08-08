@@ -71,6 +71,7 @@ class ClassGenerator
         }else{
             $this->tableInspector = new TableInspector($this->getTable()->getName());
         }
+        $this->getTableInspector()->inspect();
         $this->populateForeignKeys();
 
         $file = "<?php

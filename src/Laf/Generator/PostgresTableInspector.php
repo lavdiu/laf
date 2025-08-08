@@ -6,7 +6,7 @@ use Laf\Database\Db;
 use Laf\Exception\MissingConfigParamException;
 use Laf\Util\Settings;
 
-class PostgresTableInspector
+class PostgresTableInspector implements TableInspectorInterface
 {
     /**
      * @var string
@@ -19,7 +19,7 @@ class PostgresTableInspector
     private $columns = [];
 
     /**
-     * @var null|string
+     * @var null
      */
     private $primaryColumnName = null;
 
@@ -33,10 +33,10 @@ class PostgresTableInspector
      */
     private $referencingTables = [];
 
+
     public function __construct(string $table)
     {
         $this->table = $table;
-        $this->inspect();
     }
 
     /**
@@ -63,8 +63,9 @@ class PostgresTableInspector
         return $this->referencingTables;
     }
 
+
     /**
-     * @return null|string
+     * @return null
      */
     public function getPrimaryColumnName()
     {
@@ -72,8 +73,8 @@ class PostgresTableInspector
     }
 
     /**
-     * @param null|string $primaryColumnName
-     * @return PostgresTableInspector
+     * @param null $primaryColumnName
+     * @return TableInspector
      */
     public function setPrimaryColumnName($primaryColumnName)
     {
@@ -91,9 +92,9 @@ class PostgresTableInspector
 
     /**
      * @param string $table
-     * @return PostgresTableInspector
+     * @return TableInspector
      */
-    public function setTable(string $table): PostgresTableInspector
+    public function setTable(string $table): TableInspectorInterface
     {
         $this->table = $table;
         return $this;
@@ -109,9 +110,9 @@ class PostgresTableInspector
 
     /**
      * @param array[] $columns
-     * @return PostgresTableInspector
+     * @return TableInspector
      */
-    public function setColumns(array $columns): PostgresTableInspector
+    public function setColumns(array $columns): TableInspectorInterface
     {
         $this->columns = $columns;
         return $this;
@@ -125,103 +126,72 @@ class PostgresTableInspector
     }
 
     /**
-     * Populate column metadata from information_schema and mark the primary key column.
-     * Normalizes keys to match MySQL inspector (upper-case keys and COLUMN_KEY for PRI).
      * @throws MissingConfigParamException
      */
-    private function populateColumnsData(): void
+    private function populateColumnsData()
     {
         $db = Db::getInstance();
-
-        // Prefer current_schema() to avoid relying on MySQL-specific settings mapping.
+        $settings = Settings::getInstance();
         $sql = "
-            SELECT c.*
-            FROM information_schema.columns c
-            WHERE c.table_schema = current_schema()
-              AND c.table_name = :table
-            ORDER BY c.ordinal_position
+        SELECT
+            c.*,
+            (
+                SELECT 1
+                FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON tc.constraint_name = kcu.constraint_name AND tc.constraint_schema = kcu.constraint_schema
+                WHERE
+                    tc.constraint_type = 'PRIMARY KEY'
+                    AND tc.table_name = c.table_name
+                    AND tc.table_schema = c.table_schema
+                    AND kcu.column_name = c.column_name
+            ) AS is_primary
+        FROM
+            information_schema.columns AS c
+        WHERE
+            c.table_schema = 'public'
+            AND c.table_name = '{$this->getTable()}'
+        ORDER BY
+            c.ordinal_position;
         ";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':table' => $this->getTable()]);
 
-        $this->columns = [];
-        while ($col = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            // Normalize keys to upper-case to mirror MySQL inspector usage
-            $normalized = [];
-            foreach ($col as $k => $v) {
-                $normalized[strtoupper($k)] = $v;
+        $q = $db->query($sql);
+        while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
+            $this->columns[$col['column_name']] = $col;
+            if ($col['is_primary'] == '1') {
+                $this->setPrimaryColumnName($col['column_name']);
             }
-            $name = $normalized['COLUMN_NAME'];
-            $this->columns[$name] = $normalized;
-        }
-
-        // Determine primary key column(s) and set COLUMN_KEY = 'PRI' accordingly
-        $pkSql = "
-            SELECT a.attname AS column_name
-            FROM pg_index i
-            JOIN pg_class t ON t.oid = i.indrelid
-            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
-            JOIN pg_namespace n ON n.oid = t.relnamespace
-            WHERE i.indisprimary = true
-              AND n.nspname = current_schema()
-              AND t.relname = :table
-            ORDER BY a.attnum
-        ";
-        $pkStmt = $db->prepare($pkSql);
-        $pkStmt->execute([':table' => $this->getTable()]);
-        $firstPk = null;
-        while ($r = $pkStmt->fetch(\PDO::FETCH_ASSOC)) {
-            $colName = $r['column_name'];
-            if (isset($this->columns[$colName])) {
-                $this->columns[$colName]['COLUMN_KEY'] = 'PRI';
-            }
-            if ($firstPk === null) {
-                $firstPk = $colName;
-            }
-        }
-        if ($firstPk !== null) {
-            $this->setPrimaryColumnName($firstPk);
         }
     }
 
     /**
-     * Populate foreign key data using information_schema.
-     * Adds a FOREIGN_KEY structure similar to MySQL inspector.
      * @throws MissingConfigParamException
      */
-    private function populateForeignKeyData(): void
+    private function populateForeignKeyData()
     {
-        $db = Db::getInstance();
+        $db = DB::getInstance();
+        $settings = Settings::getInstance();
 
         $sql = "
-            SELECT
-                kcu.column_name,
-                ccu.table_name AS referenced_table_name,
-                ccu.column_name AS referenced_column_name,
-                tc.constraint_name
-            FROM information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name
-             AND tc.constraint_schema = kcu.constraint_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-              ON ccu.constraint_name = tc.constraint_name
-             AND ccu.constraint_schema = tc.constraint_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema = current_schema()
-              AND tc.table_name = :table
-            ORDER BY kcu.ordinal_position
-        ";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':table' => $this->getTable()]);
+        SELECT
+            kcu.column_name,
+            ccu.table_name AS referenced_table_name,
+            ccu.column_name AS referenced_column_name,
+            kcu.constraint_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name AND tc.constraint_schema = ccu.constraint_schema
+        WHERE
+            tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = 'public'
+            AND tc.table_name = '{$this->getTable()}';
+		";
+        $res = $db->query($sql);
+        while ($r = $res->fetchObject()) {
 
-        while ($r = $stmt->fetch(\PDO::FETCH_OBJ)) {
             $this->hasForeignKeys = true;
-            $col = $r->column_name;
-            if (!isset($this->columns[$col])) {
-                // Ensure column exists in metadata; create minimal entry if not
-                $this->columns[$col] = ['COLUMN_NAME' => $col];
-            }
-            $this->columns[$col]['FOREIGN_KEY'] = [
+
+            $this->columns[$r->column_name]['FOREIGN_KEY'] = [
                 'column_name' => $r->column_name,
                 'constraint_name' => $r->constraint_name,
                 'referenced_table_name' => $r->referenced_table_name,
@@ -231,7 +201,6 @@ class PostgresTableInspector
     }
 
     /**
-     * Choose a display column similar to the MySQL inspector.
      * @return string
      */
     public function getDisplayColumnName(): string
@@ -244,44 +213,33 @@ class PostgresTableInspector
         }
 
         $cols = $this->getColumns();
-        $first = array_shift($cols); // discard
+        $first = array_shift($cols);//discard
         $second = array_shift($cols);
-        return $second['COLUMN_NAME'] ?? $this->primaryColumnName ?? 'id';
+        return $second['COLUMN_NAME'];
     }
 
     /**
-     * Populate list of tables referencing this table's primary key.
      * @throws MissingConfigParamException
      */
     public function populateReferencingTables(): void
     {
-        $db = Db::getInstance();
+        $db = DB::getInstance();
+        $settings = Settings::getInstance();
 
         $sql = "
-            SELECT DISTINCT tc.table_name AS table_name
-            FROM information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name
-             AND tc.constraint_schema = kcu.constraint_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-              ON ccu.constraint_name = tc.constraint_name
-             AND ccu.constraint_schema = tc.constraint_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema = current_schema()
-              AND ccu.table_schema = current_schema()
-              AND ccu.table_name = :ref_table
-              AND ccu.column_name = :ref_column
-        ";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
-            ':ref_table' => $this->getTable(),
-            ':ref_column' => $this->primaryColumnName,
-        ]);
+        
+        SELECT
+            DISTINCT tc.table_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.constraint_column_usage AS ccu  ON tc.constraint_name = ccu.constraint_name AND tc.constraint_schema = ccu.constraint_schema
+        WHERE
+            tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = 'public' -- Or your specific schema
+            AND ccu.table_name = '{$this->getTable()}'
+            AND ccu.column_name = '{$this->primaryColumnName}';
 
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        // Normalize to match Db::getAllAssoc(MySQL) structure => array of associative rows with TABLE_NAME key
-        $this->referencingTables = array_map(function ($r) {
-            return ['TABLE_NAME' => $r['table_name']];
-        }, $rows);
+		";
+        $this->referencingTables = Db::getAllAssoc($sql);
     }
+
 }

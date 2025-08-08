@@ -8,7 +8,7 @@ use Laf\Database\Db;
 use Laf\Exception\MissingConfigParamException;
 use Laf\Util\Settings;
 
-class TableInspector
+class TableInspector implements TableInspectorInterface
 {
 
     /**
@@ -40,7 +40,6 @@ class TableInspector
     public function __construct(string $table)
     {
         $this->table = $table;
-        $this->inspect();
     }
 
     /**
@@ -98,7 +97,7 @@ class TableInspector
      * @param string $table
      * @return TableInspector
      */
-    public function setTable(string $table): TableInspector
+    public function setTable(string $table): TableInspectorInterface
     {
         $this->table = $table;
         return $this;
@@ -116,7 +115,7 @@ class TableInspector
      * @param array[] $columns
      * @return TableInspector
      */
-    public function setColumns(array $columns): TableInspector
+    public function setColumns(array $columns): TableInspectorInterface
     {
         $this->columns = $columns;
         return $this;
@@ -172,8 +171,8 @@ class TableInspector
 			information_schema.key_column_usage
 		WHERE
 			table_name = '{$this->getTable()}'
-				AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
-				AND referenced_table_name IS NOT NULL
+			AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
+			AND referenced_table_name IS NOT NULL
 		";
         $res = $db->query($sql);
         while ($r = $res->fetchObject()) {

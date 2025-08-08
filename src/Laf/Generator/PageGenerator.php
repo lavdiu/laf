@@ -418,6 +418,7 @@ switch (UrlParser::getAction()) {
         }else{
             $ti = new TableInspector($tableName);
         }
+        $ti->inspect();
 
         foreach ($ti->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
@@ -440,6 +441,7 @@ switch (UrlParser::getAction()) {
                 }else{
                     $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 }
+                $referencingTable->inspect();
                 $displayCol = $referencingTable->getDisplayColumnName();
 
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];

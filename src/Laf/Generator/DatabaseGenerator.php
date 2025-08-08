@@ -9,6 +9,24 @@ use Laf\Util\Settings;
 
 class DatabaseGenerator
 {
+    /**
+     * @var \Psr\Log\LoggerInterface|null  $logger
+     */
+    private $logger = null;
+
+    public function getLogger(): ?\Psr\Log\LoggerInterface
+    {
+        return $this->logger;
+    }
+
+    public function setLogger(?\Psr\Log\LoggerInterface $logger): DatabaseGenerator
+    {
+        $this->logger = $logger;
+        $this->logger->debug("Loading Logger: " . get_class($logger));
+        return $this;
+    }
+
+
 
     /**
      * @var string[]
@@ -204,8 +222,8 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
         if ($this->checkConfig()) {
             $this->createDirectoryStructure()
                 ->generateAutoLoader();
-            $this->processTables($labelTranslations)
-                ->processPages($labelTranslations);
+            $this->processTables()
+                ->processPages();
         }
     }
 }
