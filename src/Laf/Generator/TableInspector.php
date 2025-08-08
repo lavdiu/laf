@@ -140,7 +140,7 @@ class TableInspector
         SELECT *
         FROM information_schema.columns
         WHERE
-            table_schema = '{$settings->getProperty('database.database_name')}'
+            (table_schema = '{$settings->getProperty('database.database_name')}' OR table_schema = 'public')
             AND table_name='{$this->getTable()}'
         ORDER BY table_name, ordinal_position
         ";
@@ -172,7 +172,7 @@ class TableInspector
 			information_schema.key_column_usage
 		WHERE
 			table_name = '{$this->getTable()}'
-				AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
+				AND ( CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}' OR CONSTRAINT_SCHEMA='public' )
 				AND referenced_table_name IS NOT NULL
 		";
         $res = $db->query($sql);
@@ -223,7 +223,7 @@ class TableInspector
         WHERE
           REFERENCED_TABLE_NAME = '{$this->getTable()}'
           AND REFERENCED_COLUMN_NAME = '{$this->primaryColumnName}'
-          AND TABLE_SCHEMA = '{$settings->getProperty('database.database_name')}'
+          AND ( TABLE_SCHEMA = '{$settings->getProperty('database.database_name')}' OR TABLE_SCHEMA = 'public' )
 		";
         $this->referencingTables = Db::getAllAssoc($sql);
     }
