@@ -146,7 +146,19 @@ class PostgresTableInspector implements TableInspectorInterface
                     AND tc.table_name = c.table_name
                     AND tc.table_schema = c.table_schema
                     AND kcu.column_name = c.column_name
-            ) AS is_primary
+            ) AS is_primary,
+            (
+                SELECT 'UNI'
+                FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON tc.constraint_name = kcu.constraint_name AND tc.constraint_schema = kcu.constraint_schema
+                WHERE
+                    tc.constraint_type = 'UNIQUE'
+                    AND tc.table_name = c.table_name
+                    AND tc.table_schema = c.table_schema
+                    AND kcu.column_name = c.column_name
+            ) AS COLUMN_KEY
+            , c.character_maximum_length as COLUMN_TYPE
         FROM
             information_schema.columns AS c
         WHERE
