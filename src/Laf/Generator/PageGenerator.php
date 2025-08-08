@@ -411,6 +411,9 @@ switch (UrlParser::getAction()) {
         $joins = [];
         $joinedTables = [$tableName];
         $ti = new TableInspector($tableName);
+        if(Settings::get('database.engine') == 'postgres'){
+            $ti = new PostgresTableInspector($tableName);
+        }
 
         foreach ($ti->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
@@ -428,6 +431,9 @@ switch (UrlParser::getAction()) {
                 array_push($joinedTables, $fkTableName);
 
                 $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
+                if(Settings::get('database.engine') == 'postgres'){
+                    $referencingTable = new PostgresTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
+                }
                 $displayCol = $referencingTable->getDisplayColumnName();
 
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];
