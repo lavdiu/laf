@@ -69,7 +69,9 @@ class ClassGenerator
         $this->tableInspector = new TableInspector($this->getTable()->getName());
         if(Settings::get('database.engine') == 'postgres'){
             $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
+            echo "\nSwitching to Postgres inspector";
         }
+        echo "\nSticking with Mysql";
         $this->populateForeignKeys();
 
         $file = "<?php
