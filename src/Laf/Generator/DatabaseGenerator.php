@@ -82,8 +82,7 @@ class DatabaseGenerator
             $tg->saveBaseClassToFile()
                 ->saveClassToFile();
             echo "\nProcessed table: " . $table['table_name'];
-            if (PHP_SAPI != 'cli')
-                ob_flush();
+            ob_flush();
         }
         return $this;
     }
