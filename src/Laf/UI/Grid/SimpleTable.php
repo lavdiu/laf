@@ -284,7 +284,7 @@ class SimpleTable implements ComponentInterface
         $sql = "SELECT * FROM (" . $this->getSql() . ") SimpleTableSelect WHERE 1=1 ";
         $sql .= $this->getSqlOrderBySection();
         if ($this->getRowsPerPage() > 0)
-            $sql .= " LIMIT " . $this->getRecordsetOffset() . ', ' . $this->getRowsPerPage();
+            $sql .= " LIMIT {$this->getRowsPerPage()} OFFSET {$this->getRecordsetOffset()}";
         $this->stmt = $db->query($sql);
         if ($this->stmt === false) {
             throw new \Exception($db->getErrorMessage());

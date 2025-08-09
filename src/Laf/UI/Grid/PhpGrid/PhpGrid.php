@@ -643,7 +643,7 @@ class PhpGrid
 
         $sqlLimit = "";
         if ($this->getRowsPerPage() > 0 && !$getAllRows) {
-            $sqlLimit .= " LIMIT {$start}, {$this->getRowsPerPage()} \n";
+            $sqlLimit .= " LIMIT {$this->getRowsPerPage()} OFFSET {$start} \n";
         }
 
         $this->setGeneratedSqlQuery("
