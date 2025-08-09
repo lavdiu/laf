@@ -406,7 +406,7 @@ class BaseObject
 
         $idFieldName = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
 
-        $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 0,1;";
+        $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 1 OFFSET 0;";
         $this->addLoggerDebug("SELECT SQL", [$this->selectSql]);
         $this->addLoggerDebug("SELECT SQL Params", [$this->getRecordId()]);
 
