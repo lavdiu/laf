@@ -61,7 +61,7 @@ class DatabaseGenerator
         $settings = Settings::getInstance();
         $packageName = $settings->getProperty('project.package_name');
         $vendorName = $settings->getProperty('project.vendor_name');
-        $ns = $vendorName."\\\\".$packageName;
+        $ns = $vendorName."\\".$packageName;
         $this->config = [
             'namespace' => $ns,
             'vendor_name' => $vendorName,
