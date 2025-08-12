@@ -495,7 +495,7 @@ class BaseObject
     public function insert()
     {
         $settings = Settings::getInstance();
-        $personClass = '\\' . $settings->getProperty('project.package_name') . '\\Person';
+        $personClass = '\\' . $settings->getProperty('project.vendor_name') . '\\Person';
 
         $this->addLoggerDebug(__METHOD__);
         $this->checkFieldsForMissingRequiredValues();
@@ -622,7 +622,7 @@ class BaseObject
         $this->checkUniqueFieldsForDuplicateValues();
 
         $settings = Settings::getInstance();
-        $personClass = '\\' . $settings->getProperty('project.package_name') . '\\Person';
+        $personClass = '\\' . $settings->getProperty('project.vendor_name') . '\\Person';
 
         if (!$this->isrecordSelected()) {
             $this->addLoggerDebug('No prior record selected to update. Returning false');

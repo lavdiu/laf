@@ -59,9 +59,12 @@ class DatabaseGenerator
     public function __construct($library_path, $force_rewrite_class_files = false)
     {
         $settings = Settings::getInstance();
-        $ns = $settings->getProperty('project.package_name');
+        $packageName = $settings->getProperty('project.package_name');
+        $vendorName = $settings->getProperty('project.vendor_name');
+        $ns = $vendorName."\\\\".$packageName;
         $this->config = [
             'namespace' => $ns,
+            'vendor_name' => $vendorName,
             'base_class_dir' => $library_path . '/' . $ns . '/' . 'Base',
             'class_dir' => $library_path . '/' . $ns,
             'page_dir' => $library_path . '/' . $ns . '/pages',

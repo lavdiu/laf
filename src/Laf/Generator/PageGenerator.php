@@ -96,6 +96,7 @@ class PageGenerator
             $this->tableInspector = new TableInspector($this->getTable()->getName());
         }
         $namespace = $this->getConfig()['namespace'];
+        $vendorName = $this->getConfig()['vendor_name'];
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
         $instanceName = strtolower($className);
@@ -115,7 +116,7 @@ use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
-use {$namespace}\Factory;
+use {$vendorName}\Factory;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
