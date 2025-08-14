@@ -624,7 +624,7 @@ class PhpGrid
                 if (!$this->hasColumn($property))
                     continue;
 
-                $sqlWhere .= "\n\tAND `" . $property . "` " . $operator . " :" . $property;
+                $sqlWhere .= "\n\tAND " . $property . " " . $operator . " :" . $property;
                 if ($operator == 'LIKE') {
                     if ($this->isEnableWildCardSearch()) {
                         $this->addParam($property, '%' . $value . '%');
@@ -639,7 +639,7 @@ class PhpGrid
 
         $start = $page * $this->getRowsPerPage();
 
-        $sqlOrderBy = " ORDER BY `{$this->sortDetails['field']}` {$this->sortDetails['dir']} \n";
+        $sqlOrderBy = " ORDER BY {$this->sortDetails['field']} {$this->sortDetails['dir']} \n";
 
         $sqlLimit = "";
         if ($this->getRowsPerPage() > 0 && !$getAllRows) {
