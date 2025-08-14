@@ -647,7 +647,7 @@ class PhpGrid
         }
 
         $this->setGeneratedSqlQuery("
-            #grid query: {$this->getGridName()}  
+            -- grid query: {$this->getGridName()}  
             SELECT 
             " . join(',', array_keys($this->getColumnsList())) . " 
             FROM (
@@ -660,7 +660,7 @@ class PhpGrid
         );
 
         $this->setGeneratedSqlCountQuery("
-            #grid counter: {$this->getGridName()}  
+            -- grid counter: {$this->getGridName()}  
             SELECT 
                 COUNT(*) as total_number_of_rows 
             FROM (
