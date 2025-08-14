@@ -75,6 +75,7 @@ class FieldTypeFactory
                 return "new Database\Field\TypeBool()";
                 break;
             case FieldType::TYPE_INTEGER:
+            case FieldType::TYPE_INTEGER2:
             case FieldType::TYPE_BIG_INTEGER:
             case FieldType::TYPE_SMALL_INTEGER:
                 return "new Database\Field\TypeInteger()";

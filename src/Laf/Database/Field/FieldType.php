@@ -9,6 +9,7 @@ interface FieldType
     const TYPE_DOUBLE = 'double';
     const TYPE_REAL = 'real';
     const TYPE_INTEGER = 'int';
+    const TYPE_INTEGER2 = 'integer';
     const TYPE_BIG_INTEGER = 'bigint';
     const TYPE_SMALL_INTEGER = 'smallint';
     const TYPE_TINY_INTEGER = 'tinyint';
