@@ -95,7 +95,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
     {
         $fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
         $settings = Settings::getInstance();
-        $fkClass = '\\' . $settings->getProperty('project.package_name') . '\\' . Db::convertTableNameToClassName($fkTable);
+        $fkClass = $settings->getProperty('project.package_name') . '\\' . Db::convertTableNameToClassName($fkTable);
         $record = new $fkClass($this->getField()->getValue());
         $field = $record->getTable()->getDisplayField()->getName();
         $pkFieldName = $record->getTable()->getPrimaryKey()->getFirstField()->getName();
