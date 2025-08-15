@@ -60,7 +60,7 @@ class DatabaseGenerator
     {
         $settings = Settings::getInstance();
         $packageName = $settings->getProperty('project.package_name');
-        $ns = "\\".$packageName;
+        $ns = $packageName;
         $this->config = [
             'namespace' => $ns,
             'base_class_dir' => $library_path . '/' . $ns . '/' . 'Base',
