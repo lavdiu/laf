@@ -447,7 +447,7 @@ switch (UrlParser::getAction()) {
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];
                 $columns[$fkTableAlias . '_' . $displayCol] = [$fkTableAlias, $displayCol, $columnName, true];
 
-                $joins[] = "LEFT JOIN `{$fkTableName}` `{$fkTableAlias}` ON `{$tableName}`.`{$columnName}` = `{$fkTableAlias}`.`{$fkTableCol}`";
+                $joins[] = "LEFT JOIN {$fkTableName} {$fkTableAlias} ON {$tableName}.{$columnName} = {$fkTableAlias}.{$fkTableCol}";
             } else {
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName, true];
             }
@@ -461,7 +461,7 @@ switch (UrlParser::getAction()) {
             } else {
                 $sql .= "\n\t\t, ";
             }
-            $sql .= "`" . $column[0] . '`.`' . $column[1] . '` AS ' . $alias;
+            $sql .= "" . $column[0] . '.' . $column[1] . ' AS ' . $alias;
             $iterator++;
         }
         $sql .= "\n\tFROM {$tableName} {$tableAlias}";
