@@ -65,9 +65,9 @@ class DatabaseGenerator
             'namespace' => $ns,
             'base_class_dir' => $library_path . '/' . $ns . '/' . 'Base',
             'class_dir' => $library_path . '/' . $ns,
-            'page_dir' => $library_path . '/' . $ns . '/pages',
-            'live_page_dir' => $library_path . '/../view/',
-            'rewrite_class' => $force_rewrite_class_files
+            'page_dir' => $library_path . '/generator_cache/pages/',
+            'live_page_dir' => $library_path . '/pages/',
+            'rewrite_class' => $force_rewrite_class_files,
         ];
     }
 
