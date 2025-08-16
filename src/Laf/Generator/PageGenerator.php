@@ -184,19 +184,6 @@ switch (UrlParser::getAction()) {
 			->addLink(\$deleteLink);
 		\$page->addLink(\$dd);
 		
-		// Add audit trail section
-        \$auditTrail = \${$instanceName}->getAuditTrail();
-        if (!empty(\$auditTrail)) {
-            \$auditHtml = '<div class=\"mt-4\"><h5>Audit Trail</h5><div class=\"table-responsive\"><table class=\"table table-sm\">';
-            \$auditHtml .= '<thead><tr><th>Date</th><th>Action</th><th>User ID</th><th>Changes</th></tr></thead><tbody>';
-            foreach (\$auditTrail as \$entry) {
-                \$auditHtml .= '<tr><td>' . \$entry['created_on'] . '</td><td><span class=\"badge badge-' . 
-                    ((\$entry['action'] == 'INSERT') ? 'success' : ((\$entry['action'] == 'UPDATE') ? 'warning' : 'danger')) . '\">' . 
-                    \$entry['action'] . '</span></td><td>' . (\$entry['user_id'] ?? 'System') . '</td><td>' . \$entry['changes_count'] . ' field(s)</td></tr>';
-            }
-            \$auditHtml .= '</tbody></table></div></div>';
-            \$page->addComponent(new HtmlContainer(\$auditHtml));
-        }
 		
 		\$html->addComponent(\$page);\n";
 
