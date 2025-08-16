@@ -95,6 +95,9 @@ class PageGenerator
         }else{
             $this->tableInspector = new TableInspector($this->getTable()->getName());
         }
+        $this->getTableInspector()->inspect();
+
+
         $namespace = $this->getConfig()['namespace'];
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
