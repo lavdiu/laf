@@ -88,6 +88,7 @@ class FieldTypeFactory
                 return "new Database\Field\TypeVarchar()";
                 break;
             case FieldType::TYPE_NUMERIC:
+            case FieldType::TYPE_NUMERIC2:
             case FieldType::TYPE_DOUBLE:
             case FieldType::TYPE_FLOAT:
             case FieldType::TYPE_REAL:

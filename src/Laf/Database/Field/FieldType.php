@@ -5,6 +5,7 @@ namespace Laf\Database\Field;
 interface FieldType
 {
     const TYPE_NUMERIC = 'decimal';
+    const TYPE_NUMERIC2 = 'numeric';
     const TYPE_FLOAT = 'float';
     const TYPE_DOUBLE = 'double';
     const TYPE_REAL = 'real';
