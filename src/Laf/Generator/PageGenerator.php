@@ -484,7 +484,7 @@ switch (UrlParser::getAction()) {
         $tableName = $this->getTable()->getName();
 
         $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
-        \${$grid_name}->setTitle('{$tableName} {$labels['list']}')
+        \${$grid_name}->setTitle('{$table_name} {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
