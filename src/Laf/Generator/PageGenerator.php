@@ -198,6 +198,7 @@ switch (UrlParser::getAction()) {
 
 
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
+                $table = array_change_key_case($table, CASE_UPPER);
                 $gridVarName = $table['TABLE_NAME'];
                 $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
 
