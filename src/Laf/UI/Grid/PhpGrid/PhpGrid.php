@@ -324,6 +324,7 @@ class PhpGrid
             $stmt->execute();
             $res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+            $res = $res[0]??[];
             foreach($res as $k=>$v){
                 if(array_key_exists($k, $this->column_totals)){
                     $this->column_totals[$k] = $v;
