@@ -63,12 +63,11 @@ class Grid {
         var currentURL = new URL(window.location.href);
         var tmpUrl = null;
         tmpUrl = currentURL.origin;
-        if (currentURL.pathname === '/') {
-            tmpUrl += currentURL.pathname + '?';
-        } else {
-            tmpUrl += currentURL.pathname + '?';
+        tmpUrl += currentURL.pathname;
+        tmpUrl += currentURL.search;
+        if (currentURL.search.length < 3) {
+            tmpUrl += '?';
         }
-        tmpUrl += '?';
 
         tmpUrl += "&load_grid_by_name=" + this.name;
         tmpUrl += "&page=" + this.currentPage;
