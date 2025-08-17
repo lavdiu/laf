@@ -63,11 +63,12 @@ class Grid {
         var currentURL = new URL(window.location.href);
         var tmpUrl = null;
         tmpUrl = currentURL.origin;
-        tmpUrl += currentURL.pathname;
-        tmpUrl += currentURL.search;
-        if (currentURL.search.length < 3) {
-            tmpUrl += '?';
+        if (currentURL.pathname === '/') {
+            tmpUrl += currentURL.pathname + '?';
+        } else {
+            tmpUrl += currentURL.pathname + '?';
         }
+        tmpUrl += '?';
 
         tmpUrl += "&load_grid_by_name=" + this.name;
         tmpUrl += "&page=" + this.currentPage;
@@ -78,17 +79,12 @@ class Grid {
         }
 
         if (this.sortColumn != '' && this.sortColumn != null) {
-            tmpUrl += '&sort=' + this.sortColumn;
-            if (this.sortDir == '' || this.sortDir == null) {
-                tmpUrl += '&dir=asc';
-            } else {
-                tmpUrl += '&dir=' + this.sortDir;
-            }
+            tmpUrl += "&sort=" + this.sortColumn + "&dir=" + this.sortDir;
         }
 
         var _fp = this.getFilterParams();
-        if (_fp.length > 3) {
-            tmpUrl += '&searchParams=' + _fp;
+        for (var f in this.filters) {
+            tmpUrl += "&f[" + f + "]=" + encodeURIComponent(this.filters[f]);
         }
 
         tmpUrl += "&rand=" + Math.random();
@@ -218,6 +214,25 @@ class Grid {
                 this.showTitleBar = container.dataset.showTitleBar === 'true';
                 this.showSearchBar = container.dataset.showSearchBar === 'true';
             }
+            // Override initial rowsPerPage with saved per-grid preference, if present
+            try {
+                const perGridKey = 'laf.grid.' + this.name + '.rowsPerPage';
+                let savedRpp = localStorage.getItem(perGridKey);
+                // Backward-compat: if old global key exists and per-grid not set, use it and migrate
+                if (savedRpp === null) {
+                    const legacy = localStorage.getItem('laf.grid.rowsPerPage');
+                    if (legacy !== null) {
+                        savedRpp = legacy;
+                        try { localStorage.setItem(perGridKey, legacy); } catch(_) {}
+                    }
+                }
+                if (savedRpp !== null) {
+                    const v = parseInt(savedRpp, 10);
+                    if (!isNaN(v)) {
+                        this.rowsPerPage = v;
+                    }
+                }
+            } catch (e) { /* ignore storage errors */ }
         }
 
         this.fetchContentElementReferences();
@@ -334,30 +349,21 @@ class Grid {
                 }
                 input.onkeydown = function (event) {
                     if (event.key === 'Enter') {
-                        //I can't get the setter to fire when assigning a new member to this.filters. hence this ugly workaround
-                        var _filters = window.grid[this.getAttribute('gridName')].filters;
-                        _filters[this.getAttribute('fieldName')] = this.value.trim();
-                        window.grid[this.getAttribute('gridName')].filters = _filters;
-                        console.log("Search filters ");
-                        console.log(window.grid[this.getAttribute('gridName')].filters);
+                        // Build filters from ALL inputs for this grid
+                        var gridName = this.getAttribute('gridName');
+                        var grid = window.grid[gridName];
+                        var newFilters = {};
+                        var inputs = document.querySelectorAll('input[gridName="' + gridName + '"]');
+                        inputs.forEach(function(inp){
+                            var field = inp.getAttribute('fieldName');
+                            var val = (inp.value || '').trim();
+                            if (val.length > 0) {
+                                newFilters[field] = val;
+                            }
+                        });
+                        grid.filters = newFilters; // triggers refresh via setter
+                        console.log('Search filters ', newFilters);
                     }
-                };
-                // Debounced search as user types
-                input.oninput = (event) => {
-                    const gridName = event.target.getAttribute('gridName');
-                    const fieldName = event.target.getAttribute('fieldName');
-                    const val = event.target.value.trim();
-                    const selfGrid = window.grid[gridName];
-                    clearTimeout(selfGrid._debounceTimers[fieldName]);
-                    selfGrid._debounceTimers[fieldName] = setTimeout(() => {
-                        const f = Object.assign({}, selfGrid.filters);
-                        if (val === '') {
-                            delete f[fieldName];
-                        } else {
-                            f[fieldName] = val;
-                        }
-                        selfGrid.filters = f; // triggers refresh
-                    }, 300);
                 };
                 var td = document.createElement('th');
                 td.appendChild(input);
@@ -445,7 +451,51 @@ class Grid {
     }
 
     drawTableFooter() {
+        // First, pagination state
         this.disableInactivePaginationButtons();
+
+        // Then, draw summary row if backend provided columnTotals
+        if (!this.contentTfoot) return;
+        // Clear existing footer content
+        while (this.contentTfoot.firstChild) {
+            this.contentTfoot.removeChild(this.contentTfoot.firstChild);
+        }
+
+        if (this.data && this.data.columnTotals) {
+            const totals = this.data.columnTotals;
+            const tr = document.createElement('tr');
+            tr.classList.add('table-secondary'); // visually distinct summary row
+
+            // Leading index column (if any) and checkbox/action columns
+            // Build cells aligned with visible columns
+            for (let c of this.columns) {
+                const th = document.createElement('th');
+                th.style.fontWeight = 'bold';
+                th.style.textAlign = c.align || 'left';
+                if (!c.visible) {
+                    th.style.display = 'none';
+                }
+                if (totals.hasOwnProperty(c.fieldName)) {
+                    const v = totals[c.fieldName];
+                    th.textContent = (typeof v === 'number') ? v.toLocaleString() : v;
+                } else if (c === this.columns[0]) {
+                    th.textContent = 'Summary';
+                } else {
+                    th.innerHTML = '&nbsp;';
+                }
+                tr.appendChild(th);
+            }
+
+            // Extra columns at the end for actions etc.
+            const extraTh1 = document.createElement('th');
+            const extraTh2 = document.createElement('th');
+            extraTh1.innerHTML = '&nbsp;';
+            extraTh2.innerHTML = '&nbsp;';
+            tr.appendChild(extraTh1);
+            tr.appendChild(extraTh2);
+
+            this.contentTfoot.appendChild(tr);
+        }
     }
 
     async downloadExcelJs() {
@@ -589,6 +639,10 @@ class Grid {
 
     setRowsPerPage(numberOfRows) {
         this.rowsPerPage = numberOfRows;
+        // Persist as per-grid default
+        try {
+            localStorage.setItem('laf.grid.' + this.name + '.rowsPerPage', String(numberOfRows));
+        } catch (e) { /* ignore storage errors */ }
         if (this.currentPage === 1) {
             this.refresh();
         } else {
@@ -1213,4 +1267,3 @@ class Column {
 }
 
 window.Grid = Grid;
-var grid = [];

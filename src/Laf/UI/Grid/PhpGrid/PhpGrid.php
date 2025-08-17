@@ -62,7 +62,19 @@ class PhpGrid
      * query generated for counting
      * @var string
      */
-    protected $generated_sql_count_query = null;
+    protected string $generated_sql_count_query = "";
+
+    /**
+     * List of column names for which to compute totals across all result rows (ignoring pagination)
+     * @var array<string>
+     */
+    protected array $column_totals_columns = [];
+
+    /**
+     * Computed totals keyed by column name
+     * @var array<string,float|int>|null
+     */
+    protected ?array $column_totals = null;
 
     /**
      * @var ActionButton[]
@@ -257,6 +269,82 @@ class PhpGrid
     public function getGeneratedSqlCountQuery(): string
     {
         return $this->generated_sql_count_query;
+    }
+
+    /**
+     * Define which columns should be totaled across all rows.
+     * Accepts array of column names or comma-separated string.
+     */
+    public function setColumnTotals($columns): self
+    {
+        if ($columns === null || $columns === false || $columns === '') {
+            $this->column_totals_columns = [];
+            return $this;
+        }
+        if (is_string($columns)) {
+            $columns = array_filter(array_map('trim', explode(',', $columns)), static function($v){ return $v !== '';});
+        }
+        if (is_array($columns)) {
+            $this->column_totals_columns = array_values(array_unique($columns));
+        }
+        return $this;
+    }
+
+    /**
+     * Get previously computed totals.
+     */
+    public function getColumnTotals(): ?array
+    {
+        return $this->column_totals;
+    }
+
+    /**
+     * Compute totals for configured columns across ALL rows (ignoring pagination). Safe no-op if none configured.
+     * This executes the data query to fetch all rows temporarily and restores the original page data afterwards.
+     */
+    protected function computeColumnTotalsIfNeeded(): void
+    {
+        if (count($this->column_totals_columns) < 1) {
+            $this->column_totals = null;
+            return;
+        }
+
+        // Snapshot current page data to restore later
+        $prevData = $this->data;
+        $prevExecMs = $this->execMs;
+        $prevCountMs = $this->countMs;
+
+        // Execute full result set
+        $ok = $this->execute(true);
+        if (!$ok) {
+            $this->column_totals = null;
+            // Restore previous
+            $this->data = $prevData;
+            $this->execMs = $prevExecMs;
+            $this->countMs = $prevCountMs;
+            return;
+        }
+
+        $totals = [];
+        foreach ($this->column_totals_columns as $col) {
+            $totals[$col] = 0;
+        }
+        foreach ($this->data as $row) {
+            foreach ($this->column_totals_columns as $col) {
+                if (array_key_exists($col, $row)) {
+                    $val = $row[$col];
+                    if (is_numeric($val)) {
+                        $totals[$col] += (float)$val;
+                    }
+                }
+            }
+        }
+        $this->column_totals = $totals;
+
+        // Restore previous paginated page data and metrics
+        $this->data = $prevData;
+        $this->execMs = $prevExecMs;
+        $this->countMs = $prevCountMs;
     }
 
     /**
@@ -1137,6 +1225,14 @@ class PhpGrid
             }
         }
 
+        // Compute totals across all rows if requested
+        try {
+            $this->computeColumnTotalsIfNeeded();
+        } catch (\Throwable $e) {
+            // Keep grid responsive even if totals fail
+            $this->column_totals = null;
+        }
+
         $data = [
             'success' => $success,
             'id' => 1,
@@ -1160,6 +1256,7 @@ class PhpGrid
             'query' => ($this->getDebug() ? $this->getSqlQuery() : null),
             'queryCount' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
             'metrics' => ($this->getDebug() ? ['execMs' => round($this->execMs,2), 'countMs' => round($this->countMs,2)] : null),
+            'columnTotals' => $this->getColumnTotals(),
             'rows' => $this->data
         ];
         echo json_encode($data);
