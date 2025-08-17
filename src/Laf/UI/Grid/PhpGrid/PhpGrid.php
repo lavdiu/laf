@@ -308,7 +308,11 @@ class PhpGrid
             return;
         }
 
-
+        foreach($this->column_totals as $k=>$v){
+            if(!$this->hasColumn($k)){
+                throw new \Exception('Unable to calculate total of unknown column '.$k);
+            }
+        }
 
         $db = Db::getInstance();
         try {
