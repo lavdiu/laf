@@ -109,6 +109,9 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         }
 
         $sql = "SELECT {$pkFieldName}, {$field} FROM {$fkTable} WHERE 1=1 {$where} ORDER BY {$field} ASC";
+        if(Settings::get('database.driver') == 'mysql'){
+            $sql = "SELECT `{$pkFieldName}`, `{$field}` FROM `{$fkTable}` WHERE 1=1 {$where} ORDER BY {$field} ASC";
+        }
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
         $stmt->execute();
