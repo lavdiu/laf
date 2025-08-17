@@ -64,11 +64,7 @@ class PhpGrid
      */
     protected string $generated_sql_count_query = "";
 
-    /**
-     * List of column names for which to compute totals across all result rows (ignoring pagination)
-     * @var array<string>
-     */
-    protected array $column_totals_columns = [];
+    protected string $generated_sql_totals_query = "";
 
     /**
      * Computed totals keyed by column name
@@ -271,22 +267,26 @@ class PhpGrid
         return $this->generated_sql_count_query;
     }
 
+    public function getGeneratedSqlTotalsQuery(): string
+    {
+        return $this->generated_sql_totals_query;
+    }
+
+    public function setGeneratedSqlTotalsQuery(string $generated_sql_totals_query): PhpGrid
+    {
+        $this->generated_sql_totals_query = $generated_sql_totals_query;
+        return $this;
+    }
+
+
+
     /**
      * Define which columns should be totaled across all rows.
      * Accepts array of column names or comma-separated string.
      */
-    public function setColumnTotals($columns): self
+    public function setColumnTotals(array $columns = []): self
     {
-        if ($columns === null || $columns === false || $columns === '') {
-            $this->column_totals_columns = [];
-            return $this;
-        }
-        if (is_string($columns)) {
-            $columns = array_filter(array_map('trim', explode(',', $columns)), static function($v){ return $v !== '';});
-        }
-        if (is_array($columns)) {
-            $this->column_totals_columns = array_values(array_unique($columns));
-        }
+        $this->column_totals = array_fill_keys($this->column_totals, 0);
         return $this;
     }
 
@@ -304,47 +304,29 @@ class PhpGrid
      */
     protected function computeColumnTotalsIfNeeded(): void
     {
-        if (count($this->column_totals_columns) < 1) {
-            $this->column_totals = null;
+        if (count($this->column_totals) < 1) {
             return;
         }
 
-        // Snapshot current page data to restore later
-        $prevData = $this->data;
-        $prevExecMs = $this->execMs;
-        $prevCountMs = $this->countMs;
 
-        // Execute full result set
-        $ok = $this->execute(true);
-        if (!$ok) {
-            $this->column_totals = null;
-            // Restore previous
-            $this->data = $prevData;
-            $this->execMs = $prevExecMs;
-            $this->countMs = $prevCountMs;
-            return;
-        }
 
-        $totals = [];
-        foreach ($this->column_totals_columns as $col) {
-            $totals[$col] = 0;
-        }
-        foreach ($this->data as $row) {
-            foreach ($this->column_totals_columns as $col) {
-                if (array_key_exists($col, $row)) {
-                    $val = $row[$col];
-                    if (is_numeric($val)) {
-                        $totals[$col] += (float)$val;
-                    }
+        $db = Db::getInstance();
+        try {
+            $t0 = microtime(true);
+            $stmt = $db->prepare($this->getGeneratedSqlTotalsQuery());
+            foreach ($this->getParamsList() as $k => $v) {
+                $stmt->bindValue(':' . $k, $v);
+            }
+            $stmt->execute();
+            $res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            foreach($res as $k=>$v){
+                if(array_key_exists($k, $this->column_totals)){
+                    $this->column_totals[$k] = $v;
                 }
             }
-        }
-        $this->column_totals = $totals;
+        }catch (\Throwable $ex){}
 
-        // Restore previous paginated page data and metrics
-        $this->data = $prevData;
-        $this->execMs = $prevExecMs;
-        $this->countMs = $prevCountMs;
     }
 
     /**
@@ -875,6 +857,26 @@ class PhpGrid
         "
         );
 
+        $totalscolumns = [];
+        foreach($this->getColumnTotals() as $col){
+            $totalscolumns[] = " SUM(".$col.") AS ".$col." ";
+        }
+
+        $this->setGeneratedSqlTotalsQuery("
+            -- grid totals: {$this->getGridName()}  
+            SELECT 
+                ".join(',', $totalscolumns)."
+            FROM (
+                SELECT 
+                " . $this->getFirstColumnName() . " 
+                FROM (
+                    {$this->getSqlQuery()}
+                ) {$this->getGridName()} 
+                {$sqlWhere}
+            ) {$this->getGridName()}_count
+        "
+        );
+
     }
 
     /**
@@ -999,6 +1001,8 @@ class PhpGrid
                 $this->setRowCount(($stmtCount->fetchObject())->total_number_of_rows);
                 $this->countMs = (microtime(true) - $tc0) * 1000.0;
             }
+
+            $this->computeColumnTotalsIfNeeded();
 
 
         } catch (\Throwable $ex) {
