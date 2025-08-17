@@ -867,13 +867,11 @@ class PhpGrid
             SELECT 
                 ".join(',', $totalscolumns)."
             FROM (
-                SELECT 
-                " . $this->getFirstColumnName() . " 
-                FROM (
+                SELECT * FROM (
                     {$this->getSqlQuery()}
                 ) {$this->getGridName()} 
                 {$sqlWhere}
-            ) {$this->getGridName()}_count
+            ) {$this->getGridName()}_totals
         "
         );
 
