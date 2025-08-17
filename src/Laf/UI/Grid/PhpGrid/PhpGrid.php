@@ -286,7 +286,7 @@ class PhpGrid
      */
     public function setColumnTotals(array $columns = []): self
     {
-        $this->column_totals = array_fill_keys($this->column_totals, 0);
+        $this->column_totals = array_fill_keys($columns, 0);
         return $this;
     }
 
