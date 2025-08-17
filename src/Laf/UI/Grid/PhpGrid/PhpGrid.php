@@ -1308,7 +1308,7 @@ class PhpGrid
 \t\t</thead>
 \t\t<tbody id='{$gridName}_tbody'>
 \t\t</tbody>
-\t\t<tfoot>
+\t\t<tfoot id='{$gridName}_tfoot'>
 \t\t</tfoot>
 \t</table>
 \t
