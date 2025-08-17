@@ -406,7 +406,11 @@ class BaseObject
 
         $idFieldName = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
 
-        $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 1 OFFSET 0;";
+        if($this->isMySqlDriver()) {
+            $this->selectSql = "SELECT * FROM `{$this->getTable()->getName()}` WHERE `{$idFieldName}` = :recordId LIMIT 1 OFFSET 0;";
+        }else {
+            $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 1 OFFSET 0;";
+        }
         $this->addLoggerDebug("SELECT SQL", [$this->selectSql]);
         $this->addLoggerDebug("SELECT SQL Params", [$this->getRecordId()]);
 
@@ -509,13 +513,20 @@ class BaseObject
         }
 
         $this->insertSql = "INSERT INTO {$this->getTable()->getName()}(";
+        if($this->isMySqlDriver()){
+            $this->insertSql = "INSERT INTO `{$this->getTable()->getName()}` (";
+        }
         $prepareColumns = $prepareValues = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
             if ($field->isAutoIncrement()) {
                 continue;
             }
             if ($field->isPrimaryKey()) {
-                $prepareColumns[] = "{$field->getName()}";
+                if($this->isMySqlDriver()){
+                    $prepareColumns[] = "`{$field->getName()}`";
+                }else{
+                    $prepareColumns[] = "{$field->getName()}";
+                }
                 $prepareValues[] = ":{$field->getName()}";
 
                 if (((string)$field->getValue()) != '') {
@@ -527,7 +538,11 @@ class BaseObject
                 }
 
             } else {
-                $prepareColumns[] = "{$field->getName()}";
+                if($this->isMySqlDriver()) {
+                    $prepareColumns[] = "`{$field->getName()}`";
+                }else {
+                    $prepareColumns[] = "{$field->getName()}";
+                }
                 $prepareValues[] = ":{$field->getName()}";
                 $executeValues[':' . $field->getName()] = $field->getValue();
             }
@@ -637,6 +652,11 @@ class BaseObject
         }
 
         $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
+        if($this->isMySqlDriver()) {
+            $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
+        }else{
+            $this->updateSql = "UPDATE `{$this->getTable()->getName()}` ";
+        }
         $this->updateSql .= "\nSET ";
         $prepareColumns = $executeValues = [];
         foreach ($this->getTable()->getFields() as $field) {
@@ -644,7 +664,11 @@ class BaseObject
                 continue;
             }
             if ($field->hasChanged()) {
-                $prepareColumns[] = "{$field->getName()}=:{$field->getName()}";
+                if($this->isMySqlDriver()) {
+                    $prepareColumns[] = "`{$field->getName()}`=:{$field->getName()}";
+                }else{
+                    $prepareColumns[] = "{$field->getName()}=:{$field->getName()}";
+                }
             }
         }
 
@@ -764,8 +788,15 @@ class BaseObject
         // Log the delete operation before deletion (capture all field values)
         $this->logAuditEntry(AuditLog::ACTION_DELETE);
 
-        $this->deleteSql = "DELETE FROM $this->getTable()->getName()} ";
-        $this->deleteSql .= "\nWHERE {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} =:primaryKeyField;";
+        $this->deleteSql = "DELETE FROM {$this->getTable()->getName()} ";
+        if($this->isMySqlDriver()){
+            $this->deleteSql = "DELETE FROM `{$this->getTable()->getName()}` ";
+        }
+        if($this->isMySqlDriver()) {
+            $this->deleteSql .= "\nWHERE `{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}` =:primaryKeyField;";
+        }else {
+            $this->deleteSql .= "\nWHERE {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} =:primaryKeyField;";
+        }
         $executeValues = [':primaryKeyField' => $this->getRecordId()];
 
         $this->addLoggerDebug("DELETE SQL", [$this->deleteSql]);
@@ -1222,7 +1253,7 @@ class BaseObject
             return;
         }
 
-        if(!class_exists('\\Laf\\Database\\AuditLog')){
+        if (!class_exists('\\Laf\\Database\\AuditLog')) {
             return;
         }
 
@@ -1239,5 +1270,16 @@ class BaseObject
         } catch (\Exception $e) {
             $this->addLoggerError('Audit logging failed', [$e->getMessage()]);
         }
+    }
+
+    private function isMySqlDriver(): ?bool
+    {
+        $driver = 'mysql';
+        try {
+            $driver = Settings::get('database.engine');
+        } catch (\Throwable $ex) {
+        }
+
+        return strtolower($driver) == 'mysql';
     }
 }
