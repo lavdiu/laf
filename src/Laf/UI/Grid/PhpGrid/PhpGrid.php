@@ -70,7 +70,7 @@ class PhpGrid
      * Computed totals keyed by column name
      * @var array<string,float|int>|null
      */
-    protected ?array $column_totals = null;
+    protected ?array $column_totals = [];
 
     /**
      * @var ActionButton[]
