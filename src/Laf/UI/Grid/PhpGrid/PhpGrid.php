@@ -858,8 +858,8 @@ class PhpGrid
         );
 
         $totalscolumns = [];
-        foreach($this->getColumnTotals() as $col){
-            $totalscolumns[] = " SUM(".$col.") AS ".$col." ";
+        foreach($this->getColumnTotals() as $key=>$value){
+            $totalscolumns[] = " SUM(".$key.") AS ".$key." ";
         }
 
         $this->setGeneratedSqlTotalsQuery("
