@@ -18,6 +18,11 @@ class Column
     public $exportable = true;
     public $innerElementAttributes = "";
     public $outerElementAttributes = "";
+    // Optional per-column behavior tuning
+    public $caseInsensitive = null;       // if true/1, force case-insensitive filtering
+    public $caseInsensitiveSort = null;   // if true/1, force case-insensitive sort
+    public $searchOperator = null;        // override default operator (like, eq, etc.)
+    public $wildcardMode = null;          // for LIKE searches: contains (default), startswith, endswith
 
     /**
      * Column constructor.

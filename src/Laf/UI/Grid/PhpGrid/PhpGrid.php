@@ -129,6 +129,20 @@ class PhpGrid
      */
     protected bool $showTitle = true;
 
+    /**
+     * Use PostgreSQL ILIKE for case-insensitive LIKE comparisons
+     * Defaults to false to keep cross-DB parity using LOWER() technique
+     * @var bool
+     */
+    protected bool $useIlikeOnPg = false;
+
+    /**
+     * Basic metrics for observability
+     * @var float
+     */
+    protected float $execMs = 0.0;
+    protected float $countMs = 0.0;
+
 
     /**
      * PhpGrid constructor.
@@ -146,6 +160,21 @@ class PhpGrid
             $this->setFilters($_GET);
         }
         $this->setParamsList($params_list);
+    }
+
+    /**
+     * Determine if a column should be treated as textual for case-insensitive operations
+     */
+    private function isTextualColumn(string $fieldName): bool
+    {
+        $col = $this->getColumn($fieldName);
+        if (!$col) {
+            return false;
+        }
+        $format = strtolower((string)$col->getFormat());
+        // Common textual formats
+        $textual = ['text', 'string', 'varchar', 'char', 'name', 'enum', 'uuid', 'citext'];
+        return in_array($format, $textual, true) || $format === '' /* unknown -> be conservative: false */ && false;
     }
 
     /**
@@ -266,6 +295,24 @@ class PhpGrid
     public function setFilters(array $filters = []): PhpGrid
     {
         $this->filters = $filters;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getUseIlikeOnPg(): bool
+    {
+        return $this->useIlikeOnPg;
+    }
+
+    /**
+     * @param bool $use
+     * @return PhpGrid
+     */
+    public function setUseIlikeOnPg(bool $use): PhpGrid
+    {
+        $this->useIlikeOnPg = $use;
         return $this;
     }
 
@@ -517,9 +564,10 @@ class PhpGrid
                 $rowsPerPage = 10;
             }
 
-            $pages = $rowCount / $rowsPerPage;
-            $pages = (int)$pages;
-            $pages++;
+            $pages = (int)ceil($rowCount / $rowsPerPage);
+            if ($pages < 1) {
+                $pages = 1;
+            }
             $this->setPageCount($pages);
         }
     }
@@ -575,6 +623,7 @@ class PhpGrid
     {
         $filters = $this->filters;
         $page = 0;
+        $isPg = $this->isPostgres();
         if ($this->getSortDetails()['field'] == '') {
             $this->setSortDetails($this->getFirstColumnName(), 'DESC');
         }
@@ -595,13 +644,20 @@ class PhpGrid
         }
 
         if (isset($filters['limit']) && is_numeric($filters['limit']) && $filters['limit'] >= 0) {
-            $this->setRowsPerPage(((int)$filters['limit']));
+            $limit = (int)$filters['limit'];
+            // clamp limit to avoid huge scans (0 means all rows explicitly)
+            if ($limit > 0) {
+                $limit = max(1, min($limit, 1000));
+            }
+            $this->setRowsPerPage($limit);
         }
 
-        if (isset($filters['sort']) && $this->hasColumn($filters['sort'])) {
-            $this->sortDetails['field'] = $filters['sort'];
+        // Security: Validate sort column against the list of known columns
+        if (isset($filters['sort']) && $this->hasColumn(urldecode($filters['sort']))) {
+            $this->sortDetails['field'] = urldecode($filters['sort']);
         }
 
+        // Security: Whitelist sort direction
         if (isset($filters['dir']) && in_array(strtolower($filters['dir']), ['asc', 'desc'])) {
             $this->sortDetails['dir'] = $filters['dir'];
         }
@@ -617,29 +673,86 @@ class PhpGrid
             }
             for ($i = 0; $i < $searchParamsCount; $i++) {
                 $filterItem = $searchParams[$i];
-                $operator = $this->getOperator($filterItem->operator);
+                $requestedOperator = $filterItem->operator;
+                $operator = $this->getOperator($requestedOperator);
                 $value = $filterItem->value;
                 $property = $filterItem->property;
 
                 if (!$this->hasColumn($property))
+                    // Security: if the column name is not valid, skip it.
                     continue;
 
-                $sqlWhere .= "\n\tAND " . $property . " " . $operator . " :" . $property;
-                if ($operator == 'LIKE') {
-                    if ($this->isEnableWildCardSearch()) {
-                        $this->addParam($property, '%' . $value . '%');
-                    } else {
-                        $this->addParam($property, $value . '%');
+                $phName = $this->sanitizePlaceholderName($property);
+                // Per-column overrides
+                $colCfg = $this->getColumn($property);
+                if ($colCfg) {
+                    if (!empty($colCfg->searchOperator)) {
+                        $operator = $this->getOperator($colCfg->searchOperator);
                     }
+                }
+
+                // For PostgreSQL, decide case-insensitive strategy
+                $propertyExpr = $property;
+                $shouldLowercaseValue = false;
+                if ($isPg) {
+                    $useIlike = $this->getUseIlikeOnPg() && ($operator === 'LIKE');
+                    if ($useIlike) {
+                        $operator = 'ILIKE';
+                    } else {
+                        // Apply LOWER() only for textual comparisons or when column forces case-insensitive
+                        $forceInsensitive = ($colCfg && ($colCfg->caseInsensitive === true || $colCfg->caseInsensitive === 1));
+                        if (in_array($operator, ['LIKE', '=', '!='], true) || $forceInsensitive) {
+                            $propertyExpr = "LOWER(" . $property . ")";
+                            $shouldLowercaseValue = true;
+                        }
+                    }
+                }
+
+                $sqlWhere .= "\n\tAND " . $propertyExpr . " " . $operator . " :" . $phName;
+                if ($operator == 'LIKE' || $operator == 'ILIKE') {
+                    // Determine wildcard mode
+                    $mode = 'contains';
+                    if ($colCfg && !empty($colCfg->wildcardMode)) {
+                        $mode = $colCfg->wildcardMode;
+                    } else if ($this->isEnableWildCardSearch()) {
+                        $mode = 'contains';
+                    } else {
+                        $mode = 'startswith';
+                    }
+                    if ($mode === 'startswith') {
+                        $val = $value . '%';
+                    } else if ($mode === 'endswith') {
+                        $val = '%' . $value;
+                    } else { // contains
+                        $val = '%' . $value . '%';
+                    }
+                    if ($shouldLowercaseValue && is_string($val)) {
+                        $val = function_exists('mb_strtolower') ? mb_strtolower($val) : strtolower($val);
+                    }
+                    $this->addParam($phName, $val);
                 } else {
-                    $this->addParam($property, $value);
+                    if ($shouldLowercaseValue && is_string($value)) {
+                        $value = function_exists('mb_strtolower') ? mb_strtolower($value) : strtolower($value);
+                    }
+                    $this->addParam($phName, $value);
                 }
             }
         }
 
         $start = $page * $this->getRowsPerPage();
 
-        $sqlOrderBy = " ORDER BY {$this->sortDetails['field']} {$this->sortDetails['dir']} \n";
+        // Case-insensitive sort on PostgreSQL for textual columns or when column forces it
+        $orderField = $this->sortDetails['field'];
+        $orderExpr = $orderField;
+        $forceInsensitiveSort = false;
+        $colForSort = $this->getColumn($orderField);
+        if ($colForSort && ($colForSort->caseInsensitiveSort === true || $colForSort->caseInsensitiveSort === 1)) {
+            $forceInsensitiveSort = true;
+        }
+        if ($isPg && ($this->isTextualColumn($orderField) || $forceInsensitiveSort)) {
+            $orderExpr = "LOWER(" . $orderField . ")";
+        }
+        $sqlOrderBy = " ORDER BY {$orderExpr} {$this->sortDetails['dir']} \n";
 
         $sqlLimit = "";
         if ($this->getRowsPerPage() > 0 && !$getAllRows) {
@@ -674,6 +787,20 @@ class PhpGrid
         "
         );
 
+    }
+
+    /**
+     * @return bool
+     */
+    private function isPostgres(): bool
+    {
+        try {
+            $db = Db::getInstance();
+            $driver = strtolower((string)$db->getAttribute(\PDO::ATTR_DRIVER_NAME));
+            return $driver === 'pgsql' || $driver === 'postgres' || $driver === 'postgresql';
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
@@ -751,16 +878,22 @@ class PhpGrid
 
         $db = Db::getInstance();
         try {
+            $t0 = microtime(true);
             $stmt = $db->prepare($this->getGeneratedSqlQuery());
             foreach ($this->getParamsList() as $k => $v) {
                 $stmt->bindValue(':' . $k, $v);
             }
             $stmt->execute();
             $this->data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $this->execMs = (microtime(true) - $t0) * 1000.0;
 
             for ($i = 0; $i < $stmt->columnCount(); $i++) {
                 $tmp = $stmt->getColumnMeta($i);
-                $this->getColumn($tmp['name'])->setFormat($this->convertNativeDataTypeToString($tmp['native_type']));
+                $col = $this->getColumn($tmp['name']);
+                if ($col) {
+                    $native = $tmp['native_type'] ?? '';
+                    $col->setFormat($this->convertNativeDataTypeToString((string)$native));
+                }
                 $this->setRowCount(count($this->data));
             }
 
@@ -769,12 +902,14 @@ class PhpGrid
             }
 
             if (!$getAllRows) {
+                $tc0 = microtime(true);
                 $stmtCount = $db->prepare($this->getGeneratedSqlCountQuery());
                 foreach ($this->getParamsList() as $k => $v) {
                     $stmtCount->bindValue(':' . $k, $v);
                 }
                 $stmtCount->execute();
                 $this->setRowCount(($stmtCount->fetchObject())->total_number_of_rows);
+                $this->countMs = (microtime(true) - $tc0) * 1000.0;
             }
 
 
@@ -882,10 +1017,12 @@ class PhpGrid
     {
         $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xlsx';
 
-        ob_clean();
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
+        if (ob_get_level() > 0) { @ob_clean(); }
+        if (!headers_sent()) {
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="' . $fileName . '"');
+            header('Cache-Control: max-age=0');
+        }
 
         if (!$this->getAllowExport()) {
             return null;
@@ -937,10 +1074,12 @@ class PhpGrid
 
         $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').csv';
 
-        ob_clean();
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
+        if (ob_get_level() > 0) { @ob_clean(); }
+        if (!headers_sent()) {
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment;filename="' . $fileName . '"');
+            header('Cache-Control: max-age=0');
+        }
 
         $headingRow = [];
         foreach ($this->getColumnsList() as $column) {
@@ -967,34 +1106,65 @@ class PhpGrid
     #[NoReturn]
     public function outputJsonWithHeaders(bool $reload_results = false): void
     {
-        ob_clean();
-        header('Content-Type: application/json');
-        if (count($this->data) < 1 || $reload_results) {
-            $this->execute();
-            $data = [
-                'success' => $this->getErrorMessage() == "",
-                'id' => 1,
-                'name' => $this->getGridName(),
-                'title' => $this->getTitle(),
-                'columns' => $this->getColumnsList(),
-                'columnCount' => $this->getColumnsCount(),
-                'actionButtons' => $this->getActionButtons(),
-                'message' => $this->getErrorMessage(),
-                'pageCount' => $this->getPageCount(),
-                'rowsPerPage' => $this->getRowsPerPage(),
-                'allowExport' => $this->getAllowExport(),
-                'rowCount' => $this->getRowCount(),
-                'user_query' => $sql = ($this->getDebug() ? $this->getSqlQuery() : null),
-                'generated_query' => $sql = ($this->getDebug() ? $this->getGeneratedSqlQuery() : null),
-                'generated_counter_query' => $sql = ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
-                'rows' => $this->data
-            ];
-            echo json_encode($data);
-
-        } else {
-            echo [];
+        if (ob_get_level() > 0) { @ob_clean(); }
+        if (!headers_sent()) {
+            header('Content-Type: application/json');
         }
-        ob_end_flush();
+
+        // Re-execute only when needed
+        $executed = true;
+        if (count($this->data) < 1 || $reload_results) {
+            $executed = $this->execute();
+        }
+
+        $success = ($this->getErrorMessage() === "") && $executed;
+        $errorCode = null;
+
+        // Decide and set HTTP status code on failure
+        if (!$success && !headers_sent()) {
+            $msg = $this->getErrorMessage();
+            $validationErrors = [
+                "Missing SQL Query",
+                "Missing column information",
+                "Missing grid name",
+            ];
+            if (in_array($msg, $validationErrors, true)) {
+                http_response_code(400);
+                $errorCode = 'ERR_VALIDATION';
+            } else {
+                http_response_code(500);
+                $errorCode = 'ERR_RUNTIME';
+            }
+        }
+
+        $data = [
+            'success' => $success,
+            'id' => 1,
+            'name' => $this->getGridName(),
+            'title' => $this->getTitle(),
+            'columns' => $this->getColumnsList(),
+            'columnCount' => $this->getColumnsCount(),
+            'actionButtons' => $this->getActionButtons(),
+            'message' => $this->getErrorMessage(),
+            'sort' => $this->getSortDetails()['field'],
+            'dir' => $this->getSortDetails()['dir'],
+            'errorCode' => $errorCode,
+            'pageCount' => $this->getPageCount(),
+            'rowsPerPage' => $this->getRowsPerPage(),
+            'allowExport' => $this->getAllowExport(),
+            'rowCount' => $this->getRowCount(),
+            // Debug fields (keep backward compatibility and align with JS expectations)
+            'user_query' => ($this->getDebug() ? $this->getSqlQuery() : null),
+            'generated_query' => ($this->getDebug() ? $this->getGeneratedSqlQuery() : null),
+            'generated_counter_query' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
+            'query' => ($this->getDebug() ? $this->getSqlQuery() : null),
+            'queryCount' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
+            'metrics' => ($this->getDebug() ? ['execMs' => round($this->execMs,2), 'countMs' => round($this->countMs,2)] : null),
+            'rows' => $this->data
+        ];
+        echo json_encode($data);
+
+        if (ob_get_level() > 0) { @ob_end_flush(); }
         exit;
     }
 
@@ -1012,61 +1182,63 @@ class PhpGrid
         $html =
             "
 <script type='text/javascript'>
-	grid['{$gridName}'] = new Grid('{$gridName}');
-	window.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
-	window.grid['{$gridName}'].showTitleBar = ".(var_export($this->getShowTitle(), true)).";
-	window.grid['{$gridName}'].showSearchBar = ".(var_export($this->getShowSearchBar(), true)).";
-	\$(document).ready(function () {
-	     window.grid['{$gridName}'].initialize();
-	});
+\twindow.grid = window.grid || {};
+\twindow.grid['{$gridName}'] = new Grid('{$gridName}');
+\twindow.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
+\twindow.grid['{$gridName}'].showTitleBar = ".(var_export($this->getShowTitle(), true)).";
+\twindow.grid['{$gridName}'].showSearchBar = ".(var_export($this->getShowSearchBar(), true)).";
+\t\$(document).ready(function () {
+\t     window.grid['{$gridName}'].initialize();
+\t});
 </script>
-<div class='table-responsive' style='position:relative;overflow: visible'>
-	<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
-		<thead id='{$gridName}_thead' class='thead-light'>
-			<tr id='{$gridName}_title_row'>
-				<th style='text-align: left'  id='{$gridName}_title'></th>
-				<th style='text-align: right' id='{$gridName}_buttons'></th>
-			</tr>
-			<tr></tr>
-			<tr class='d-print-none'></tr>
-		</thead>
-		<tbody id='{$gridName}_tbody'>
-		</tbody>
-		<tfoot>
-		</tfoot>
-	</table>
-	
-	<div>
-		<div class='d-flex justify-content-between'>
-			<div id='{$gridName}_paginationInfoSection' class='m-0 py-2 small'></div>
-			<div class='row m-0 py-2'>
-			    <div class='col'>
-                    <span class='dropdown'>
-                      <button title='Choose how many rows to show per page' class='btn btn-outline-secondary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' data-bs-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
-                      <span class='dropdown-menu text-right' aria-labelledby='{$gridName}_pagesPerRowSelector'>
-                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(10);\">10</a>
-                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(50);\">50</a>
-                        <a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(100);\">100</a>
-                      </span>
-                    </span>
-				</div>
-                <div class='col'>
-                    <nav aria-label='Navigation'>
-                        <ul class='Laf-SimpleTable-Pagination pagination pagination-sm'>
-                            <li class='page-item'><a id='{$gridName}_paginationFirstPage' href='javascript:;' class='page-link' title='First Page'><i class='fa fa-angle-double-left'></i></a></li>
-                            <li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
-                            <li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
-                            <li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
-                            <li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
-                        </ul>
-                    </nav>
-				</div>
-			</div>
-		</div>
-	</div>
-	<div id='{$gridName}_loader' style='background-color: lightgray; z-index:85; position:absolute; top:0px; left:0px; width:100%; height:100%; opacity:.5; text-align: center;padding:20px; display:none;'>
-		<div class='fa-5x'><i class='fas fa-spinner fa-spin' style='color:#000000;'></i></div>
-	</div>
+<div id='{$gridName}_container' data-rows-per-page='{$this->getRowsPerPage()}' data-show-title-bar='".(var_export($this->getShowTitle(), true))."' data-show-search-bar='".(var_export($this->getShowSearchBar(), true))."'>
+  <div class='table-responsive' style='position:relative;overflow: visible'>
+\t<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
+\t\t<thead id='{$gridName}_thead' class='thead-light'>
+\t\t\t<tr id='{$gridName}_title_row'>
+\t\t\t\t<th style='text-align: left'  id='{$gridName}_title'></th>
+\t\t\t\t<th style='text-align: right' id='{$gridName}_buttons'></th>
+\t\t\t</tr>
+\t\t\t<tr></tr>
+\t\t\t<tr class='d-print-none'></tr>
+\t\t</thead>
+\t\t<tbody id='{$gridName}_tbody'>
+\t\t</tbody>
+\t\t<tfoot>
+\t\t</tfoot>
+\t</table>
+\t
+\t<div>
+\t\t<div class='d-flex justify-content-between'>
+\t\t\t<div id='{$gridName}_paginationInfoSection' class='m-0 py-2 small'></div>
+\t\t\t<div class='row m-0 py-2'>
+\t\t\t\t<div class='col'>
+\t\t\t\t\t<span class='dropdown'>
+\t\t\t\t\t\t<button title='Choose how many rows to show per page' class='btn btn-outline-secondary btn-sm dropdown-toggle' type='button' id='{$gridName}_rowsPerPageSelector' data-toggle='dropdown' data-bs-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>10</button>
+\t\t\t\t\t\t<span class='dropdown-menu text-right' aria-labelledby='{$gridName}_pagesPerRowSelector'>
+\t\t\t\t\t\t\t<a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(10);\">10</a>
+\t\t\t\t\t\t\t<a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(50);\">50</a>
+\t\t\t\t\t\t\t<a class='dropdown-item' href='javascript:;' onclick=\"window.grid['{$gridName}'].setRowsPerPage(100);\">100</a>
+\t\t\t\t\t</span>
+\t\t\t\t</span>
+\t\t\t</div>
+\t\t\t<div class='col'>
+\t\t\t\t<nav aria-label='Navigation'>
+\t\t\t\t\t<ul class='Laf-SimpleTable-Pagination pagination pagination-sm'>
+\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationFirstPage' href='javascript:;' class='page-link' title='First Page'><i class='fa fa-angle-double-left'></i></a></li>
+\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
+\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
+\t\t\t\t\t\t<li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
+\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
+\t\t\t\t\t</ul>
+\t\t\t\t</nav>
+\t\t\t</div>
+\t\t</div>
+\t</div>
+\t<div id='{$gridName}_loader' style='background-color: lightgray; z-index:85; position:absolute; top:0px; left:0px; width:100%; height:100%; opacity:.5; text-align: center;padding:20px; display:none;'>
+\t\t<div class='fa-5x'><i class='fas fa-spinner fa-spin' style='color:#000000;'></i></div>
+\t</div>
+</div>
 </div>
 ";
         return $html;
@@ -1101,27 +1273,43 @@ class PhpGrid
      */
     private function convertNativeDataTypeToString(string $type): string
     {
-        switch ($this) {
-            case "float":
-            case "FLOAT":
-            case "DOUBLE":
-            case "NEWDECIMAL":
+        $t = strtoupper($type);
+        switch ($t) {
+            case 'FLOAT':
+            case 'DOUBLE':
+            case 'NEWDECIMAL':
+            case 'DECIMAL':
+            case 'NUMERIC':
                 return 'float';
-            case "integer":
-            case "INTEGER":
-            case "LONG":
-            case "TINY":
+            case 'INT':
+            case 'INTEGER':
+            case 'LONG':
+            case 'TINY':
+            case 'SHORT':
+            case 'BIGINT':
+            case 'SMALLINT':
                 return 'integer';
             case 'DATE':
                 return 'date';
             case 'TIME':
                 return 'time';
             case 'DATETIME':
+            case 'TIMESTAMP':
                 return 'datetime';
             case 'VAR_STRING':
             default:
-                return "string";
+                return 'string';
         }
+    }
+
+    /**
+     * Sanitize a string to be used as a PDO placeholder name
+     * @param string $name
+     * @return string
+     */
+    private function sanitizePlaceholderName(string $name): string
+    {
+        return preg_replace('/[^A-Za-z0-9_]/', '_', $name);
     }
 
     /**
@@ -1189,4 +1377,3 @@ class PhpGrid
     }
 
 }
-

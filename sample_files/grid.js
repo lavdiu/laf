@@ -1,3 +1,6 @@
+// Ensure a global registry exists
+window.grid = window.grid || {};
+
 class Grid {
     constructor(name) {
         if (name.length < 1)
@@ -23,6 +26,9 @@ class Grid {
         this._filters = [];
         this._sortColumn = null;
         this._sortDir = null;
+        this._abortController = null;
+        this._debounceTimers = {};
+        this._errorBannerEl = null;
 
         /**
          * fields below will hold references to DOM objects in the table drawn
@@ -156,22 +162,46 @@ class Grid {
      * Retreive JSON file Async mode
      * once downloaded, call initialize
      */
-    fetchJson() {
-        var self = this;
+    async fetchJson() {
         this.url = this.buildUrl();
         this.showLoadingIcon();
+        this.clearError();
         console.log("Loading json from URL: " + this.url);
-        $.ajaxSetup({
-            async: true
-        });
-        $.getJSON(this.url, function (data) {
-            window.grid[self.name].data = data;
-            window.grid[self.name].initialize();
-        }).fail(function () {
-            alert('Failed loading data for the table. Please refresh the page and try again')
-        });
 
-        this.contentPaginationRowsPerPageSelector.innerHTML = "<i class='fa fa-bars'></i> " + (this.rowsPerPage == 0 ? 'All' : this.rowsPerPage);
+        // Abort any in-flight request
+        try { if (this._abortController) { this._abortController.abort(); } } catch(e) {}
+        this._abortController = new AbortController();
+        const signal = this._abortController.signal;
+
+        try {
+            const res = await fetch(this.url, { signal, headers: { 'Accept': 'application/json' } });
+            if (!res.ok) {
+                const txt = await res.text();
+                throw new Error(`HTTP ${res.status}: ${txt || 'Request failed'}`);
+            }
+            const data = await res.json();
+            if (data && data.success === false) {
+                this.data = data;
+                this.initialize();
+                this.showError(data.message || 'An error occurred while loading grid data.');
+            } else {
+                this.data = data;
+                this.initialize();
+            }
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                // Swallow aborts
+                return;
+            }
+            console.error("Failed loading data for the table.", error);
+            this.showError('Failed loading data for the table. Please try again.');
+        } finally {
+            this.hideLoadingIcon();
+        }
+
+        if (this.contentPaginationRowsPerPageSelector) {
+            this.contentPaginationRowsPerPageSelector.innerHTML = "<i class='fa fa-bars'></i> " + (this.rowsPerPage == 0 ? 'All' : this.rowsPerPage);
+        }
     }
 
     refresh() {
@@ -179,13 +209,23 @@ class Grid {
     }
 
     initialize() {
+        // If this is the first run, fetch references and config from the DOM
+        if (!this.contentDrawTableOn) {
+            this.fetchContentElementReferences();
+            const container = document.getElementById(this.name + '_container');
+            if (container) {
+                this.rowsPerPage = parseInt(container.dataset.rowsPerPage, 10) || 10;
+                this.showTitleBar = container.dataset.showTitleBar === 'true';
+                this.showSearchBar = container.dataset.showSearchBar === 'true';
+            }
+        }
+
         this.fetchContentElementReferences();
 
         if (this.data == null) {
             this.fetchJson();
             return;
         }
-
         this.id = this.data.id;
         this.name = this.data.name;
         this.title = this.data.title;
@@ -200,6 +240,14 @@ class Grid {
         this.queryCount = this.data.queryCount;
         this.actionButtons = this.data.actionButtons;
         this.allowExport = this.data.allowExport;
+
+        // Sync server-confirmed sort state without triggering refresh loops
+        if (typeof this.data.sort !== 'undefined' && this.data.sort !== null) {
+            this._sortColumn = this.data.sort;
+        }
+        if (typeof this.data.dir !== 'undefined' && this.data.dir !== null) {
+            this._sortDir = this.data.dir;
+        }
 
         this.initColumns();
 
@@ -294,6 +342,23 @@ class Grid {
                         console.log(window.grid[this.getAttribute('gridName')].filters);
                     }
                 };
+                // Debounced search as user types
+                input.oninput = (event) => {
+                    const gridName = event.target.getAttribute('gridName');
+                    const fieldName = event.target.getAttribute('fieldName');
+                    const val = event.target.value.trim();
+                    const selfGrid = window.grid[gridName];
+                    clearTimeout(selfGrid._debounceTimers[fieldName]);
+                    selfGrid._debounceTimers[fieldName] = setTimeout(() => {
+                        const f = Object.assign({}, selfGrid.filters);
+                        if (val === '') {
+                            delete f[fieldName];
+                        } else {
+                            f[fieldName] = val;
+                        }
+                        selfGrid.filters = f; // triggers refresh
+                    }, 300);
+                };
                 var td = document.createElement('th');
                 td.appendChild(input);
                 this.contentTheadColumnSearchRow.appendChild(td);
@@ -383,61 +448,47 @@ class Grid {
         this.disableInactivePaginationButtons();
     }
 
-    downloadExcelJs() {
+    async downloadExcelJs() {
         console.log('Downloading Grid in Excel: ' + this.name);
-
         this.showLoadingIcon();
-
-        var json = null;
-        var self = this;
         this.url = this.buildUrl(true);
-        var _data = null;
 
-        $.ajaxSetup({
-            async: false
-        });
-        $.getJSON(this.url, function (data) {
-            _data = data;
-        }).fail(function () {
-            alert('Failed loading data for the table. Please refresh the page and try again')
-        });
-
-
-        var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-        var fileName = _data.name;
-        var worksheet = XLSX.utils.json_to_sheet(_data.rows);
-        var workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0,30));
-        var bin = XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.xlsx'), {bookType: 'xlsx'});
-        this.hideLoadingIcon();
+        try {
+            const _data = await $.getJSON(this.url);
+            var nowDate = new Date();
+            var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
+            var fileName = _data.name;
+            var worksheet = XLSX.utils.json_to_sheet(_data.rows);
+            var workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0, 30));
+            XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.xlsx'), {bookType: 'xlsx'});
+        } catch (error) {
+            console.error("Failed to download Excel file.", error);
+            alert('Failed loading data for the export. Please try again');
+        } finally {
+            this.hideLoadingIcon();
+        }
     }
 
-    downloadCsvJs() {
+    async downloadCsvJs() {
         console.log('Downloading Grid in CSV: ' + this.name);
-
-        var json = null;
-        var self = this;
+        this.showLoadingIcon();
         this.url = this.buildUrl(true);
-        var _data = null;
-
-        $.ajaxSetup({
-            async: false
-        });
-        $.getJSON(this.url, function (data) {
-            _data = data;
-        }).fail(function () {
-            alert('Failed loading data for the table. Please refresh the page and try again')
-        });
-
-
-        var nowDate = new Date();
-        var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-        var fileName = _data.name;
-        var worksheet = XLSX.utils.json_to_sheet(_data.rows);
-        var workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, fileName);
-        var bin = XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.csv'), {bookType: 'csv'});
+        try {
+            const _data = await $.getJSON(this.url);
+            const nowDate = new Date();
+            const now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
+            const fileName = _data.name;
+            const worksheet = XLSX.utils.json_to_sheet(_data.rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0, 30));
+            XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.csv'), {bookType: 'csv'});
+        } catch (e) {
+            console.error('Failed loading data for the CSV export.', e);
+            alert('Failed loading data for the export. Please try again');
+        } finally {
+            this.hideLoadingIcon();
+        }
     }
 
     draw() {
@@ -648,6 +699,36 @@ class Grid {
 
     hideLoadingIcon() {
         this.contentLoadingOverlay.style.display = "none";
+    }
+
+    createOrGetErrorBanner() {
+        if (this._errorBannerEl && document.body.contains(this._errorBannerEl)) return this._errorBannerEl;
+        const banner = document.createElement('div');
+        banner.id = this.name + '_errorBanner';
+        banner.className = 'alert alert-danger';
+        banner.style.display = 'none';
+        // Insert before table container if possible
+        const container = document.getElementById(this.name + '_container');
+        if (container && container.parentNode) {
+            container.parentNode.insertBefore(banner, container);
+        } else {
+            document.body.prepend(banner);
+        }
+        this._errorBannerEl = banner;
+        return banner;
+    }
+
+    showError(message) {
+        const el = this.createOrGetErrorBanner();
+        el.textContent = message || 'An error occurred.';
+        el.style.display = '';
+    }
+
+    clearError() {
+        if (this._errorBannerEl) {
+            this._errorBannerEl.style.display = 'none';
+            this._errorBannerEl.textContent = '';
+        }
     }
 
     get sortColumn() {
