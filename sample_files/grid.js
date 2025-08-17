@@ -82,8 +82,8 @@ class Grid {
         }
 
         var _fp = this.getFilterParams();
-        for (var f in this.filters) {
-            tmpUrl += "&f[" + f + "]=" + encodeURIComponent(this.filters[f]);
+        if (_fp.length > 3) {
+            tmpUrl += '&searchParams=' + _fp;
         }
 
         tmpUrl += "&rand=" + Math.random();
@@ -164,12 +164,17 @@ class Grid {
         console.log("Loading json from URL: " + this.url);
 
         // Abort any in-flight request
-        try { if (this._abortController) { this._abortController.abort(); } } catch(e) {}
+        try {
+            if (this._abortController) {
+                this._abortController.abort();
+            }
+        } catch (e) {
+        }
         this._abortController = new AbortController();
         const signal = this._abortController.signal;
 
         try {
-            const res = await fetch(this.url, { signal, headers: { 'Accept': 'application/json' } });
+            const res = await fetch(this.url, {signal, headers: {'Accept': 'application/json'}});
             if (!res.ok) {
                 const txt = await res.text();
                 throw new Error(`HTTP ${res.status}: ${txt || 'Request failed'}`);
@@ -222,7 +227,10 @@ class Grid {
                     const legacy = localStorage.getItem('laf.grid.rowsPerPage');
                     if (legacy !== null) {
                         savedRpp = legacy;
-                        try { localStorage.setItem(perGridKey, legacy); } catch(_) {}
+                        try {
+                            localStorage.setItem(perGridKey, legacy);
+                        } catch (_) {
+                        }
                     }
                 }
                 if (savedRpp !== null) {
@@ -231,7 +239,8 @@ class Grid {
                         this.rowsPerPage = v;
                     }
                 }
-            } catch (e) { /* ignore storage errors */ }
+            } catch (e) { /* ignore storage errors */
+            }
         }
 
         this.fetchContentElementReferences();
@@ -353,7 +362,7 @@ class Grid {
                         var grid = window.grid[gridName];
                         var newFilters = {};
                         var inputs = document.querySelectorAll('input[gridName="' + gridName + '"]');
-                        inputs.forEach(function(inp){
+                        inputs.forEach(function (inp) {
                             var field = inp.getAttribute('fieldName');
                             var val = (inp.value || '').trim();
                             if (val.length > 0) {
@@ -460,39 +469,38 @@ class Grid {
             this.contentTfoot.removeChild(this.contentTfoot.firstChild);
         }
 
-        if (this.data && this.data.columnTotals) {
-            const totals = this.data.columnTotals;
-            const tr = document.createElement('tr');
-            tr.classList.add('table-secondary'); // visually distinct summary row
+        var tr = document.createElement('tr');
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'decimal',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
 
-            // Leading index column (if any) and checkbox/action columns
-            // Build cells aligned with visible columns
-            for (let c of this.columns) {
-                const th = document.createElement('th');
-                th.style.fontWeight = 'bold';
-                th.style.textAlign = c.align || 'left';
-                if (!c.visible) {
-                    th.style.display = 'none';
+        if (this.data && this.data.columnTotals) {
+            if(this.data.columnTotals.length < 1){
+                return;
+            }
+            const totals = this.data.columnTotals;
+            for (var columnId in this.columns) {
+                var column = this.columns[columnId];
+
+                //skip hidden columns
+                if (column.visible != 1) {
+                    continue;
                 }
-                if (totals.hasOwnProperty(c.fieldName)) {
-                    const v = totals[c.fieldName];
-                    th.textContent = (typeof v === 'number') ? v.toLocaleString() : v;
-                } else if (c === this.columns[0]) {
-                    th.textContent = 'Summary';
-                } else {
-                    th.innerHTML = '&nbsp;';
+
+                var th = document.createElement('th');
+                th.style.textAlign = 'right';
+                var innerElement = document.createElement('span');
+
+                innerElement.innerText = "";
+                if (totals.hasOwnProperty(column.fieldName)) {
+                    innerElement.innerText = formatter.format(totals[column.fieldName]);
                 }
+                th.appendChild(innerElement);
+
                 tr.appendChild(th);
             }
-
-            // Extra columns at the end for actions etc.
-            const extraTh1 = document.createElement('th');
-            const extraTh2 = document.createElement('th');
-            extraTh1.innerHTML = '&nbsp;';
-            extraTh2.innerHTML = '&nbsp;';
-            tr.appendChild(extraTh1);
-            tr.appendChild(extraTh2);
-
             this.contentTfoot.appendChild(tr);
         }
     }
@@ -641,7 +649,8 @@ class Grid {
         // Persist as per-grid default
         try {
             localStorage.setItem('laf.grid.' + this.name + '.rowsPerPage', String(numberOfRows));
-        } catch (e) { /* ignore storage errors */ }
+        } catch (e) { /* ignore storage errors */
+        }
         if (this.currentPage === 1) {
             this.refresh();
         } else {
