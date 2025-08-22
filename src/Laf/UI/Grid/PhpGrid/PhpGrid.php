@@ -1333,7 +1333,7 @@ class PhpGrid
 \t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationPrevPage' href='javascript:;' class='page-link' title='Previous Page'><i class='fa fa-angle-left'></i></a></li>
 \t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationCurrPage' href='javascript:;' class='page-link' title='Current Page'>1</a></li>
 \t\t\t\t\t\t<li class='page-item '><a  id='{$gridName}_paginationNextPage' href='javascript:;' class='page-link' title='Next Page'><i class='fa fa-angle-right'></i></a></li>
-\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></i>
+\t\t\t\t\t\t<li class='page-item'><a id='{$gridName}_paginationLastPage' href='javascript:;' class='page-link' title='Last Page'><i class='fa fa-angle-double-right'></i></a></li>
 \t\t\t\t\t</ul>
 \t\t\t\t</nav>
 \t\t\t</div>
@@ -1342,6 +1342,7 @@ class PhpGrid
 \t<div id='{$gridName}_loader' style='background-color: lightgray; z-index:85; position:absolute; top:0px; left:0px; width:100%; height:100%; opacity:.5; text-align: center;padding:20px; display:none;'>
 \t\t<div class='fa-5x'><i class='fas fa-spinner fa-spin' style='color:#000000;'></i></div>
 \t</div>
+</div>
 </div>
 </div>
 ";
