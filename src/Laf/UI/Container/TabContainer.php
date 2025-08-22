@@ -5,6 +5,7 @@ namespace Laf\UI\Container;
 
 
 use Laf\UI\ComponentInterface;
+use Laf\Util\Util;
 
 class TabContainer extends GenericContainer implements ComponentInterface
 {
@@ -22,6 +23,9 @@ class TabContainer extends GenericContainer implements ComponentInterface
     public function __construct(?string $id = "", bool $showNavButtons = false)
     {
         $this->id = $id;
+        if(strlen($this->id??'')<1){
+            $this->id = Util::uuid();
+        }
         $this->showNavButtons = $showNavButtons;
     }
 

@@ -192,7 +192,7 @@ switch (UrlParser::getAction()) {
 
         if ($this->getTableInspector()->hasReferencingTables()) {
             $file .= "
-        \$tabContainer = new TabContainer();
+        \$tabContainer = new TabContainer(".$this->getTable()->getName()."'_related_tabs');
         \$panel = new Div();
         \$panel->setContainerType(ContainerType::TYPE_FLUID);\n\n";
 
