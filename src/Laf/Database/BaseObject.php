@@ -406,9 +406,9 @@ class BaseObject
 
         $idFieldName = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
 
-        if($this->isMySqlDriver()) {
+        if ($this->isMySqlDriver()) {
             $this->selectSql = "SELECT * FROM `{$this->getTable()->getName()}` WHERE `{$idFieldName}` = :recordId LIMIT 1 OFFSET 0;";
-        }else {
+        } else {
             $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 1 OFFSET 0;";
         }
         $this->addLoggerDebug("SELECT SQL", [$this->selectSql]);
@@ -513,7 +513,7 @@ class BaseObject
         }
 
         $this->insertSql = "INSERT INTO {$this->getTable()->getName()}(";
-        if($this->isMySqlDriver()){
+        if ($this->isMySqlDriver()) {
             $this->insertSql = "INSERT INTO `{$this->getTable()->getName()}` (";
         }
         $prepareColumns = $prepareValues = $executeValues = [];
@@ -522,9 +522,9 @@ class BaseObject
                 continue;
             }
             if ($field->isPrimaryKey()) {
-                if($this->isMySqlDriver()){
+                if ($this->isMySqlDriver()) {
                     $prepareColumns[] = "`{$field->getName()}`";
-                }else{
+                } else {
                     $prepareColumns[] = "{$field->getName()}";
                 }
                 $prepareValues[] = ":{$field->getName()}";
@@ -538,9 +538,9 @@ class BaseObject
                 }
 
             } else {
-                if($this->isMySqlDriver()) {
+                if ($this->isMySqlDriver()) {
                     $prepareColumns[] = "`{$field->getName()}`";
-                }else {
+                } else {
                     $prepareColumns[] = "{$field->getName()}";
                 }
                 $prepareValues[] = ":{$field->getName()}";
@@ -652,10 +652,10 @@ class BaseObject
         }
 
         $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
-        if($this->isMySqlDriver()) {
-            $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
-        }else{
+        if ($this->isMySqlDriver()) {
             $this->updateSql = "UPDATE `{$this->getTable()->getName()}` ";
+        } else {
+            $this->updateSql = "UPDATE {$this->getTable()->getName()} ";
         }
         $this->updateSql .= "\nSET ";
         $prepareColumns = $executeValues = [];
@@ -664,9 +664,9 @@ class BaseObject
                 continue;
             }
             if ($field->hasChanged()) {
-                if($this->isMySqlDriver()) {
+                if ($this->isMySqlDriver()) {
                     $prepareColumns[] = "`{$field->getName()}`=:{$field->getName()}";
-                }else{
+                } else {
                     $prepareColumns[] = "{$field->getName()}=:{$field->getName()}";
                 }
             }
@@ -789,12 +789,12 @@ class BaseObject
         $this->logAuditEntry(AuditLog::ACTION_DELETE);
 
         $this->deleteSql = "DELETE FROM {$this->getTable()->getName()} ";
-        if($this->isMySqlDriver()){
+        if ($this->isMySqlDriver()) {
             $this->deleteSql = "DELETE FROM `{$this->getTable()->getName()}` ";
         }
-        if($this->isMySqlDriver()) {
+        if ($this->isMySqlDriver()) {
             $this->deleteSql .= "\nWHERE `{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}` =:primaryKeyField;";
-        }else {
+        } else {
             $this->deleteSql .= "\nWHERE {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} =:primaryKeyField;";
         }
         $executeValues = [':primaryKeyField' => $this->getRecordId()];
