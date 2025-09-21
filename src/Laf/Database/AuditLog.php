@@ -35,8 +35,8 @@ class AuditLog extends BaseObject
         try {
             $db = Db::getInstance();
             $sql = "
-            INSERT INTO audit_log (id, user_id, table_name, record_id, action, changes, created_on) 
-            VALUES (null, :user_id, :table_name, :record_id, :action, :changes, NOW());
+            INSERT INTO audit_log (user_id, table_name, record_id, action, changes, created_on) 
+            VALUES (:user_id, :table_name, :record_id, :action, :changes, NOW());
             ";
 
             $stmt = $db->prepare($sql);
