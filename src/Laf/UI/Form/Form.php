@@ -520,7 +520,7 @@ class Form implements ComponentInterface
              ";
 
         foreach ($this->getComponents() as $component) {
-            if ($component->getDrawMode() == '')
+            #if ($component->getDrawMode() == '')
                 $component->setDrawMode($this->getDrawMode());
             $component->setFormRowDisplayMode($this->getFormRowDisplayMode());
             $html .= $component->draw();
