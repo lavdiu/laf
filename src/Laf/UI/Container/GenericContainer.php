@@ -20,7 +20,7 @@ class GenericContainer implements ComponentInterface
     {
         $this->setCssClasses($classes);
         $this->setCssStyles($style);
-        $this->setDrawMode(DrawMode::VIEW);
+        #$this->setDrawMode(DrawMode::VIEW);
     }
 
 
