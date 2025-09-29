@@ -1168,8 +1168,13 @@ class PhpGrid
             $w->close();
             exit;
         }catch (\Throwable $t){
-            @ob_clean();
-            throw new \Exception($t);
+            if (ob_get_level() > 0) { @ob_clean(); }
+            if (!headers_sent()) {
+                header_remove('Content-Type');
+                header_remove('Content-Disposition');
+                header_remove('Cache-Control');
+            }
+            throw new \Exception("Failed to generate Excel file: " . $t->getMessage(), 0, $t);
         }
     }
 
