@@ -2,19 +2,27 @@
 
 namespace Laf\UI\Grid\PhpGrid;
 
-use Box\Spout\Common\Entity\Style\Border;
-use Box\Spout\Common\Entity\Style\Color;
-use Box\Spout\Common\Exception\IOException;
-use Box\Spout\Writer\Common\Creator\Style\BorderBuilder;
-use Box\Spout\Writer\Common\Creator\Style\StyleBuilder;
-use Box\Spout\Writer\Exception\WriterNotOpenedException;
+#use Box\Spout\Common\Entity\Style\Border;
+#use Box\Spout\Common\Entity\Style\Color;
+#use Box\Spout\Common\Exception\IOException;
+#use Box\Spout\Writer\Common\Creator\Style\BorderBuilder;
+#use Box\Spout\Writer\Common\Creator\Style\StyleBuilder;
+#use Box\Spout\Writer\Exception\WriterNotOpenedException;
 use JetBrains\PhpStorm\NoReturn;
 use JetBrains\PhpStorm\Pure;
 use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Util\Util;
 use Laf\UI\Grid\PhpGrid\Column;
-use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
+#use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Border;
+use OpenSpout\Common\Entity\Style\BorderPart;
+use OpenSpout\Common\Entity\Style\Color;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Common\Exception\IOException;
+use OpenSpout\Writer\XLSX\Options;
+use OpenSpout\Writer\XLSX\Writer;
 use PhpOffice\PhpSpreadsheet\Shared\Font;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Exception;
@@ -1106,7 +1114,7 @@ class PhpGrid
     /**
      * Export data to Excel via Spout
      * @throws IOException
-     * @throws WriterNotOpenedException
+     * @throws \Throwable
      */
     public function exportToExcelSpout()
     {
@@ -1123,38 +1131,37 @@ class PhpGrid
             return null;
         }
 
-        $w = WriterEntityFactory::createXLSXWriter();
-        $w->openToBrowser($fileName);
-
         $headingRow = [];
         foreach ($this->getColumnsList() as $column) {
             $headingRow[] = $column->getLabel();
         }
-        $headingRowStyle = ((new StyleBuilder())
+        $headingRowStyle = ((new Style())
             ->setFontBold()
             ->setFontColor(Color::WHITE)
-            ->setBackgroundColor(Color::BLACK))->build();
+            ->setBackgroundColor(Color::BLACK));
 
-        $border = ((new BorderBuilder())
-            ->setBorderTop(Color::BLACK, Border::WIDTH_THIN)
-            ->setBorderRight(Color::BLACK, Border::WIDTH_THIN)
-            ->setBorderBottom(Color::BLACK, Border::WIDTH_THIN)
-            ->setBorderLeft(Color::BLACK, Border::WIDTH_THIN)
-        )->build();
+        $border = new Border(
+            new BorderPart(Border::TOP),
+            new BorderPart(Border::RIGHT),
+            new BorderPart(Border::BOTTOM),
+            new BorderPart(Border::LEFT),
+        );
 
-        $defaultStyle = ((new StyleBuilder())
+        $defaultStyle = ((new Style())
             ->setBorder($border)
-        )->build();
-        $w->setDefaultRowStyle($defaultStyle);
+        );
 
+        $options = new Options();
+        $options->DEFAULT_ROW_STYLE = $defaultStyle;
 
-        $row = WriterEntityFactory::createRowFromArray($headingRow, $headingRowStyle);
-        $w->addRow($row);
+        $w = new Writer($options);
+        $w->openToBrowser($fileName);
+
+        $w->addRow(new Row($headingRow,$headingRowStyle));
 
         $this->execute(true);
         foreach ($this->data as $row) {
-            $row = WriterEntityFactory::createRowFromArray($row);
-            $w->addRow($row);
+            $w->addRow(new Row($row));
         }
 
         $w->close();
