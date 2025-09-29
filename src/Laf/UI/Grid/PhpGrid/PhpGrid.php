@@ -1154,18 +1154,23 @@ class PhpGrid
         $options = new Options();
         $options->DEFAULT_ROW_STYLE = $defaultStyle;
 
-        $w = new Writer($options);
-        $w->openToBrowser($fileName);
+        try {
+            $w = new Writer($options);
+            $w->openToBrowser($fileName);
 
-        $w->addRow(new Row($headingRow,$headingRowStyle));
+            $w->addRow(Row::fromValues($headingRow, $headingRowStyle));
 
-        $this->execute(true);
-        foreach ($this->data as $row) {
-            $w->addRow(new Row($row));
+            $this->execute(true);
+            foreach ($this->data as $row) {
+                $w->addRow(Row::fromValues($row));
+            }
+
+            $w->close();
+            exit;
+        }catch (\Throwable $t){
+            @ob_clean();
+            throw new \Exception($t);
         }
-
-        $w->close();
-        exit;
     }
 
     public function exportToCsv()
