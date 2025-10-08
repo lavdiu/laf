@@ -1,0 +1,37 @@
+name: Test and Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Wait for services
+        run: sleep 10
+
+      - name: Install Composer dependencies
+        run: docker compose exec -T app composer install
+
+      - name: Run tests
+        run: docker compose exec -T app php vendor/bin/phpunit
+
+      - name: Composer Audit
+        run: docker compose exec -T app composer audit
+
+      - name: PHPStan analyze
+        run: docker compose exec -T app vendor/bin/phpstan analyse data/ app/
