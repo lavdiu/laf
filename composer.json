@@ -1,8 +1,9 @@
 {
   "name": "lavdiu/laf",
-  "description": "LAF Framework",
+  "description": "LAF Framework - Modern PHP 8.4 Framework for Rapid Application Development",
   "type": "library",
   "license": "MIT",
+  "keywords": ["framework", "orm", "database", "code-generation", "php8.4", "dependency-injection"],
   "authors": [
     {
       "name": "Lulzim",
@@ -11,7 +12,7 @@
   ],
   "config": {
     "platform": {
-      "php": "8"
+      "php": "8.4"
     },
     "vendor-dir": "vendor",
     "preferred-install": "dist",
@@ -19,22 +20,40 @@
     "optimize-autoloader": true
   },
   "autoload": {
-        "psr-4": {"Laf\\": "src/Laf"}
-    },
+    "psr-4": {
+      "Laf\\": "src/Laf"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Laf\\Tests\\": "tests/"
+    }
+  },
   "require": {
-    "php": ">=8.0",
+    "php": ">=8.4",
     "ext-gd": "*",
     "ext-json": "*",
     "ext-mbstring": "*",
     "ext-pdo": "*",
+    "psr/container": "^2.0",
     "claviska/simpleimage": "^4.2.0",
-    "monolog/monolog": "^1.24",
+    "monolog/monolog": "^3.0",
     "openspout/openspout": "^4.13",
-    "phpoffice/phpspreadsheet": "^1.10"
+    "phpoffice/phpspreadsheet": "^2.0"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
-    "phpunit/phpunit": "^9.5",
+    "phpunit/phpunit": "^11.0",
     "rector/rector": "^2.1"
+  },
+  "suggest": {
+    "ext-pdo_mysql": "For MySQL database support",
+    "ext-pdo_pgsql": "For PostgreSQL database support",
+    "ext-pdo_sqlite": "For SQLite database support"
+  },
+  "scripts": {
+    "test": "phpunit",
+    "analyse": "phpstan analyse src",
+    "format": "rector process src --dry-run"
   }
 }

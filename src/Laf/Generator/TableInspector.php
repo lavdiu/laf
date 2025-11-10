@@ -8,126 +8,8 @@ use Laf\Database\Db;
 use Laf\Exception\MissingConfigParamException;
 use Laf\Util\Settings;
 
-class TableInspector implements TableInspectorInterface
+class TableInspector extends AbstractTableInspector
 {
-
-    /**
-     * @var string
-     */
-    private $table = null;
-
-    /**
-     * @var array[]
-     */
-    private $columns = [];
-
-    /**
-     * @var null
-     */
-    private $primaryColumnName = null;
-
-    /**
-     * @var bool
-     */
-    private $hasForeignKeys = false;
-
-    /**
-     * @var array
-     */
-    private $referencingTables = [];
-
-
-    public function __construct(string $table)
-    {
-        $this->table = $table;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasForeignKeys(): bool
-    {
-        return $this->hasForeignKeys;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasReferencingTables(): bool
-    {
-        return count($this->referencingTables) > 0;
-    }
-
-    /**
-     * @return array
-     */
-    public function getReferencingTables(): array
-    {
-        return $this->referencingTables;
-    }
-
-
-    /**
-     * @return null
-     */
-    public function getPrimaryColumnName()
-    {
-        return $this->primaryColumnName;
-    }
-
-    /**
-     * @param null $primaryColumnName
-     * @return TableInspectorInterface
-     */
-    public function setPrimaryColumnName($primaryColumnName)
-    {
-        $this->primaryColumnName = $primaryColumnName;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getTable(): string
-    {
-        return $this->table;
-    }
-
-    /**
-     * @param string $table
-     * @return TableInspectorInterface
-     */
-    public function setTable(string $table): TableInspectorInterface
-    {
-        $this->table = $table;
-        return $this;
-    }
-
-    /**
-     * @return array[]
-     */
-    public function getColumns(): array
-    {
-        return $this->columns;
-    }
-
-    /**
-     * @param array[] $columns
-     * @return TableInspectorInterface
-     */
-    public function setColumns(array $columns): TableInspectorInterface
-    {
-        $this->columns = $columns;
-        return $this;
-    }
-
-    public function inspect(): void
-    {
-        $this->populateColumnsData();
-        $this->populateForeignKeyData();
-        $this->populateReferencingTables();
-    }
-
     /**
      * @throws MissingConfigParamException
      */
@@ -186,24 +68,6 @@ class TableInspector implements TableInspectorInterface
                 'referenced_column_name' => $r->referenced_column_name,
             ];
         }
-    }
-
-    /**
-     * @return string
-     */
-    public function getDisplayColumnName(): string
-    {
-        if (array_key_exists('label', $this->getColumns())) {
-            return 'label';
-        }
-        if (array_key_exists('name', $this->getColumns())) {
-            return 'name';
-        }
-
-        $cols = $this->getColumns();
-        $first = array_shift($cols);//discard
-        $second = array_shift($cols);
-        return $second['COLUMN_NAME'];
     }
 
     /**

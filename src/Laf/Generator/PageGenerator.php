@@ -90,12 +90,7 @@ class PageGenerator
      */
     public function generatePageFile(): void
     {
-        if(Settings::get('database.engine') == 'postgres'){
-            $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
-        }else{
-            $this->tableInspector = new TableInspector($this->getTable()->getName());
-        }
-        $this->getTableInspector()->inspect();
+        $this->tableInspector = TableInspectorFactory::getInspector($this->getTable()->getName());
 
 
         $namespace = $this->getConfig()['namespace'];
@@ -107,6 +102,7 @@ class PageGenerator
         $file = "<?php
 
 use {$namespace}\\{$className};
+use Laf\UI\Component\Component;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
@@ -122,6 +118,8 @@ use {$namespace}\Factory;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
+use Laf\UI\Container\Modal;
+use Laf\UI\Form\Control\Button;
 
 \$id = UrlParser::getId();
 \${$instanceName} = new {$className}(\$id);
@@ -133,6 +131,58 @@ use Laf\UI\Container\TabItem;
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>" . ucfirst($className) . "</a>\");
 \$page->setTitleIcon('far fa-list-alt');
 
+
+if (\$_SERVER['REQUEST_METHOD'] === 'POST' && isset(\$_POST['laf_action'])) {
+    switch (\$_POST['laf_action']) {
+        case 'add_new_child':
+            \$childTable = \$_POST['laf_child_table'] ?? null;
+            \$parentFkField = \$_POST['laf_parent_fk_field'] ?? null;
+            if (\$childTable && \$parentFkField) {
+                \$childClassName = \Laf\Util\Util::tableNameToClassName(\$childTable);
+                \$childNamespace = '{$namespace}\\\\' . \$childClassName;
+                if (class_exists(\$childNamespace)) {
+                    /** @var \Laf\Database\BaseObject \$childObj */
+                    \$childObj = new \$childNamespace();
+                    \$childObj->setFieldValue(\$parentFkField, \$id);
+                    foreach(\$_POST as \$key => \$value) {
+                        if (strpos(\$key, 'laf_') !== 0 && \$childObj->getTable()->hasField(\$key)) {
+                            \$childObj->setFieldValue(\$key, \$value);
+                        }
+                    }
+                    \$childObj->save();
+                }
+            }
+            UrlParser::redirectToViewPage(\$id);
+            exit;
+        case 'update_m2m_associations':
+            \$junctionTable = \$_POST['laf_junction_table'] ?? null;
+            \$parentFkField = \$_POST['laf_parent_fk_field'] ?? null;
+            \$childFkField = \$_POST['laf_child_fk_field'] ?? null;
+            \$selectedIds = \$_POST[\$childFkField] ?? [];
+
+            if (\$junctionTable && \$parentFkField && \$childFkField) {
+                \$junctionClassName = \Laf\Util\Util::tableNameToClassName(\$junctionTable);
+                \$junctionNamespace = '{$namespace}\\\\' . \$junctionClassName;
+                if (class_exists(\$junctionNamespace)) {
+                    // 1. Delete existing associations for this parent
+                    \$sql = \"DELETE FROM {\$junctionTable} WHERE {\$parentFkField} = :parent_id\";
+                    \$stmt = \Laf\Database\Db::getInstance()->prepare(\$sql);
+                    \$stmt->execute([':parent_id' => \$id]);
+
+                    // 2. Insert new associations
+                    if(!empty(\$selectedIds)){
+                        \$sql = \"INSERT INTO {\$junctionTable} ({\$parentFkField}, {\$childFkField}) VALUES (:parent_id, :child_id)\";
+                        \$stmt = \Laf\Database\Db::getInstance()->prepare(\$sql);
+                        foreach (\$selectedIds as \$selectedId) {
+                            \$stmt->execute([':parent_id' => \$id, ':child_id' => \$selectedId]);
+                        }
+                    }
+                }
+            }
+            UrlParser::redirectToViewPage(\$id);
+            exit;
+    }
+}
 
 if (\$form->isSubmitted()) {
 	\$id = \$form->processForm();
@@ -192,29 +242,108 @@ switch (UrlParser::getAction()) {
 
         if ($this->getTableInspector()->hasReferencingTables()) {
             $file .= "
-        \$tabContainer = new TabContainer(".$this->getTable()->getName()."'_related_tabs');
-        \$panel = new Div();
-        \$panel->setContainerType(ContainerType::TYPE_FLUID);\n\n";
-
+        \$relatedInfoPage = new AdminPage();
+        \$relatedInfoPage->setContainerType(ContainerType::TYPE_FLUID);
+        \$relatedInfoPage->setTitle('Related Information');
+        \$tabContainer = new TabContainer('{$tableName}_related_tabs');
+        \$relatedInfoPage->addComponent(\$tabContainer);\n\n";
 
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
                 $table = array_change_key_case($table, CASE_UPPER);
                 $gridVarName = $table['TABLE_NAME'];
-                $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
+                $childInspector = TableInspectorFactory::getInspector($gridVarName);
+                $junctionInfo = \$childInspector->getJunctionTableInfo();
+
+                // Determine the foreign key in the child table that points back to the parent
+                \$parentFkField = '';
+                foreach(\$childInspector->getColumns() as \$col) {
+                    if(isset(\$col['FOREIGN_KEY']) && \$col['FOREIGN_KEY']['referenced_table_name'] === '{$tableName}') {
+                        \$parentFkField = \$col['COLUMN_NAME'];
+                        break;
+                    }
+                }
+
+                \$gridDraw = \$this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()], false);
 
                 $file .= "
         {$gridDraw}
         
         \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
-        \$tabItem->addComponent(new HtmlContainer(\${$gridVarName}->draw()));
+        
+        \$gridContainer = new Div();
+        \$gridContainer->addCssClass('position-relative');
+        
+        \$addBtnContainer = new Div();
+        \$addBtnContainer->addCssClass('position-absolute')->addCssClass('top-0')->addCssClass('end-0')->addStyle('margin-top', '-45px');
+        
+        \$modalId = 'modal_add_new_{$gridVarName}';
+        \$addBtn = new Button();
+        \$addBtn->setValue('Add New')->setWrapInDiv(false)->addCssClass('btn btn-sm btn-outline-primary')
+            ->addAttribute('data-bs-toggle', 'modal')->addAttribute('data-bs-target', '#' . \$modalId);
+        \$addBtnContainer->addComponent(\$addBtn);
+        
+        \$gridContainer->addComponent(\$addBtnContainer);
+        \$gridContainer->addComponent(new HtmlContainer(\${$gridVarName}->draw()));
+        \$tabItem->addComponent(\$gridContainer);
+        
+        \$modal = new Modal(\$modalId);
+        \$modal->setTitle('Add New " . Util::tableNameToClassName($gridVarName) . "');
+        \$modal->setIncludeForm(true)->setFormMethod('POST')->setFormAction(UrlParser::getViewLink(\$id));
+        
+        \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_child_table' value='{$gridVarName}'>\"));
+        \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_parent_fk_field' value='{\$parentFkField}'>\"));
+
+        if(\$junctionInfo) {
+            // Many-to-Many: Show checkboxes
+            \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_action' value='update_m2m_associations'>\"));
+            \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_junction_table' value='{\$gridVarName}'>\"));
+
+            \$childFkField = '';
+            \$thirdTable = '';
+            foreach(\$junctionInfo['foreign_keys'] as \$fk) {
+                if(\$fk['referenced_table_name'] !== '{$tableName}') {
+                    \$thirdTable = \$fk['referenced_table_name'];
+                    \$childFkField = \$fk['column_name'];
+                    break;
+                }
+            }
+            \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_child_fk_field' value='{\$childFkField}'>\"));
+
+            \$thirdTableClass = '{$namespace}\\\\' . Util::tableNameToClassName(\$thirdTable);
+            \$existingLinks = \Laf\Database\Db::getInstance()->query(\"SELECT {\$childFkField} FROM {\$gridVarName} WHERE {\$parentFkField} = {\$id}\")->fetchAll(\PDO::FETCH_COLUMN);
+
+            if(class_exists(\$thirdTableClass)) {
+                \$allThirdRecords = \$thirdTableClass::findAll();
+                foreach(\$allThirdRecords as \$record) {
+                    \$checked = in_array(\$record->getId(), \$existingLinks) ? 'checked' : '';
+                    \$displayValue = \$record->getDisplayValue();
+                    \$checkbox = \"<div class='form-check'><input class='form-check-input' type='checkbox' name='{\$childFkField}[]' value='{\$record->getId()}' id='chk_{\$gridVarName}_{\$record->getId()}' {\$checked}><label class='form-check-label' for='chk_{\$gridVarName}_{\$record->getId()}'>{\$displayValue}</label></div>\";
+                    \$modal->addComponent(new HtmlContainer(\$checkbox));
+                }
+            }
+
+        } else {
+            // One-to-Many: Show a form
+            \$modal->addComponent(new HtmlContainer(\"<input type='hidden' name='laf_action' value='add_new_child'>\"));
+            \$childClass = '{$namespace}\\\\' . Util::tableNameToClassName('{$gridVarName}');
+            if(class_exists(\$childClass)) {
+                \$newChild = new \$childClass();
+                \$childForm = \$newChild->getForm();
+                \$childForm->setDrawMode(DrawMode::INSERT);
+                \$childForm->removeComponent('{\$parentFkField}'); // Hide the FK to the parent
+                \$modal->addComponent(\$childForm);
+            }
+        }
+        
+        \$saveBtn = new Button();
+        \$saveBtn->setValue('Save')->setType('submit')->setWrapInDiv(false)->addCssClass('btn btn-success');
+        \$modal->addFooterButton(\$saveBtn);
+        \$tabItem->addComponent(\$modal);
+
         \$tabContainer->addComponent(\$tabItem);\n";
             }
             $file .= "
-            
-        \$page2 = new AdminPage();
-        \$page2->setTitle('Related information')
-            ->addComponent(new HtmlContainer(\$tabContainer->draw()));
-        \$html->addComponent(\$page2);";
+        \$html->addComponent(\$relatedInfoPage);";
         }
 
         $file .= "
@@ -222,7 +351,7 @@ switch (UrlParser::getAction()) {
 		break;
 	case 'list':
 	default:";
-        $file .= $this->buildGrid($this->getTable());
+        $file .= $this->buildGrid($this->getTable()->getName());
         $file .= "
         \$page->addComponent(new HtmlContainer(\$grid->draw()));
         \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
@@ -266,16 +395,19 @@ switch (UrlParser::getAction()) {
         $this->generatePageFile();
         $file = $this->getPageFilePath();
         
-        // Create directory if it doesn't exist
         $dir = dirname($file);
         if (!is_dir($dir)) {
-            if (!mkdir($dir, 0755, true)) {
-                throw new \RuntimeException("Cannot create directory: {$dir}");
+            // Check if parent is writable before trying to create the directory
+            if (!is_writable(dirname($dir))) {
+                throw new \RuntimeException("Cannot create directory: {$dir}. Parent directory is not writable.");
+            }
+            if (!mkdir($dir, 0755, true) && !is_dir($dir)) {
+                throw new \RuntimeException(sprintf('Directory "%s" was not created', $dir));
             }
         }
         
         // Check write permissions
-        if (file_exists($file) && !is_writable($file)) {
+        if ((file_exists($file) && !is_writable($file)) || (!file_exists($file) && !is_writable($dir))) {
             throw new \RuntimeException("File is not writable: {$file}");
         }
         
@@ -403,13 +535,7 @@ switch (UrlParser::getAction()) {
         $columns = [];
         $joins = [];
         $joinedTables = [$tableName];
-        $ti = null;
-        if(Settings::get('database.engine') == 'postgres'){
-            $ti = new PostgresTableInspector($tableName);
-        }else{
-            $ti = new TableInspector($tableName);
-        }
-        $ti->inspect();
+        $ti = TableInspectorFactory::getInspector($tableName);
 
         foreach ($ti->getColumns() as $c) {
             $columnName = $c['COLUMN_NAME'];
@@ -426,13 +552,7 @@ switch (UrlParser::getAction()) {
                 }
                 array_push($joinedTables, $fkTableName);
 
-                $referencingTable = null;
-                if(Settings::get('database.engine') == 'postgres'){
-                    $referencingTable = new PostgresTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                }else{
-                    $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                }
-                $referencingTable->inspect();
+                $referencingTable = TableInspectorFactory::getInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $displayCol = $referencingTable->getDisplayColumnName();
 
                 $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];
@@ -474,9 +594,10 @@ switch (UrlParser::getAction()) {
      * @param string $table_name
      * @param string $grid_name
      * @param array|null[] $filters
+     * @param bool $includeActionButtons
      * @return string
      */
-    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = []): string
+    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = [], bool $includeActionButtons = true): string
     {
         $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
@@ -484,7 +605,7 @@ switch (UrlParser::getAction()) {
         $tableName = $this->getTable()->getName();
 
         $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
-        \${$grid_name}->setTitle('{$table_name} {$labels['list']}')
+        \${$grid_name}->setTitle(".Util::tableNameToClassName($table_name)." {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
@@ -496,11 +617,13 @@ switch (UrlParser::getAction()) {
             }
         }
 
-        $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
-        \${$grid_name}->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
-        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-trash');
+        if (\$includeActionButtons) {
+            $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', {$tableName}), 'fa fa-eye'));
+        \${$grid_name}->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', {$tableName}), 'fa fa-edit'));
+        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', {$tableName}), 'fa fa-trash');
         \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
-        \${$grid_name}->addActionButton(\$deleteLink);
+        \${$grid_name}->addActionButton(\$deleteLink);\n";
+        }
 
         if (\${$grid_name}->isReadyToHandleRequests()) {
             \${$grid_name}->bootstrap();
