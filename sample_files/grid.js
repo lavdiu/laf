@@ -554,6 +554,8 @@ class Grid {
         //reset the body so we can re-populate
         this.contentTBody.innerHTML = null;
 
+        var fragment = document.createDocumentFragment();
+
         for (var rowIndex in this.rows) {
             var tr = document.createElement('tr');
             for (var columnId in this.rows[rowIndex]) {
@@ -637,8 +639,10 @@ class Grid {
             }
 
             tr.appendChild(actionButtonsTd);
-            this.contentTBody.appendChild(tr);
+            fragment.appendChild(tr);
         }
+
+        this.contentTBody.appendChild(fragment);
 
         this.hideLoadingIcon();
         this.bindActionsToGrid();
