@@ -30,6 +30,11 @@ class ActionButton
     public $attributeList = [];
 
     /**
+     * @var string|null JS callback function name (supports dot-notation, e.g. "MyApp.buttons.check")
+     */
+    public ?string $callback = null;
+
+    /**
      * ActionButton constructor.
      * @param string $label
      * @param string $href
@@ -120,5 +125,21 @@ class ActionButton
         return $this;
     }
 
+    /**
+     * @return string|null
+     */
+    public function getCallback(): ?string
+    {
+        return $this->callback;
+    }
 
+    /**
+     * @param string $callback JS function name (supports dot-notation, e.g. "MyApp.buttons.check")
+     * @return ActionButton
+     */
+    public function setCallback(string $callback): ActionButton
+    {
+        $this->callback = $callback;
+        return $this;
+    }
 }

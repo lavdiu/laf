@@ -548,6 +548,24 @@ class Grid {
         }
     }
 
+    /**
+     * Resolve a callback string to a function reference.
+     * Supports dot-notation (e.g. "MyApp.buttons.checkStatus") and direct function references.
+     * @param {string|function} callback
+     * @returns {function|null}
+     */
+    _resolveCallback(callback) {
+        if (typeof callback === 'function') return callback;
+        if (typeof callback !== 'string' || !callback) return null;
+        var parts = callback.split('.');
+        var fn = window;
+        for (var i = 0; i < parts.length; i++) {
+            fn = fn[parts[i]];
+            if (!fn) return null;
+        }
+        return typeof fn === 'function' ? fn : null;
+    }
+
     draw() {
         this.drawTableHeader();
         this.drawTableFooter();
@@ -566,31 +584,80 @@ class Grid {
                     continue;
                 }
 
+                var cellValue = this.rows[rowIndex][columnId];
+
+                // Cell-level defaults from column definition
+                var cellText = cellValue;
+                var cellHtml = null;
+                var cellHref = column.href;
+                var cellTarget = column.target;
+                var cellInnerStyle = column.innerElementCssStyle;
+                var cellInnerClass = column.innerElementCssClass;
+                var cellOuterStyle = column.outerElementCssStyle;
+                var cellOuterClass = column.outerElementCssClass;
+                var cellHidden = false;
+
+                // --- column callback evaluation ---
+                if (column.callback) {
+                    var callbackFn = this._resolveCallback(column.callback);
+                    if (typeof callbackFn === 'function') {
+                        var result = callbackFn(cellValue, this.rows[rowIndex], column);
+                        if (typeof result === 'string') {
+                            cellText = result;
+                        } else if (typeof result === 'object' && result !== null) {
+                            if (result.hidden === true) cellHidden = true;
+                            if (result.value !== undefined) cellText = result.value;
+                            if (result.innerHTML !== undefined) cellHtml = result.innerHTML;
+                            if (result.href !== undefined) cellHref = result.href;
+                            if (result.target !== undefined) cellTarget = result.target;
+                            if (result.innerElementCssStyle !== undefined) cellInnerStyle = result.innerElementCssStyle;
+                            if (result.innerElementCssClass !== undefined) cellInnerClass = result.innerElementCssClass;
+                            if (result.outerElementCssStyle !== undefined) cellOuterStyle = result.outerElementCssStyle;
+                            if (result.outerElementCssClass !== undefined) cellOuterClass = result.outerElementCssClass;
+                        }
+                        // true/undefined/null → render normally (no changes)
+                    }
+                }
+                // --- end column callback ---
+
                 var td = document.createElement('td');
+
+                if (cellHidden) {
+                    td.style = cellOuterStyle;
+                    td.className = cellOuterClass;
+                    tr.appendChild(td);
+                    continue;
+                }
+
                 var innerElement = null;
 
                 /**
                  * If the cell/column has a href attribute, it needs to be a link, otherwise display just a span
                  */
-                if (column.href != null) {
+                if (cellHref != null && cellHref !== '') {
                     innerElement = document.createElement('a');
-                    innerElement.href = this.formatLinkHref(this.rows[rowIndex], column.href);
-                    if (column.target != null) {
-                        innerElement.target = column.target;
+                    innerElement.href = this.formatLinkHref(this.rows[rowIndex], cellHref);
+                    if (cellTarget != null) {
+                        innerElement.target = cellTarget;
                     }
                 } else {
                     innerElement = document.createElement('span');
                 }
-                innerElement.innerText = this.rows[rowIndex][columnId];
+
+                if (cellHtml !== null) {
+                    innerElement.innerHTML = cellHtml;
+                } else {
+                    innerElement.innerText = cellText;
+                }
                 td.appendChild(innerElement);
 
                 //set styling attributes for the span/a
-                innerElement.style = column.innerElementCssStyle;
-                innerElement.className = column.innerElementCssClass;
+                innerElement.style = cellInnerStyle;
+                innerElement.className = cellInnerClass;
 
                 //set styling attributes for the td
-                td.style = column.outerElementCssStyle;
-                td.className = column.outerElementCssClass;
+                td.style = cellOuterStyle;
+                td.className = cellOuterClass;
 
 
                 tr.appendChild(td);
@@ -615,18 +682,48 @@ class Grid {
                 var actionButtonsDropdown_menu = document.createElement('div');
                 actionButtonsDropdown_menu.classList.add('dropdown-menu');
                 for (var _idx in this.actionButtons) {
-                    var currentActionButton = this.actionButtons[_idx];
+                    var btnDef = this.actionButtons[_idx];
 
-                    if (currentActionButton.hasOwnProperty('href') && currentActionButton.hasOwnProperty('label') && currentActionButton.hasOwnProperty('icon')) {
+                    // --- callback evaluation ---
+                    if (btnDef.callback) {
+                        var callbackFn = this._resolveCallback(btnDef.callback);
+                        if (typeof callbackFn === 'function') {
+                            var result = callbackFn(this.rows[rowIndex], btnDef);
+                            if (result === false || result === null) continue;
+                            if (typeof result === 'object') {
+                                if (result.hidden === true) continue;
+                                // shallow-merge overrides into a copy so the original is never mutated
+                                btnDef = Object.assign({}, btnDef, result);
+                            }
+                        }
+                    }
+                    // --- end callback ---
+
+                    if (btnDef.hasOwnProperty('href') && btnDef.hasOwnProperty('label') && btnDef.hasOwnProperty('icon')) {
                         var _item = document.createElement('a');
                         _item.classList.add('dropdown-item');
-                        _item.href = this.formatLinkHref(this.rows[rowIndex], currentActionButton.href)
-                        _item.innerHTML = "<i class='" + currentActionButton.icon + "'></i> " + currentActionButton.label;
+
+                        if (btnDef.disabled) {
+                            // Render as disabled: no href, greyed-out, non-clickable
+                            _item.removeAttribute('href');
+                            _item.setAttribute('aria-disabled', 'true');
+                            _item.classList.add('disabled');
+                            _item.style.opacity = '0.5';
+                            _item.style.pointerEvents = 'none';
+                        } else {
+                            _item.href = this.formatLinkHref(this.rows[rowIndex], btnDef.href);
+                        }
+
+                        if (btnDef.cssClass) {
+                            _item.className += ' ' + btnDef.cssClass;
+                        }
+
+                        _item.innerHTML = "<i class='" + btnDef.icon + "'></i> " + btnDef.label;
 
 
                         //check if it has attributes
-                        for (var attribProperty in currentActionButton.attributeList) {
-                            _item.setAttribute(attribProperty, currentActionButton.attributeList[attribProperty]);
+                        for (var attribProperty in btnDef.attributeList) {
+                            _item.setAttribute(attribProperty, btnDef.attributeList[attribProperty]);
                         }
 
                         actionButtonsDropdown_menu.appendChild(_item);
