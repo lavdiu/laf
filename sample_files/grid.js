@@ -52,6 +52,7 @@ class Grid {
         this._contentPaginationRowsPerPageSelector = null;
         this._showTitleBar = true;
         this._showSearchBar = true;
+        this._rowLevelJsCallback = null;
     }
 
     /**
@@ -263,6 +264,7 @@ class Grid {
         this.queryCount = this.data.queryCount;
         this.actionButtons = this.data.actionButtons;
         this.allowExport = this.data.allowExport;
+        this.rowLevelJsCallback = this.data.rowLevelJsCallback;
 
         // Sync server-confirmed sort state without triggering refresh loops
         if (typeof this.data.sort !== 'undefined' && this.data.sort !== null) {
@@ -477,7 +479,7 @@ class Grid {
         });
 
         if (this.data && this.data.columnTotals) {
-            if(this.data.columnTotals.length < 1){
+            if (this.data.columnTotals.length < 1) {
                 return;
             }
             const totals = this.data.columnTotals;
@@ -548,6 +550,24 @@ class Grid {
         }
     }
 
+    /**
+     * Resolve a callback string to a function reference.
+     * Supports dot-notation (e.g. "MyApp.buttons.checkStatus") and direct function references.
+     * @param {string|function} callback
+     * @returns {function|null}
+     */
+    _resolveCallback(callback) {
+        if (typeof callback === 'function') return callback;
+        if (typeof callback !== 'string' || !callback) return null;
+        var parts = callback.split('.');
+        var fn = window;
+        for (var i = 0; i < parts.length; i++) {
+            fn = fn[parts[i]];
+            if (!fn) return null;
+        }
+        return typeof fn === 'function' ? fn : null;
+    }
+
     draw() {
         this.drawTableHeader();
         this.drawTableFooter();
@@ -557,9 +577,16 @@ class Grid {
         var fragment = document.createDocumentFragment();
 
         for (var rowIndex in this.rows) {
-            var tr = document.createElement('tr');
-            for (var columnId in this.rows[rowIndex]) {
-                var column = this.columns[columnId];
+            const tr = document.createElement('tr');
+            tr.setAttribute('id', this.name + '_row_' + rowIndex);
+            if (this.rowLevelJsCallback){
+                let rowLevelcallbackFn = this._resolveCallback(this.rowLevelJsCallback);
+                if (typeof rowLevelcallbackFn === 'function') {
+                    rowLevelcallbackFn(tr, this.rows[rowIndex]);
+                }
+            }
+            for (const columnId in this.rows[rowIndex]) {
+                const column = this.columns[columnId];
 
                 //skip hidden columns
                 if (column.visible != 1) {
@@ -568,20 +595,29 @@ class Grid {
 
                 var td = document.createElement('td');
                 var innerElement = null;
+                let cellValue = this.rows[rowIndex][columnId];
 
-                /**
-                 * If the cell/column has a href attribute, it needs to be a link, otherwise display just a span
-                 */
-                if (column.href != null) {
+
+                // --- column callback evaluation ---
+                if (column.jsCallback) {
+                    let callbackFn = this._resolveCallback(column.jsCallback);
+                    if (typeof callbackFn === 'function') {
+                        let result = callbackFn(cellValue, this.rows[rowIndex], column);
+                        innerElement = document.createElement('span');
+                        innerElement.innerHTML = result;
+                    }
+                } else if (column.href != null) {
                     innerElement = document.createElement('a');
                     innerElement.href = this.formatLinkHref(this.rows[rowIndex], column.href);
+                    innerElement.innerText = cellValue;
                     if (column.target != null) {
                         innerElement.target = column.target;
                     }
                 } else {
                     innerElement = document.createElement('span');
+                    innerElement.innerText = cellValue;
                 }
-                innerElement.innerText = this.rows[rowIndex][columnId];
+
                 td.appendChild(innerElement);
 
                 //set styling attributes for the span/a
@@ -630,6 +666,17 @@ class Grid {
                         }
 
                         actionButtonsDropdown_menu.appendChild(_item);
+                    } else if (currentActionButton.jsCallback) {
+                        var callbackFn = this._resolveCallback(currentActionButton.jsCallback);
+                        if (typeof callbackFn === 'function') {
+                            var result = callbackFn(this.rows[rowIndex], currentActionButton);
+                            if (result === false || result === null) return '';
+                            if (typeof result === 'object') {
+                                if (result.hidden === true) continue;
+                                // shallow-merge overrides into a copy so the original is never mutated
+                                currentActionButton = Object.assign({}, currentActionButton, result);
+                            }
+                        }
                     }
                 }
                 actionButtonsDropdown.appendChild(actionButtonsDropdown_menu);
@@ -1099,6 +1146,16 @@ class Grid {
     set actionButtons(value) {
         this._actionButtons = value;
     }
+
+    get rowLevelJsCallback() {
+        return this._rowLevelJsCallback;
+    }
+
+    set rowLevelJsCallback(value) {
+        this._rowLevelJsCallback = value;
+    }
+
+
 }
 
 class Column {
@@ -1118,6 +1175,7 @@ class Column {
         this._outerElementAttributes = "";
         this._json_string = json_string;
         this._data = [];
+        this._jsCallback = null;
 
         this.loadValuesFromJson();
     }
@@ -1138,6 +1196,7 @@ class Column {
         this._innerElementAttributes = this._data.innerElementAttributes;
         this._outerElementAttributes = this._data.outerElementAttributes;
         this._target = this._data.target;
+        this._jsCallback = this._data.jsCallback;
     }
 
 
@@ -1276,6 +1335,16 @@ class Column {
     get showTitleBar() {
         return this._showTitleBar;
     }
+
+    get jsCallback() {
+        return this._jsCallback;
+    }
+
+    set jsCallback(value) {
+        this._jsCallback = value;
+    }
+
+
 }
 
 window.Grid = Grid;
