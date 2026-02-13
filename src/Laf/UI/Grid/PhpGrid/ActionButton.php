@@ -32,7 +32,7 @@ class ActionButton
     /**
      * @var string|null JS callback function name (supports dot-notation, e.g. "MyApp.buttons.check")
      */
-    public ?string $callback = null;
+    public ?string $jsCallback = null;
 
     /**
      * ActionButton constructor.
@@ -128,18 +128,18 @@ class ActionButton
     /**
      * @return string|null
      */
-    public function getCallback(): ?string
+    public function getJsCallback(): ?string
     {
-        return $this->callback;
+        return $this->jsCallback;
     }
 
     /**
      * @param string $callback JS function name (supports dot-notation, e.g. "MyApp.buttons.check")
      * @return ActionButton
      */
-    public function setCallback(string $callback): ActionButton
+    public function setJsCallbackk(string $callback): ActionButton
     {
-        $this->callback = $callback;
+        $this->jsCallback = $callback;
         return $this;
     }
 }
