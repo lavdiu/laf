@@ -1292,6 +1292,7 @@ class PhpGrid
             'queryCount' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
             'metrics' => ($this->getDebug() ? ['execMs' => round($this->execMs, 2), 'countMs' => round($this->countMs, 2)] : null),
             'columnTotals' => $this->getColumnTotals(),
+            'rowLevelJsCallback' => $this->getRowLevelJsCallback(),
             'rows' => $this->data
         ];
         echo json_encode($data);
