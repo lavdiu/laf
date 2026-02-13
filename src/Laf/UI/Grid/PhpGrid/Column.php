@@ -23,7 +23,7 @@ class Column
     public $caseInsensitiveSort = null;   // if true/1, force case-insensitive sort
     public $searchOperator = null;        // override default operator (like, eq, etc.)
     public $wildcardMode = null;          // for LIKE searches: contains (default), startswith, endswith
-    public ?string $callback = null;      // JS callback function name for per-cell rendering (supports dot-notation)
+    public ?string $jsCallback = null;      // JS callback function name for per-cell rendering (supports dot-notation)
 
     /**
      * Column constructor.
@@ -356,18 +356,18 @@ class Column
     /**
      * @return string|null
      */
-    public function getCallback(): ?string
+    public function getJsCallback(): ?string
     {
-        return $this->callback;
+        return $this->jsCallback;
     }
 
     /**
-     * @param string $callback JS function name (supports dot-notation, e.g. "MyApp.columns.formatStatus")
+     * @param string $jsCallback JS function name (supports dot-notation, e.g. "MyApp.columns.formatStatus")
      * @return Column
      */
-    public function setCallback(string $callback): Column
+    public function setJsCallback(string $jsCallback): Column
     {
-        $this->callback = $callback;
+        $this->jsCallback = $jsCallback;
         return $this;
     }
 }

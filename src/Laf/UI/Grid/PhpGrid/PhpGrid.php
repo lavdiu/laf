@@ -14,6 +14,7 @@ use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Util\Util;
 use Laf\UI\Grid\PhpGrid\Column;
+
 #use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Border;
@@ -159,6 +160,8 @@ class PhpGrid
     protected float $execMs = 0.0;
     protected float $countMs = 0.0;
 
+    protected ?string $rowLevelJsCallback = null;
+
 
     /**
      * PhpGrid constructor.
@@ -287,7 +290,6 @@ class PhpGrid
     }
 
 
-
     /**
      * Define which columns should be totaled across all rows.
      * Accepts array of column names or comma-separated string.
@@ -316,9 +318,9 @@ class PhpGrid
             return;
         }
 
-        foreach($this->column_totals as $k=>$v){
-            if(!$this->hasColumn($k)){
-                throw new \Exception('Unable to calculate total of unknown column '.$k);
+        foreach ($this->column_totals as $k => $v) {
+            if (!$this->hasColumn($k)) {
+                throw new \Exception('Unable to calculate total of unknown column ' . $k);
             }
         }
 
@@ -332,13 +334,14 @@ class PhpGrid
             $stmt->execute();
             $res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            $res = $res[0]??[];
-            foreach($res as $k=>$v){
-                if(array_key_exists($k, $this->column_totals)){
+            $res = $res[0] ?? [];
+            foreach ($res as $k => $v) {
+                if (array_key_exists($k, $this->column_totals)) {
                     $this->column_totals[$k] = $v;
                 }
             }
-        }catch (\Throwable $ex){}
+        } catch (\Throwable $ex) {
+        }
 
     }
 
@@ -751,7 +754,7 @@ class PhpGrid
             $searchParams = json_decode($searchParams);
 
             $searchParamsCount = 0;
-            if(is_countable($searchParams)){
+            if (is_countable($searchParams)) {
                 $searchParamsCount = count($searchParams);
             }
             for ($i = 0; $i < $searchParamsCount; $i++) {
@@ -871,14 +874,14 @@ class PhpGrid
         );
 
         $totalscolumns = [];
-        foreach($this->getColumnTotals() as $key=>$value){
-            $totalscolumns[] = " SUM(".$key.") AS ".$key." ";
+        foreach ($this->getColumnTotals() as $key => $value) {
+            $totalscolumns[] = " SUM(" . $key . ") AS " . $key . " ";
         }
 
         $this->setGeneratedSqlTotalsQuery("
             -- grid totals: {$this->getGridName()}  
             SELECT 
-                ".join(',', $totalscolumns)."
+                " . join(',', $totalscolumns) . "
             FROM (
                 SELECT * FROM (
                     {$this->getSqlQuery()}
@@ -1018,8 +1021,8 @@ class PhpGrid
 
         } catch (\Throwable $ex) {
             $this->errorMessage = 'An error has occurred while generating grid data. ';
-            if($this->getDebug()){
-                $this->errorMessage .= json_encode($ex->getMessage(). ' - '. $ex->getTraceAsString());
+            if ($this->getDebug()) {
+                $this->errorMessage .= json_encode($ex->getMessage() . ' - ' . $ex->getTraceAsString());
             }
         }
         return true;
@@ -1055,7 +1058,7 @@ class PhpGrid
         $_column = 'A';
         $_row = 1;
         $workbook = new Spreadsheet();
-        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xlsx';
+        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').xlsx';
 
         $sheet = $workbook->getActiveSheet();
 
@@ -1118,9 +1121,11 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
-        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').xlsx';
+        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').xlsx';
 
-        if (ob_get_level() > 0) { @ob_clean(); }
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
         if (!headers_sent()) {
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             header('Content-Disposition: attachment;filename="' . $fileName . '"');
@@ -1167,8 +1172,10 @@ class PhpGrid
 
             $w->close();
             exit;
-        }catch (\Throwable $t){
-            if (ob_get_level() > 0) { @ob_clean(); }
+        } catch (\Throwable $t) {
+            if (ob_get_level() > 0) {
+                @ob_clean();
+            }
             if (!headers_sent()) {
                 header_remove('Content-Type');
                 header_remove('Content-Disposition');
@@ -1184,9 +1191,11 @@ class PhpGrid
             return null;
         }
 
-        $fileName = $this->getGridName() . ' ('.date('Y-m-d Hi').').csv';
+        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').csv';
 
-        if (ob_get_level() > 0) { @ob_clean(); }
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
         if (!headers_sent()) {
             header('Content-Type: text/csv');
             header('Content-Disposition: attachment;filename="' . $fileName . '"');
@@ -1218,7 +1227,9 @@ class PhpGrid
     #[NoReturn]
     public function outputJsonWithHeaders(bool $reload_results = false): void
     {
-        if (ob_get_level() > 0) { @ob_clean(); }
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
         if (!headers_sent()) {
             header('Content-Type: application/json');
         }
@@ -1279,20 +1290,23 @@ class PhpGrid
             'generated_counter_query' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
             'query' => ($this->getDebug() ? $this->getSqlQuery() : null),
             'queryCount' => ($this->getDebug() ? $this->getGeneratedSqlCountQuery() : null),
-            'metrics' => ($this->getDebug() ? ['execMs' => round($this->execMs,2), 'countMs' => round($this->countMs,2)] : null),
+            'metrics' => ($this->getDebug() ? ['execMs' => round($this->execMs, 2), 'countMs' => round($this->countMs, 2)] : null),
             'columnTotals' => $this->getColumnTotals(),
             'rows' => $this->data
         ];
         echo json_encode($data);
 
-        if (ob_get_level() > 0) { @ob_end_flush(); }
+        if (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
         exit;
     }
 
     /**
      * @return string
      */
-    #[Pure] public function draw(): string
+    #[Pure]
+    public function draw(): string
     {
         $gridName = $this->getGridName();
         $header = "";
@@ -1306,13 +1320,13 @@ class PhpGrid
 \twindow.grid = window.grid || {};
 \twindow.grid['{$gridName}'] = new Grid('{$gridName}');
 \twindow.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
-\twindow.grid['{$gridName}'].showTitleBar = ".(var_export($this->getShowTitle(), true)).";
-\twindow.grid['{$gridName}'].showSearchBar = ".(var_export($this->getShowSearchBar(), true)).";
+\twindow.grid['{$gridName}'].showTitleBar = " . (var_export($this->getShowTitle(), true)) . ";
+\twindow.grid['{$gridName}'].showSearchBar = " . (var_export($this->getShowSearchBar(), true)) . ";
 \t\$(document).ready(function () {
 \t     window.grid['{$gridName}'].initialize();
 \t});
 </script>
-<div id='{$gridName}_container' data-rows-per-page='{$this->getRowsPerPage()}' data-show-title-bar='".(var_export($this->getShowTitle(), true))."' data-show-search-bar='".(var_export($this->getShowSearchBar(), true))."'>
+<div id='{$gridName}_container' data-rows-per-page='{$this->getRowsPerPage()}' data-show-title-bar='" . (var_export($this->getShowTitle(), true)) . "' data-show-search-bar='" . (var_export($this->getShowSearchBar(), true)) . "'>
   <div class='table-responsive' style='position:relative;overflow: visible'>
 \t<table id='{$gridName}' data-component-type='Grid' class='table table-striped table-bordered table-hover table-sm table-responsive-md'  style='margin-bottom:0;'>
 \t\t<thead id='{$gridName}_thead' class='thead-light'>
@@ -1372,7 +1386,8 @@ class PhpGrid
      * @param $c
      * @return string
      */
-    #[Pure] public function columnNumberToLetter($c)
+    #[Pure]
+    public function columnNumberToLetter($c)
     {
         $c = intval($c);
         if ($c <= 0) return '';
@@ -1498,4 +1513,14 @@ class PhpGrid
         return $this;
     }
 
+    public function getRowLevelJsCallback(): ?string
+    {
+        return $this->rowLevelJsCallback;
+    }
+
+    public function setRowLevelJsCallback(?string $value): PhpGrid
+    {
+        $this->rowLevelJsCallback = $value;
+        return $this;
+    }
 }

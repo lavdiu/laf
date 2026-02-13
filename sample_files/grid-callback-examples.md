@@ -22,7 +22,7 @@ use Laf\UI\Grid\PhpGrid\Column;
 $grid->addColumn(
     (new Column('status', 'Status'))
         ->setInnerElementCssClass('badge')    // default CSS for all rows
-        ->setCallback('formatStatusCell')
+        ->setJsCallback('formatStatusCell')
 );
 ```
 
