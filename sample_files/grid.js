@@ -52,6 +52,7 @@ class Grid {
         this._contentPaginationRowsPerPageSelector = null;
         this._showTitleBar = true;
         this._showSearchBar = true;
+        this._rowLevelJsCallback = null;
     }
 
     /**
@@ -263,6 +264,7 @@ class Grid {
         this.queryCount = this.data.queryCount;
         this.actionButtons = this.data.actionButtons;
         this.allowExport = this.data.allowExport;
+        this.rowLevelJsCallback = this.data.rowLevelJsCallback;
 
         // Sync server-confirmed sort state without triggering refresh loops
         if (typeof this.data.sort !== 'undefined' && this.data.sort !== null) {
@@ -477,7 +479,7 @@ class Grid {
         });
 
         if (this.data && this.data.columnTotals) {
-            if(this.data.columnTotals.length < 1){
+            if (this.data.columnTotals.length < 1) {
                 return;
             }
             const totals = this.data.columnTotals;
@@ -575,89 +577,56 @@ class Grid {
         var fragment = document.createDocumentFragment();
 
         for (var rowIndex in this.rows) {
-            var tr = document.createElement('tr');
-            for (var columnId in this.rows[rowIndex]) {
-                var column = this.columns[columnId];
+            const tr = document.createElement('tr');
+            tr.setAttribute('id', this.name + '_row_' + rowIndex);
+            if (this.rowLevelJsCallback){
+                let rowLevelcallbackFn = this._resolveCallback(this.rowLevelJsCallback);
+                if (typeof rowLevelcallbackFn === 'function') {
+                    rowLevelcallbackFn(tr, this.rows[rowIndex]);
+                }
+            }
+            for (const columnId in this.rows[rowIndex]) {
+                const column = this.columns[columnId];
 
                 //skip hidden columns
                 if (column.visible != 1) {
                     continue;
                 }
 
-                var cellValue = this.rows[rowIndex][columnId];
+                var td = document.createElement('td');
+                var innerElement = null;
+                let cellValue = this.rows[rowIndex][columnId];
 
-                // Cell-level defaults from column definition
-                var cellText = cellValue;
-                var cellHtml = null;
-                var cellHref = column.href;
-                var cellTarget = column.target;
-                var cellInnerStyle = column.innerElementCssStyle;
-                var cellInnerClass = column.innerElementCssClass;
-                var cellOuterStyle = column.outerElementCssStyle;
-                var cellOuterClass = column.outerElementCssClass;
-                var cellHidden = false;
 
                 // --- column callback evaluation ---
-                if (column.callback) {
-                    var callbackFn = this._resolveCallback(column.callback);
+                if (column.jsCallback) {
+                    let callbackFn = this._resolveCallback(column.jsCallback);
                     if (typeof callbackFn === 'function') {
-                        var result = callbackFn(cellValue, this.rows[rowIndex], column);
-                        if (typeof result === 'string') {
-                            cellText = result;
-                        } else if (typeof result === 'object' && result !== null) {
-                            if (result.hidden === true) cellHidden = true;
-                            if (result.value !== undefined) cellText = result.value;
-                            if (result.innerHTML !== undefined) cellHtml = result.innerHTML;
-                            if (result.href !== undefined) cellHref = result.href;
-                            if (result.target !== undefined) cellTarget = result.target;
-                            if (result.innerElementCssStyle !== undefined) cellInnerStyle = result.innerElementCssStyle;
-                            if (result.innerElementCssClass !== undefined) cellInnerClass = result.innerElementCssClass;
-                            if (result.outerElementCssStyle !== undefined) cellOuterStyle = result.outerElementCssStyle;
-                            if (result.outerElementCssClass !== undefined) cellOuterClass = result.outerElementCssClass;
-                        }
-                        // true/undefined/null → render normally (no changes)
+                        let result = callbackFn(cellValue, this.rows[rowIndex], column);
+                        innerElement = document.createElement('span');
+                        innerElement.innerHTML = result;
                     }
-                }
-                // --- end column callback ---
-
-                var td = document.createElement('td');
-
-                if (cellHidden) {
-                    td.style = cellOuterStyle;
-                    td.className = cellOuterClass;
-                    tr.appendChild(td);
-                    continue;
-                }
-
-                var innerElement = null;
-
-                /**
-                 * If the cell/column has a href attribute, it needs to be a link, otherwise display just a span
-                 */
-                if (cellHref != null && cellHref !== '') {
+                } else if (column.href != null) {
                     innerElement = document.createElement('a');
-                    innerElement.href = this.formatLinkHref(this.rows[rowIndex], cellHref);
-                    if (cellTarget != null) {
-                        innerElement.target = cellTarget;
+                    innerElement.href = this.formatLinkHref(this.rows[rowIndex], column.href);
+                    innerElement.innerText = cellValue;
+                    if (column.target != null) {
+                        innerElement.target = column.target;
                     }
                 } else {
                     innerElement = document.createElement('span');
+                    innerElement.innerText = cellValue;
                 }
 
-                if (cellHtml !== null) {
-                    innerElement.innerHTML = cellHtml;
-                } else {
-                    innerElement.innerText = cellText;
-                }
                 td.appendChild(innerElement);
 
                 //set styling attributes for the span/a
-                innerElement.style = cellInnerStyle;
-                innerElement.className = cellInnerClass;
+                innerElement.style = column.innerElementCssStyle;
+                innerElement.className = column.innerElementCssClass;
 
                 //set styling attributes for the td
-                td.style = cellOuterStyle;
-                td.className = cellOuterClass;
+                td.style = column.outerElementCssStyle;
+                td.className = column.outerElementCssClass;
 
 
                 tr.appendChild(td);
@@ -682,51 +651,32 @@ class Grid {
                 var actionButtonsDropdown_menu = document.createElement('div');
                 actionButtonsDropdown_menu.classList.add('dropdown-menu');
                 for (var _idx in this.actionButtons) {
-                    var btnDef = this.actionButtons[_idx];
+                    var currentActionButton = this.actionButtons[_idx];
 
-                    // --- callback evaluation ---
-                    if (btnDef.callback) {
-                        var callbackFn = this._resolveCallback(btnDef.callback);
-                        if (typeof callbackFn === 'function') {
-                            var result = callbackFn(this.rows[rowIndex], btnDef);
-                            if (result === false || result === null) continue;
-                            if (typeof result === 'object') {
-                                if (result.hidden === true) continue;
-                                // shallow-merge overrides into a copy so the original is never mutated
-                                btnDef = Object.assign({}, btnDef, result);
-                            }
-                        }
-                    }
-                    // --- end callback ---
-
-                    if (btnDef.hasOwnProperty('href') && btnDef.hasOwnProperty('label') && btnDef.hasOwnProperty('icon')) {
+                    if (currentActionButton.hasOwnProperty('href') && currentActionButton.hasOwnProperty('label') && currentActionButton.hasOwnProperty('icon')) {
                         var _item = document.createElement('a');
                         _item.classList.add('dropdown-item');
-
-                        if (btnDef.disabled) {
-                            // Render as disabled: no href, greyed-out, non-clickable
-                            _item.removeAttribute('href');
-                            _item.setAttribute('aria-disabled', 'true');
-                            _item.classList.add('disabled');
-                            _item.style.opacity = '0.5';
-                            _item.style.pointerEvents = 'none';
-                        } else {
-                            _item.href = this.formatLinkHref(this.rows[rowIndex], btnDef.href);
-                        }
-
-                        if (btnDef.cssClass) {
-                            _item.className += ' ' + btnDef.cssClass;
-                        }
-
-                        _item.innerHTML = "<i class='" + btnDef.icon + "'></i> " + btnDef.label;
+                        _item.href = this.formatLinkHref(this.rows[rowIndex], currentActionButton.href)
+                        _item.innerHTML = "<i class='" + currentActionButton.icon + "'></i> " + currentActionButton.label;
 
 
                         //check if it has attributes
-                        for (var attribProperty in btnDef.attributeList) {
-                            _item.setAttribute(attribProperty, btnDef.attributeList[attribProperty]);
+                        for (var attribProperty in currentActionButton.attributeList) {
+                            _item.setAttribute(attribProperty, currentActionButton.attributeList[attribProperty]);
                         }
 
                         actionButtonsDropdown_menu.appendChild(_item);
+                    } else if (currentActionButton.jsCallback) {
+                        var callbackFn = this._resolveCallback(currentActionButton.jsCallback);
+                        if (typeof callbackFn === 'function') {
+                            var result = callbackFn(this.rows[rowIndex], currentActionButton);
+                            if (result === false || result === null) return '';
+                            if (typeof result === 'object') {
+                                if (result.hidden === true) continue;
+                                // shallow-merge overrides into a copy so the original is never mutated
+                                currentActionButton = Object.assign({}, currentActionButton, result);
+                            }
+                        }
                     }
                 }
                 actionButtonsDropdown.appendChild(actionButtonsDropdown_menu);
@@ -1196,6 +1146,16 @@ class Grid {
     set actionButtons(value) {
         this._actionButtons = value;
     }
+
+    get rowLevelJsCallback() {
+        return this._rowLevelJsCallback;
+    }
+
+    set rowLevelJsCallback(value) {
+        this._rowLevelJsCallback = value;
+    }
+
+
 }
 
 class Column {
@@ -1215,6 +1175,7 @@ class Column {
         this._outerElementAttributes = "";
         this._json_string = json_string;
         this._data = [];
+        this._jsCallback = null;
 
         this.loadValuesFromJson();
     }
@@ -1235,6 +1196,7 @@ class Column {
         this._innerElementAttributes = this._data.innerElementAttributes;
         this._outerElementAttributes = this._data.outerElementAttributes;
         this._target = this._data.target;
+        this._jsCallback = this._data.jsCallback;
     }
 
 
@@ -1373,6 +1335,16 @@ class Column {
     get showTitleBar() {
         return this._showTitleBar;
     }
+
+    get jsCallback() {
+        return this._jsCallback;
+    }
+
+    set jsCallback(value) {
+        this._jsCallback = value;
+    }
+
+
 }
 
 window.Grid = Grid;
