@@ -10,6 +10,9 @@ use Laf\UI\Traits\ComponentTrait;
 use Laf\Util\Settings;
 use Laf\Util\Util;
 
+/**
+ * @deprecated Use PhpGrid instead
+ */
 class SimpleTable implements ComponentInterface
 {
 

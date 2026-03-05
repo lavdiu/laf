@@ -675,7 +675,8 @@ class Db
         if (!$this->getSqlErrorLogger()) {
             return;
         }
-        if (self::getOne("SHOW TABLES LIKE '" . $this->getSqlErrorLogger()->getTableName() . "'") === null) {
+        $loggerTableName = preg_replace('/[^a-zA-Z0-9_]/', '', $this->getSqlErrorLogger()->getTableName());
+        if (self::getOne("SHOW TABLES LIKE '" . $loggerTableName . "'") === null) {
             throw new \Exception(sprintf('Missing sql logger table %s, when attempting to store the error logs', $this->getSqlErrorLogger()->getTableName()));
         }
 

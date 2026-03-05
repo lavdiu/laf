@@ -121,6 +121,11 @@ class Form implements ComponentInterface
     protected $submittedFieldValues = [];
 
     /**
+     * @var bool
+     */
+    protected $csrfProtection = true;
+
+    /**
      * Form constructor.
      * @param BaseObject $tableObject
      * @param string $action
@@ -167,6 +172,12 @@ class Form implements ComponentInterface
             $this->setDrawMode($_POST[$this->getName() . '_draw_mode'] ?? '');
         } else {
             return null;
+        }
+
+        if ($this->csrfProtection && $this->getMethod() === self::METHOD_POST) {
+            if (!$this->validateCsrfToken()) {
+                throw new \Exception('CSRF token validation failed. Please reload the page and try again.');
+            }
         }
 
         foreach ($object->getTable()->getFields() as $field) {
@@ -528,6 +539,11 @@ class Form implements ComponentInterface
 
         $html .= "<input type='hidden' name='{$this->getName()}_draw_mode' id='{$this->getId()}_draw_mode' value='{$this->getDrawMode()}' />";
 
+        if ($this->csrfProtection) {
+            $token = $this->generateCsrfToken();
+            $html .= "<input type='hidden' name='_csrf_token_{$this->getName()}' value='{$token}' />";
+        }
+
         $prevNextBtn = "";
         if ($this->hasTabs() && $this->getTabCount() > 1 && $this->isShowNavButtons()) {
             $prevNextBtn = "
@@ -758,6 +774,60 @@ class Form implements ComponentInterface
         return call_user_func($this->fieldVisibilityConditions[$fieldName], $this);
     }
 
+    /**
+     * Enable or disable CSRF protection
+     * @param bool $enabled
+     * @return Form
+     */
+    public function setCsrfProtection(bool $enabled): Form
+    {
+        $this->csrfProtection = $enabled;
+        return $this;
+    }
+
+    /**
+     * Generate a CSRF token and store it in the session
+     * @return string
+     */
+    protected function generateCsrfToken(): string
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_csrf_token_' . $this->getName()] = $token;
+        return $token;
+    }
+
+    /**
+     * Validate the submitted CSRF token against the session token
+     * @return bool
+     */
+    protected function validateCsrfToken(): bool
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $sessionKey = '_csrf_token_' . $this->getName();
+        $sessionToken = $_SESSION[$sessionKey] ?? null;
+
+        if ($this->getMethod() === self::METHOD_POST) {
+            $submittedToken = $_POST[$sessionKey] ?? null;
+        } else {
+            $submittedToken = $_GET[$sessionKey] ?? null;
+        }
+
+        if ($sessionToken === null || $submittedToken === null) {
+            return false;
+        }
+
+        $valid = hash_equals($sessionToken, $submittedToken);
+
+        // Remove token after validation to prevent replay attacks
+        unset($_SESSION[$sessionKey]);
+
+        return $valid;
+    }
 
 }
 
