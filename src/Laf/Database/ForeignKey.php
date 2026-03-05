@@ -145,14 +145,13 @@ class ForeignKey
         if ($id == '' || is_null($id))
             return true;
         $db = Db::getInstance();
-        $stmt = $db->query("SELECT 1 AS value_found FROM {$this->getReferencingTable()} WHERE {$this->getReferencingField()}=" . ((int)$id));
+        $table = preg_replace('/[^a-zA-Z0-9_]/', '', $this->getReferencingTable());
+        $field = preg_replace('/[^a-zA-Z0-9_]/', '', $this->getReferencingField());
+        $stmt = $db->prepare("SELECT 1 AS value_found FROM `{$table}` WHERE `{$field}` = :id");
+        $stmt->bindValue(':id', (int)$id, \PDO::PARAM_INT);
+        $stmt->execute();
         $result = $stmt->fetchObject();
-        if ($result->value_found == 1) {
-            return true;
-        } else {
-            return false;
-        }
-
+        return $result && $result->value_found == 1;
     }
 
 }

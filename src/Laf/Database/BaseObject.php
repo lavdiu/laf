@@ -1224,6 +1224,78 @@ class BaseObject
     }
 
     /**
+     * Populate the object_list table with all tables from the database.
+     * Creates the table if it doesn't exist.
+     * Inserts any tables not already present, using Util::tableNameToClassName for the object_name.
+     * @return int Number of new rows inserted
+     * @throws \Exception
+     */
+    public static function populateTableObjectList(): int
+    {
+        $db = Db::getInstance();
+        $engine = Settings::get('database.engine') ?? 'mysql';
+
+        // Create table if not exists
+        if ($engine === 'postgres') {
+            $db->execute("CREATE TABLE IF NOT EXISTS object_list (
+                id SERIAL PRIMARY KEY,
+                table_name VARCHAR(255) DEFAULT NULL,
+                object_name VARCHAR(255) DEFAULT NULL
+            )");
+        } else {
+            $db->execute("CREATE TABLE IF NOT EXISTS object_list (
+                id INT(11) NOT NULL AUTO_INCREMENT,
+                table_name VARCHAR(255) DEFAULT NULL,
+                object_name VARCHAR(255) DEFAULT NULL,
+                PRIMARY KEY (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        }
+
+        // Get existing table names from object_list
+        $existingStmt = $db->query("SELECT table_name FROM object_list");
+        $existingTables = [];
+        foreach ($existingStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $existingTables[] = $row['table_name'];
+        }
+
+        // Get all tables from the database
+        if ($engine === 'postgres') {
+            $sql = "SELECT table_name FROM information_schema.tables
+                    WHERE table_type = 'BASE TABLE'
+                    AND table_schema NOT IN ('pg_catalog', 'information_schema')
+                    ORDER BY table_name ASC";
+        } else {
+            $stmt = $db->prepare("SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = :db_name
+                    ORDER BY table_name ASC");
+            $stmt->bindValue(':db_name', $db->getDatabase());
+            $stmt->execute();
+            $allTables = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        }
+
+        if ($engine === 'postgres') {
+            $tablesStmt = $db->query($sql);
+            $allTables = $tablesStmt->fetchAll(\PDO::FETCH_ASSOC);
+        }
+
+        // Insert missing tables
+        $insertStmt = $db->prepare("INSERT INTO object_list (table_name, object_name) VALUES (:table_name, :object_name)");
+        $inserted = 0;
+        foreach ($allTables as $row) {
+            $tableName = $row['table_name'];
+            if (!in_array($tableName, $existingTables)) {
+                $className = Util::tableNameToClassName($tableName);
+                $insertStmt->bindValue(':table_name', $tableName);
+                $insertStmt->bindValue(':object_name', $className);
+                $insertStmt->execute();
+                $inserted++;
+            }
+        }
+
+        return $inserted;
+    }
+
+    /**
      * Set the active user ID for all BaseObject instances
      * @param int|null $userId
      */
