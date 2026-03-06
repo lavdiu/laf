@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<phpunit bootstrap="./app/config/config.php"
+<phpunit bootstrap="./tests/bootstrap.php"
          colors="true"
          verbose="true"
          stopOnFailure="false"
 >
     <testsuites>
-        <testsuite name="LAF">
+        <testsuite name="Unit">
             <directory>tests</directory>
+            <exclude>tests/BaseObjectTest.php</exclude>
+        </testsuite>
+        <testsuite name="Integration">
+            <file>tests/BaseObjectTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

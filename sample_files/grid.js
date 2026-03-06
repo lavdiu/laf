@@ -78,7 +78,7 @@ class Grid {
             tmpUrl += "&limit=" + this.rowsPerPage;
         }
 
-        if (this.sortColumn != '' && this.sortColumn != null) {
+        if (this.sortColumn !== '' && this.sortColumn != null) {
             tmpUrl += "&sort=" + this.sortColumn + "&dir=" + this.sortDir;
         }
 
@@ -513,7 +513,9 @@ class Grid {
         this.url = this.buildUrl(true);
 
         try {
-            const _data = await $.getJSON(this.url);
+            const res = await fetch(this.url, {headers: {'Accept': 'application/json'}});
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const _data = await res.json();
             var nowDate = new Date();
             var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
             var fileName = _data.name;
@@ -534,7 +536,9 @@ class Grid {
         this.showLoadingIcon();
         this.url = this.buildUrl(true);
         try {
-            const _data = await $.getJSON(this.url);
+            const res = await fetch(this.url, {headers: {'Accept': 'application/json'}});
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const _data = await res.json();
             const nowDate = new Date();
             const now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
             const fileName = _data.name;
@@ -602,7 +606,7 @@ class Grid {
                 if (column.jsCallback) {
                     let callbackFn = this._resolveCallback(column.jsCallback);
                     if (typeof callbackFn === 'function') {
-                        let result = callbackFn(cellValue, this.rows[rowIndex], column);
+                        let result = callbackFn(cellValue, this.rows[rowIndex]);
                         innerElement = document.createElement('span');
                         innerElement.innerHTML = result;
                     }

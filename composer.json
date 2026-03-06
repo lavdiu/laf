@@ -21,6 +21,9 @@
   "autoload": {
         "psr-4": {"Laf\\": "src/Laf"}
     },
+  "autoload-dev": {
+        "psr-4": {"LafShell\\": "tests/Fixtures/LafShell/"}
+    },
   "require": {
     "php": ">=8.0",
     "ext-gd": "*",

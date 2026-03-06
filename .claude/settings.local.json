@@ -6,7 +6,14 @@
       "Bash(wc:*)",
       "Bash(find:*)",
       "Bash(git:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cd D:/www/laf && ./vendor/bin/phpunit --testsuite Unit 2>&1)",
+      "Bash(cd \"D:/www/laf\" && composer dump-autoload 2>&1)",
+      "Bash(cd \"D:/www/laf\" && vendor/bin/phpunit --testsuite Unit 2>&1)",
+      "Bash(xargs:*)",
+      "Bash(./vendor/bin/phpunit:*)",
+      "Bash(docker compose:*)",
+      "Bash(sed:*)"
     ]
   }
 }

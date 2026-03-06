@@ -1,44 +1,87 @@
 <?php
 
 use LafShell\DummyTable;
+use Laf\Util\Settings;
 use PHPUnit\Framework\TestCase;
 
 class BaseObjectTest extends TestCase
 {
 	private $object = null;
+	private static bool $dbAvailable = false;
+
+	public static function setUpBeforeClass(): void
+	{
+		try {
+			\Laf\Database\Db::getInstance();
+			self::$dbAvailable = true;
+		} catch (\Exception $e) {
+			self::$dbAvailable = false;
+		}
+	}
 
 	public function setUp(): void
 	{
-	    $sql = "
-	    DROP TABLE IF EXISTS `dummy_table`;
-        CREATE TABLE `dummy_table` (
-          `id` int(11) NOT NULL AUTO_INCREMENT,
-          `varchar_field45` varchar(45) DEFAULT NULL,
-          `text_field` text DEFAULT NULL,
-          `integer_field` int(11) DEFAULT NULL,
-          `decimal_field` decimal(8,2) DEFAULT NULL,
-          `date_field` date DEFAULT NULL,
-          `datetime_field` datetime DEFAULT NULL,
-          `time_field` time DEFAULT NULL,
-          `float_field` float DEFAULT NULL,
-          `json_field` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`json_field`)),
-          `null_field` text DEFAULT NULL,
-          `empty_field` text DEFAULT NULL,
-          `unique_field` text DEFAULT NULL,
-          `bool_field` tinyint(1) DEFAULT NULL,
-          `parent_id` int(11) DEFAULT NULL,
-          `deleted` int(11) DEFAULT NULL,
-          PRIMARY KEY (`id`),
-          UNIQUE KEY `replace_me_dt_unique_field_UNIQUE` (`unique_field`(255)),
-          KEY `replace_me_dt_parent_id_fk` (`parent_id`),
-          CONSTRAINT `replace_me_dt_parent_id_fk` FOREIGN KEY (`parent_id`) REFERENCES `dummy_table` (`id`)
-        ) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4;
-	    ";
-	    \Laf\Database\Db::run($sql);
+		if (!self::$dbAvailable) {
+			$this->markTestSkipped('Database not available');
+		}
 
+		$engine = Settings::get('database.engine') ?: 'mysql';
 
+		if ($engine === 'postgres') {
+			$sql = "
+			DROP TABLE IF EXISTS dummy_table CASCADE;
+			CREATE TABLE dummy_table (
+			  id SERIAL PRIMARY KEY,
+			  varchar_field45 VARCHAR(45) DEFAULT NULL,
+			  text_field TEXT DEFAULT NULL,
+			  integer_field INTEGER DEFAULT NULL,
+			  decimal_field DECIMAL(8,2) DEFAULT NULL,
+			  date_field DATE DEFAULT NULL,
+			  datetime_field TIMESTAMP DEFAULT NULL,
+			  time_field TIME DEFAULT NULL,
+			  float_field REAL DEFAULT NULL,
+			  json_field TEXT DEFAULT NULL,
+			  null_field TEXT DEFAULT NULL,
+			  empty_field TEXT DEFAULT NULL,
+			  unique_field TEXT DEFAULT NULL,
+			  bool_field SMALLINT DEFAULT NULL,
+			  parent_id INTEGER DEFAULT NULL,
+			  deleted INTEGER DEFAULT NULL,
+			  CONSTRAINT replace_me_dt_unique_field_UNIQUE UNIQUE (unique_field),
+			  CONSTRAINT replace_me_dt_parent_id_fk FOREIGN KEY (parent_id) REFERENCES dummy_table (id)
+			);
+			";
+		} else {
+			$sql = "
+			DROP TABLE IF EXISTS `dummy_table`;
+			CREATE TABLE `dummy_table` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `varchar_field45` varchar(45) DEFAULT NULL,
+			  `text_field` text DEFAULT NULL,
+			  `integer_field` int(11) DEFAULT NULL,
+			  `decimal_field` decimal(8,2) DEFAULT NULL,
+			  `date_field` date DEFAULT NULL,
+			  `datetime_field` datetime DEFAULT NULL,
+			  `time_field` time DEFAULT NULL,
+			  `float_field` float DEFAULT NULL,
+			  `json_field` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`json_field`)),
+			  `null_field` text DEFAULT NULL,
+			  `empty_field` text DEFAULT NULL,
+			  `unique_field` text DEFAULT NULL,
+			  `bool_field` tinyint(1) DEFAULT NULL,
+			  `parent_id` int(11) DEFAULT NULL,
+			  `deleted` int(11) DEFAULT NULL,
+			  PRIMARY KEY (`id`),
+			  UNIQUE KEY `replace_me_dt_unique_field_UNIQUE` (`unique_field`(255)),
+			  KEY `replace_me_dt_parent_id_fk` (`parent_id`),
+			  CONSTRAINT `replace_me_dt_parent_id_fk` FOREIGN KEY (`parent_id`) REFERENCES `dummy_table` (`id`)
+			) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4;
+			";
+		}
+		\Laf\Database\Db::run($sql);
 
 		$rt = new DummyTable();
+		$rt->auditLogDisable();
 		$rt->setVarcharField45Val('varchar')
 			->setTextFieldVal('text')
 			->setIntegerFieldVal(1)
@@ -57,6 +100,9 @@ class BaseObjectTest extends TestCase
 
 	public function tearDown(): void
 	{
+		if (!self::$dbAvailable) {
+			return;
+		}
 		$db = \Laf\Database\Db::getInstance();
 		$db->execute("DELETE FROM dummy_table");
 	}
@@ -190,10 +236,7 @@ class BaseObjectTest extends TestCase
 		$rowId = $this->object->getIdVal();
 		$this->object->hardDelete();
 		$row = DummyTable::findOne(['id' => $rowId]);
-		$int = 1;
 
 		$this->assertNull($row);
 	}
-
-
 }
