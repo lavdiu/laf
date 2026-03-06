@@ -65,6 +65,9 @@ class PageGenerator
         $labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
         $labels['list'] = $this->labelTranslations['list'] ?? 'List';
         $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
+        $labels['record-saved'] = $this->labelTranslations['record-saved'] ?? 'Record saved successfully';
+        $labels['record-deleted'] = $this->labelTranslations['record-deleted'] ?? 'Record deleted successfully';
+        $labels['record-not-found'] = $this->labelTranslations['record-not-found'] ?? 'Record not found';
         return $labels;
     }
 
@@ -90,11 +93,7 @@ class PageGenerator
      */
     public function generatePageFile(): void
     {
-        if(Settings::get('database.engine') == 'postgres'){
-            $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
-        }else{
-            $this->tableInspector = new TableInspector($this->getTable()->getName());
-        }
+        $this->tableInspector = self::createTableInspector($this->getTable()->getName());
         $this->getTableInspector()->inspect();
 
 
@@ -107,6 +106,7 @@ class PageGenerator
         $file = "<?php
 
 use {$namespace}\\{$className};
+use Laf\UI\Component\Alert;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
@@ -118,8 +118,7 @@ use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
-use {$namespace}\Factory;
-use Laf\UI\Container\Div;
+use {$namespace}\\Factory;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
 
@@ -133,15 +132,28 @@ use Laf\UI\Container\TabItem;
 \$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>" . ucfirst($className) . "</a>\");
 \$page->setTitleIcon('far fa-list-alt');
 
+// Flash message support
+if (isset(\$_SESSION['flash_message'])) {
+	\$page->addComponent(new Alert('', \$_SESSION['flash_message'], \$_SESSION['flash_type'] ?? Alert::Type_Success));
+	unset(\$_SESSION['flash_message'], \$_SESSION['flash_type']);
+}
 
 if (\$form->isSubmitted()) {
 	\$id = \$form->processForm();
+	\$_SESSION['flash_message'] = '{$labels['record-saved']}';
+	\$_SESSION['flash_type'] = Alert::Type_Success;
 	UrlParser::redirectToViewPage(\$id);
 	exit;
 }
 
 switch (UrlParser::getAction()) {
 	case 'update':
+		if (!\${$instanceName}->recordExists()) {
+			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
+			\$_SESSION['flash_type'] = Alert::Type_Danger;
+			UrlParser::redirectToListPage();
+			exit;
+		}
         \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::UPDATE);
 		{$this->getAllFieldsCommentedOut($instanceName, true)}
@@ -167,10 +179,21 @@ switch (UrlParser::getAction()) {
 			} else {
 				\${$instanceName}->hardDelete();
 			}
+			\$_SESSION['flash_message'] = '{$labels['record-deleted']}';
+			\$_SESSION['flash_type'] = Alert::Type_Success;
+		} else {
+			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
+			\$_SESSION['flash_type'] = Alert::Type_Danger;
 		}
 		UrlParser::redirectToListPage();
 		break;
 	case 'view':
+		if (!\${$instanceName}->recordExists()) {
+			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
+			\$_SESSION['flash_type'] = Alert::Type_Danger;
+			UrlParser::redirectToListPage();
+			exit;
+		}
 	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::VIEW);
 		\$page->addComponent(\$form);
@@ -191,30 +214,89 @@ switch (UrlParser::getAction()) {
 		\$html->addComponent(\$page);\n";
 
         if ($this->getTableInspector()->hasReferencingTables()) {
+            $tabContainerId = $this->getTable()->getName() . '_related_tabs';
             $file .= "
-        \$tabContainer = new TabContainer(".$this->getTable()->getName()."'_related_tabs');
-        \$panel = new Div();
-        \$panel->setContainerType(ContainerType::TYPE_FLUID);\n\n";
+        \$tabContainer = new TabContainer('{$tabContainerId}');\n\n";
 
-
+            $gridNames = [];
+            $tabLabels = [];
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
                 $table = array_change_key_case($table, CASE_UPPER);
-                $gridVarName = $table['TABLE_NAME'];
-                $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
+                $refTableName = $table['TABLE_NAME'];
+                $junction = self::detectJunctionTable($refTableName, $tableName);
+
+                if ($junction !== null) {
+                    // Many-to-many: show the "other" table, filtered via the junction
+                    $gridVarName = $junction['other_table'];
+                    $tabLabel = Util::tableNameToClassName($junction['other_table']);
+                    $gridDraw = $this->buildManyToManyGrid(
+                        $junction['other_table'],
+                        $gridVarName,
+                        $junction['junction_table'],
+                        $junction['fk_to_current'],
+                        $junction['fk_to_other'],
+                        $tableName,
+                        $this->getTableInspector()->getPrimaryColumnName()
+                    );
+                } else {
+                    // One-to-many: show the referencing table directly
+                    $gridVarName = $refTableName;
+                    $tabLabel = Util::tableNameToClassName($refTableName);
+                    $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
+                }
+
+                $gridNames[] = $gridVarName;
+                $tabLabels[$gridVarName] = $tabLabel;
 
                 $file .= "
         {$gridDraw}
-        
-        \$tabItem = new TabItem('" . Util::tableNameToClassName($gridVarName) . "');
+        \${$gridVarName}->setDeferInitialize(true);
+
+        \$tabItem = new TabItem('{$tabLabel}');
         \$tabItem->addComponent(new HtmlContainer(\${$gridVarName}->draw()));
         \$tabContainer->addComponent(\$tabItem);\n";
             }
             $file .= "
-            
+
         \$page2 = new AdminPage();
         \$page2->setTitle('Related information')
             ->addComponent(new HtmlContainer(\$tabContainer->draw()));
         \$html->addComponent(\$page2);";
+
+            // Build the lazy-init script: initialize grids when their tab is shown
+            $gridNameMap = [];
+            foreach ($gridNames as $gridName) {
+                $label = $tabLabels[$gridName];
+                $tabPaneId = preg_replace('/[^a-z0-9]/i', '', $label) . '-content';
+                $gridNameMap[$tabPaneId] = $gridName;
+            }
+            $gridMapJson = json_encode($gridNameMap);
+            $firstGridName = $gridNames[0] ?? '';
+
+            $file .= "
+        echo \"<script>
+        (function() {
+            var gridTabMap = {$gridMapJson};
+            var initialized = {};
+            // Initialize the first tab's grid immediately
+            \\\$(document).ready(function() {
+                var firstGrid = '\" . addslashes('{$firstGridName}') . \"';
+                if (firstGrid && window.grid[firstGrid]) {
+                    window.grid[firstGrid].initialize();
+                    initialized[firstGrid] = true;
+                }
+            });
+            // Initialize other grids when their tab is shown
+            \\\$('#{$tabContainerId}_tab_links a[data-bs-toggle=\\\"tab\\\"]').on('shown.bs.tab', function(e) {
+                var paneId = e.target.getAttribute('aria-controls');
+                var gridName = gridTabMap[paneId];
+                if (gridName && !initialized[gridName] && window.grid[gridName]) {
+                    window.grid[gridName].initialize();
+                    initialized[gridName] = true;
+                }
+            });
+        })();
+        </script>\";";
         }
 
         $file .= "
@@ -222,7 +304,7 @@ switch (UrlParser::getAction()) {
 		break;
 	case 'list':
 	default:";
-        $file .= $this->buildGrid($this->getTable());
+        $file .= $this->buildGrid($this->getTable()->getName());
         $file .= "
         \$page->addComponent(new HtmlContainer(\$grid->draw()));
         \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
@@ -300,6 +382,85 @@ switch (UrlParser::getAction()) {
     public function getTableInspector(): TableInspectorInterface
     {
         return $this->tableInspector;
+    }
+
+    private static function createTableInspector(string $tableName): TableInspectorInterface
+    {
+        if (Settings::get('database.engine') == 'postgres') {
+            return new PostgresTableInspector($tableName);
+        }
+        return new TableInspector($tableName);
+    }
+
+    /**
+     * Checks if a table is a junction/pivot table for a many-to-many relationship.
+     * A junction table has exactly 2 foreign keys and few additional non-FK,
+     * non-PK, non-metadata columns.
+     *
+     * @param string $tableName The referencing table to check
+     * @param string $currentTable The current/parent table name
+     * @return array|null Null if not a junction table, otherwise:
+     *   ['other_table' => string, 'junction_table' => string, 'fk_to_current' => string, 'fk_to_other' => string]
+     */
+    private static function detectJunctionTable(string $tableName, string $currentTable): ?array
+    {
+        $ti = self::createTableInspector($tableName);
+        $ti->inspect();
+
+        $foreignKeys = [];
+        $metadataColumns = ['id', 'created_on', 'created_by', 'updated_on', 'updated_by', 'is_deleted'];
+
+        foreach ($ti->getColumns() as $column) {
+            if (array_key_exists('FOREIGN_KEY', $column)) {
+                $foreignKeys[] = $column;
+            }
+        }
+
+        if (count($foreignKeys) !== 2) {
+            return null;
+        }
+
+        // Count non-FK, non-PK, non-metadata columns
+        $extraColumns = 0;
+        foreach ($ti->getColumns() as $column) {
+            $colName = $column['COLUMN_NAME'];
+            if (in_array($colName, $metadataColumns)) {
+                continue;
+            }
+            if (array_key_exists('FOREIGN_KEY', $column)) {
+                continue;
+            }
+            if (isset($column['COLUMN_KEY']) && $column['COLUMN_KEY'] === 'PRI') {
+                continue;
+            }
+            $extraColumns++;
+        }
+
+        if ($extraColumns > 2) {
+            return null;
+        }
+
+        // Identify which FK points to current table and which to the other
+        $fkToCurrent = null;
+        $fkToOther = null;
+        foreach ($foreignKeys as $fk) {
+            if ($fk['FOREIGN_KEY']['referenced_table_name'] === $currentTable) {
+                $fkToCurrent = $fk;
+            } else {
+                $fkToOther = $fk;
+            }
+        }
+
+        if ($fkToCurrent === null || $fkToOther === null) {
+            return null;
+        }
+
+        return [
+            'junction_table' => $tableName,
+            'other_table' => $fkToOther['FOREIGN_KEY']['referenced_table_name'],
+            'fk_to_current' => $fkToCurrent['COLUMN_NAME'],
+            'fk_to_other' => $fkToOther['COLUMN_NAME'],
+        ];
     }
 
     /**
@@ -403,12 +564,7 @@ switch (UrlParser::getAction()) {
         $columns = [];
         $joins = [];
         $joinedTables = [$tableName];
-        $ti = null;
-        if(Settings::get('database.engine') == 'postgres'){
-            $ti = new PostgresTableInspector($tableName);
-        }else{
-            $ti = new TableInspector($tableName);
-        }
+        $ti = self::createTableInspector($tableName);
         $ti->inspect();
 
         foreach ($ti->getColumns() as $c) {
@@ -426,12 +582,7 @@ switch (UrlParser::getAction()) {
                 }
                 array_push($joinedTables, $fkTableName);
 
-                $referencingTable = null;
-                if(Settings::get('database.engine') == 'postgres'){
-                    $referencingTable = new PostgresTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                }else{
-                    $referencingTable = new TableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                }
+                $referencingTable = self::createTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
                 $referencingTable->inspect();
                 $displayCol = $referencingTable->getDisplayColumnName();
 
@@ -455,7 +606,7 @@ switch (UrlParser::getAction()) {
             $sql .= "" . $column[0] . '.' . $column[1] . ' AS ' . $alias;
             $iterator++;
         }
-        $sql .= "\n\tFROM {$tableName} {$tableAlias}";
+        $sql .= "\n\tFROM {$tableName}";
         $sql .= "\n\t" . implode("\n\t", $joins);
         $sql .= "\n\tWHERE 1=1 ";
 
@@ -464,10 +615,63 @@ switch (UrlParser::getAction()) {
         }
 
         return [
-            'sql' => "SELECT * FROM (\n{$sql}\n)l1 ",
+            'sql' => "SELECT * FROM (\n{$sql}\n) l1 ",
             'columns' => $columns
         ];
 
+    }
+
+    /**
+     * Build a grid for a many-to-many relationship via a junction table.
+     * Shows columns from the "other" table, filtered by the current record's ID through the junction.
+     *
+     * @param string $otherTable The target table to display (e.g., 'tags')
+     * @param string $gridName Variable name for the grid
+     * @param string $junctionTable The junction/pivot table (e.g., 'order_tags')
+     * @param string $fkToCurrent Junction column pointing to current table (e.g., 'order_id')
+     * @param string $fkToOther Junction column pointing to other table (e.g., 'tag_id')
+     * @param string $currentTable The current/parent table (e.g., 'orders')
+     * @param string $currentPk Primary key column of the current table (e.g., 'id')
+     * @return string
+     */
+    public function buildManyToManyGrid(
+        string $otherTable,
+        string $gridName,
+        string $junctionTable,
+        string $fkToCurrent,
+        string $fkToOther,
+        string $currentTable,
+        string $currentPk
+    ): string {
+        $otherDetails = $this->getDbTableDetails($otherTable);
+        $labels = $this->getLabels();
+        $tableLabel = Util::tableFieldNameToLabel($otherTable);
+
+        // Wrap the other table's query and add a JOIN through the junction
+        $innerSql = $otherDetails['sql'];
+        $sql = "SELECT l1.* FROM (\n{$innerSql}\n) l1 "
+            . "INNER JOIN {$junctionTable} jt ON l1.{$otherTable}_id = jt.{$fkToOther} "
+            . "WHERE jt.{$fkToCurrent} = ' . ((int)UrlParser::getId()) . '";
+
+        $file = "\n\t\t\${$gridName} = new PhpGrid('{$gridName}_list');
+        \${$gridName}->setTitle('{$tableLabel} {$labels['list']}')
+            ->setRowsPerPage(20)
+            ->setSqlQuery('\n{$sql}');\n";
+
+        foreach ($otherDetails['columns'] as $alias => $column) {
+            if ($column[0] == $otherTable && $column[1] == 'id') {
+                $file .= "\n\t\t\${$gridName}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
+            } else {
+                $file .= "\n\t\t\${$gridName}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
+            }
+        }
+
+        $file .= "\n\n\t\t\${$gridName}->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $otherTable . "_id}', UrlParser::getModule()), 'fa fa-eye'));
+
+        if (\${$gridName}->isReadyToHandleRequests()) {
+            \${$gridName}->bootstrap();
+        }\n";
+        return $file;
     }
 
     /**
@@ -481,10 +685,11 @@ switch (UrlParser::getAction()) {
         $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
 
-        $tableName = $this->getTable()->getName();
+        $tableName = $table_name;
+        $tableLabel = Util::tableFieldNameToLabel($table_name);
 
         $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
-        \${$grid_name}->setTitle('{$table_name} {$labels['list']}')
+        \${$grid_name}->setTitle('{$tableLabel} {$labels['list']}')
             ->setRowsPerPage(20)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
