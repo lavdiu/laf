@@ -162,6 +162,13 @@ class PhpGrid
 
     protected ?string $rowLevelJsCallback = null;
 
+    /**
+     * When true, the grid's initialize() call is skipped in draw().
+     * Useful for grids inside hidden tabs that should load on demand.
+     * @var bool
+     */
+    protected bool $deferInitialize = false;
+
 
     /**
      * PhpGrid constructor.
@@ -1315,6 +1322,10 @@ class PhpGrid
             $header .= "<th>" . $column->getLabel() . '</th>';
         }
 
+        $initScript = $this->isDeferInitialize() ? '' : "
+\t\$(document).ready(function () {
+\t     window.grid['{$gridName}'].initialize();
+\t});";
         $html =
             "
 <script type='text/javascript'>
@@ -1322,10 +1333,7 @@ class PhpGrid
 \twindow.grid['{$gridName}'] = new Grid('{$gridName}');
 \twindow.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
 \twindow.grid['{$gridName}'].showTitleBar = " . (var_export($this->getShowTitle(), true)) . ";
-\twindow.grid['{$gridName}'].showSearchBar = " . (var_export($this->getShowSearchBar(), true)) . ";
-\t\$(document).ready(function () {
-\t     window.grid['{$gridName}'].initialize();
-\t});
+\twindow.grid['{$gridName}'].showSearchBar = " . (var_export($this->getShowSearchBar(), true)) . ";{$initScript}
 </script>
 <div id='{$gridName}_container' data-rows-per-page='{$this->getRowsPerPage()}' data-show-title-bar='" . (var_export($this->getShowTitle(), true)) . "' data-show-search-bar='" . (var_export($this->getShowSearchBar(), true)) . "'>
   <div class='table-responsive' style='position:relative;overflow: visible'>
@@ -1511,6 +1519,17 @@ class PhpGrid
     public function setShowTitle(bool $showTitle): PhpGrid
     {
         $this->showTitle = $showTitle;
+        return $this;
+    }
+
+    public function isDeferInitialize(): bool
+    {
+        return $this->deferInitialize;
+    }
+
+    public function setDeferInitialize(bool $deferInitialize): PhpGrid
+    {
+        $this->deferInitialize = $deferInitialize;
         return $this;
     }
 
