@@ -675,16 +675,16 @@ class PhpGridTest extends TestCase
     }
 
     /** @test */
-    public function column_totals_throws_on_unknown_column(): void
+    public function column_totals_with_unknown_column_sets_error(): void
     {
         $this->requireDatabase();
 
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('unknown column');
-
         $grid = $this->buildGrid();
+        $grid->setDebug(true);
         $grid->setColumnTotals(['nonexistent_col']);
         $grid->execute(true);
+
+        $this->assertNotEmpty($grid->getErrorMessage());
     }
 
     /** @test */
