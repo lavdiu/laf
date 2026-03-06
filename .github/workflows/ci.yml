@@ -1,37 +1,123 @@
-name: Test and Build
+name: Tests
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  test-and-build:
+  unit-tests:
+    name: Unit Tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Start services
-        run: docker compose up -d
-
-      - name: Wait for services
-        run: sleep 10
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo, pdo_mysql, pdo_pgsql, gd, json
+          coverage: none
 
       - name: Install Composer dependencies
-        run: docker compose exec -T app composer install
+        run: composer install --no-interaction --prefer-dist
 
-      - name: Run tests
-        run: docker compose exec -T app php vendor/bin/phpunit
+      - name: Run unit tests
+        run: vendor/bin/phpunit --testsuite Unit
 
-      - name: Composer Audit
-        run: docker compose exec -T app composer audit
+  integration-mariadb:
+    name: Integration – MariaDB (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        php: ['8.1', '8.4']
 
-      - name: PHPStan analyze
-        run: docker compose exec -T app vendor/bin/phpstan analyse data/ app/
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: laf_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo, pdo_mysql, gd, json
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run integration tests (MariaDB)
+        env:
+          LAF_DB_ENGINE: mysql
+          LAF_DB_HOST: 127.0.0.1
+          LAF_DB_PORT: 3306
+          LAF_DB_NAME: laf_test
+          LAF_DB_USER: root
+          LAF_DB_PASS: root
+        run: vendor/bin/phpunit --testsuite Integration
+
+  integration-postgres:
+    name: Integration – PostgreSQL (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        php: ['8.1', '8.4']
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: laf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U root -d laf_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo, pdo_pgsql, gd, json
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run integration tests (PostgreSQL)
+        env:
+          LAF_DB_ENGINE: postgres
+          LAF_DB_HOST: 127.0.0.1
+          LAF_DB_PORT: 5432
+          LAF_DB_NAME: laf_test
+          LAF_DB_USER: root
+          LAF_DB_PASS: root
+        run: vendor/bin/phpunit --testsuite Integration

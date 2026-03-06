@@ -18,7 +18,9 @@ class TypeTime implements FieldType
 
         $format = 'H:i:s';
         $f = \DateTime::createFromFormat($format, $value);
+        if ($f === false) return false;
         $valid = \DateTime::getLastErrors();
+        if ($valid === false) return true;
         return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
     }
 
