@@ -711,14 +711,23 @@ switch (UrlParser::getAction()) {
     private function buildViewFormLayout(string $instanceName): string
     {
         $metadataFieldNames = ['record_status_id', 'created_on', 'created_by', 'updated_on', 'updated_by'];
+        $col1MetadataNames = ['created_by', 'created_on', 'record_status_id'];
+        $col2MetadataNames = ['updated_by', 'updated_on'];
         $mainFields = [];
         $metadataFields = [];
+        $metadataCol1 = [];
+        $metadataCol2 = [];
 
         foreach ($this->getTableInspector()->getColumns() as $column) {
             $colName = $column['COLUMN_NAME'];
             $methodName = Util::tableFieldNameToMethodName($colName);
             if (in_array($colName, $metadataFieldNames)) {
                 $metadataFields[] = $methodName;
+                if (in_array($colName, $col1MetadataNames)) {
+                    $metadataCol1[] = $methodName;
+                } elseif (in_array($colName, $col2MetadataNames)) {
+                    $metadataCol2[] = $methodName;
+                }
             } else {
                 $mainFields[] = $methodName;
             }
@@ -784,8 +793,23 @@ switch (UrlParser::getAction()) {
                 $file .= "\t\t\$generalTab->addComponent(\$generalDiv);\n";
             }
             $file .= "\t\t\$detailsTab = new TabItem('Details');\n";
-            foreach ($metadataFields as $method) {
-                $file .= "\t\t\$detailsTab->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+            if (count($metadataCol1) > 0 && count($metadataCol2) > 0) {
+                $file .= "\t\t\$metaRow = new Div(['row']);\n";
+                $file .= "\t\t\$metaCol1 = new Div(['col-lg']);\n";
+                foreach ($metadataCol1 as $method) {
+                    $file .= "\t\t\$metaCol1->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+                }
+                $file .= "\t\t\$metaCol2 = new Div(['col-lg']);\n";
+                foreach ($metadataCol2 as $method) {
+                    $file .= "\t\t\$metaCol2->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+                }
+                $file .= "\t\t\$metaRow->addComponent(\$metaCol1);\n";
+                $file .= "\t\t\$metaRow->addComponent(\$metaCol2);\n";
+                $file .= "\t\t\$detailsTab->addComponent(\$metaRow);\n";
+            } else {
+                foreach ($metadataFields as $method) {
+                    $file .= "\t\t\$detailsTab->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+                }
             }
             $file .= "\t\t\$formTabContainer->addComponent(\$generalTab);\n";
             $file .= "\t\t\$formTabContainer->addComponent(\$detailsTab);\n";
