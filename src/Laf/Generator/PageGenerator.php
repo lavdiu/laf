@@ -688,6 +688,7 @@ switch (UrlParser::getAction()) {
             return $file;
         }
 
+        $file .= "\t\t\$form->setFormRowDisplayMode(FormRowDisplayMode::INLINE);\n";
         $file .= "\t\t\$row = new Div(['row']);\n";
         $chunks = array_chunk($fields, (int)ceil($fieldCount / $numCols));
         foreach ($chunks as $i => $chunk) {
