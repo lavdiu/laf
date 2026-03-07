@@ -709,7 +709,7 @@ switch (UrlParser::getAction()) {
             $chunks = array_chunk($mainFields, (int)ceil($mainCount / $numCols));
             foreach ($chunks as $i => $chunk) {
                 $colVar = 'col' . ($i + 1);
-                $file .= "\t\t\${$colVar} = new Div(['col col-md']);\n";
+                $file .= "\t\t\${$colVar} = new Div(['col-lg']);\n";
                 foreach ($chunk as $method) {
                     $file .= "\t\t\${$colVar}->addComponent(\${$instanceName}->get{$method}FormElement());\n";
                 }
