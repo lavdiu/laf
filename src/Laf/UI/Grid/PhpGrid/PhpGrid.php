@@ -623,6 +623,25 @@ class PhpGrid
     }
 
     /**
+     * Returns only columns that are marked as exportable
+     * @return Column[]
+     */
+    public function getExportableColumns(): array
+    {
+        return array_filter($this->getColumnsList(), fn(Column $col) => $col->isExportable());
+    }
+
+    /**
+     * Sanitize a string for use in Content-Disposition filename
+     * @param string $name
+     * @return string
+     */
+    protected function sanitizeExportFileName(string $name): string
+    {
+        return preg_replace('/[^a-zA-Z0-9_\-. ]/', '_', $name);
+    }
+
+    /**
      * @return int
      */
     public function getRowsPerPage(): int
@@ -1061,64 +1080,69 @@ class PhpGrid
         if (!$this->getAllowExport()) {
             return null;
         }
-        ob_clean();
-        $_column = 'A';
-        $_row = 1;
-        $workbook = new Spreadsheet();
-        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').xlsx';
 
-        $sheet = $workbook->getActiveSheet();
+        try {
+            if (ob_get_level() > 0) {
+                @ob_clean();
+            }
+            $_column = 'A';
+            $_row = 1;
+            $workbook = new Spreadsheet();
+            $fileName = $this->sanitizeExportFileName($this->getGridName()) . ' (' . date('Y-m-d Hi') . ').xlsx';
 
-        /**
-         * set heading row
-         */
-        $headingRow = [];
-        foreach ($this->getColumnsList() as $column) {
-            $headingRow[] = $column->getLabel();
-        }
-        $sheet->fromArray($headingRow, '', $_column . $_row);
-        $sheet->getStyle('A1:' . $this->columnNumberToLetter($this->getColumnsCount()) . '1')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'color' => ['rgb' => 'ffffff']
-            ],
-            'alignment' => ['horizontal' => 'center'],
-            'fill' => [
-                'fillType' => 'solid',
-                'color' => ['rgb' => '000000']
-            ]
+            $sheet = $workbook->getActiveSheet();
 
-        ]);
-        $_row++;
-
-
-        $this->execute(true);
-        foreach ($this->data as $row) {
-            $sheet->fromArray($row, '', $_column . $_row);
+            $headingRow = [];
+            foreach ($this->getExportableColumns() as $column) {
+                $headingRow[] = $column->getLabel();
+            }
+            $exportableCount = count($headingRow);
+            $sheet->fromArray($headingRow, '', $_column . $_row);
+            $sheet->getStyle('A1:' . $this->columnNumberToLetter($exportableCount) . '1')->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'color' => ['rgb' => 'ffffff']
+                ],
+                'alignment' => ['horizontal' => 'center'],
+                'fill' => [
+                    'fillType' => 'solid',
+                    'color' => ['rgb' => '000000']
+                ]
+            ]);
             $_row++;
+
+            $this->execute(true);
+            foreach ($this->data as $row) {
+                $sheet->fromArray($row, '', $_column . $_row);
+                $_row++;
+            }
+
+            Font::setAutoSizeMethod(Font::AUTOSIZE_METHOD_APPROX);
+            $cellIterator = $sheet->getRowIterator()->current()->getCellIterator();
+            $cellIterator->setIterateOnlyExistingCells(true);
+            foreach ($cellIterator as $cell) {
+                $sheet->getColumnDimension($cell->getColumn())->setAutoSize(true);
+            }
+
+            $sheet->setSelectedCell('A1');
+            $writer = new Xlsx($workbook);
+
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="' . $fileName . '"');
+            header('Cache-Control: max-age=0');
+            $writer->save('php://output');
+            exit;
+        } catch (\Throwable $t) {
+            if (ob_get_level() > 0) {
+                @ob_clean();
+            }
+            if (!headers_sent()) {
+                header_remove('Content-Type');
+                header_remove('Content-Disposition');
+                header_remove('Cache-Control');
+            }
+            throw new \Exception("Failed to generate Excel file: " . $t->getMessage(), 0, $t);
         }
-
-        /**
-         * Set auto width
-         */
-        Font::setAutoSizeMethod(Font::AUTOSIZE_METHOD_APPROX);
-        $cellIterator = $sheet->getRowIterator()->current()->getCellIterator();
-        $cellIterator->setIterateOnlyExistingCells(true);
-        foreach ($cellIterator as $cell) {
-            $sheet->getColumnDimension($cell->getColumn())->setAutoSize(true);
-        }
-
-        $sheet->setSelectedCell('A1');
-        $writer = new Xlsx($workbook);
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="' . $fileName . '"');
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
-
-        //log exec time
-        //log peak memory
-        exit;
     }
 
     /**
@@ -1128,7 +1152,11 @@ class PhpGrid
      */
     public function exportToExcelSpout()
     {
-        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').xlsx';
+        if (!$this->getAllowExport()) {
+            return null;
+        }
+
+        $fileName = $this->sanitizeExportFileName($this->getGridName()) . ' (' . date('Y-m-d Hi') . ').xlsx';
 
         if (ob_get_level() > 0) {
             @ob_clean();
@@ -1139,12 +1167,8 @@ class PhpGrid
             header('Cache-Control: max-age=0');
         }
 
-        if (!$this->getAllowExport()) {
-            return null;
-        }
-
         $headingRow = [];
-        foreach ($this->getColumnsList() as $column) {
+        foreach ($this->getExportableColumns() as $column) {
             $headingRow[] = $column->getLabel();
         }
         $headingRowStyle = ((new Style())
@@ -1198,7 +1222,7 @@ class PhpGrid
             return null;
         }
 
-        $fileName = $this->getGridName() . ' (' . date('Y-m-d Hi') . ').csv';
+        $fileName = $this->sanitizeExportFileName($this->getGridName()) . ' (' . date('Y-m-d Hi') . ').csv';
 
         if (ob_get_level() > 0) {
             @ob_clean();
@@ -1210,7 +1234,7 @@ class PhpGrid
         }
 
         $headingRow = [];
-        foreach ($this->getColumnsList() as $column) {
+        foreach ($this->getExportableColumns() as $column) {
             $headingRow[] = $column->getLabel();
         }
 

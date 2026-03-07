@@ -55,6 +55,7 @@ class Grid {
         this._showSearchBar = true;
         this._rowLevelJsCallback = null;
         this._deferInitialize = false;
+        this._hiddenColumns = new Set();
     }
 
     /**
@@ -290,6 +291,14 @@ class Grid {
                 }
             } catch (e) { /* ignore storage errors */
             }
+
+            // Load hidden columns preference
+            try {
+                var hidden = localStorage.getItem('laf.grid.' + this.name + '.hiddenColumns');
+                if (hidden) {
+                    this._hiddenColumns = new Set(JSON.parse(hidden));
+                }
+            } catch (e) { /* ignore storage errors */ }
         }
 
         this.fetchContentElementReferences();
@@ -333,6 +342,10 @@ class Grid {
         this.columnCountVisible = 0;
         for (var c in col) {
             this.columns[col[c].fieldName] = new Column(col[c]);
+            // Apply saved hidden columns preference
+            if (this._hiddenColumns.has(col[c].fieldName)) {
+                this.columns[col[c].fieldName].visible = false;
+            }
             if (this.columns[col[c].fieldName].visible) {
                 this.columnCountVisible++;
             }
@@ -343,6 +356,13 @@ class Grid {
         var self = this;
         this.contentTheadColumnHeaders.innerHTML = null;
         this.contentTheadColumnSearchRow.innerHTML = null;
+
+        // Sticky header
+        this.contentThead.style.position = 'sticky';
+        this.contentThead.style.top = '0';
+        this.contentThead.style.zIndex = '2';
+        this.contentThead.style.backgroundColor = '#fff';
+
         for (var columnIndex in this.columns) {
             var column = this.columns[columnIndex];
             if (column.visible != 1)
@@ -484,19 +504,35 @@ class Grid {
             dropdownMenu.classList.add('dropdown-menu');
 
             var links = [
-                ['Excel (JavaScript)', 'javascript:window.grid["' + self.name + '"].downloadExcelJs();']
-                , ['Excel (PHPSpreadsheet)', self.buildUrl(true) + '&export_grid_to_excel=1']
-                , ['Excel (Spout)', self.buildUrl(true) + '&export_grid_to_excel=2']
-                , ['CSV (JavaScript)', 'javascript:window.grid["' + self.name + '"].downloadCsvJs();']
-                , ['CSV (PHP)', this.buildUrl(true) + '&export_grid_to_csv=1']
+                {label: 'Excel (JavaScript)', action: 'js', handler: 'downloadExcelJs'}
+                , {label: 'Excel (PHPSpreadsheet)', action: 'server', param: 'export_grid_to_excel=1'}
+                , {label: 'Excel (Spout)', action: 'server', param: 'export_grid_to_excel=2'}
+                , {label: 'CSV (JavaScript)', action: 'js', handler: 'downloadCsvJs'}
+                , {label: 'CSV (PHP)', action: 'server', param: 'export_grid_to_csv=1'}
             ];
 
             for (var _idx in links) {
                 var _link = document.createElement('a');
                 _link.classList.add('dropdown-item');
-                _link.innerHTML = "<i class='fas fa-download'></i> " + links[_idx][0];
-                _link.href = links[_idx][1]
+                _link.innerHTML = "<i class='fas fa-download'></i> " + links[_idx].label;
                 _link.setAttribute('gridName', this.name);
+
+                if (links[_idx].action === 'js') {
+                    (function(handlerName, gridName) {
+                        _link.href = 'javascript:;';
+                        _link.onclick = function() {
+                            window.grid[gridName][handlerName]();
+                        };
+                    })(links[_idx].handler, self.name);
+                } else {
+                    (function(param, gridName) {
+                        _link.href = 'javascript:;';
+                        _link.onclick = function() {
+                            window.location.href = window.grid[gridName].buildUrl(true) + '&' + param;
+                        };
+                    })(links[_idx].param, self.name);
+                }
+
                 dropdownMenu.appendChild(_link)
             }
 
@@ -505,6 +541,106 @@ class Grid {
             btnGroup.appendChild(dropdownMenu);
             btnGroup.classList.add('d-print-none');
             this.contentGridButtons.appendChild(btnGroup);
+        }
+
+        // Column visibility toggle
+        this.drawColumnVisibilityToggle();
+    }
+
+    drawColumnVisibilityToggle() {
+        var self = this;
+
+        var btnGroup = document.createElement('div');
+        btnGroup.classList.add('btn-group', 'ms-1', 'd-print-none');
+
+        var toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle';
+        toggleBtn.setAttribute('data-bs-toggle', 'dropdown');
+        toggleBtn.setAttribute('data-bs-auto-close', 'outside');
+        toggleBtn.setAttribute('aria-haspopup', 'true');
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        toggleBtn.setAttribute('title', 'Show/Hide Columns');
+        toggleBtn.innerHTML = "<i class='fas fa-columns'></i>";
+
+        var dropdownMenu = document.createElement('div');
+        dropdownMenu.classList.add('dropdown-menu', 'dropdown-menu-end');
+        dropdownMenu.style.maxHeight = '300px';
+        dropdownMenu.style.overflowY = 'auto';
+        dropdownMenu.style.minWidth = '200px';
+
+        for (var columnIndex in this.columns) {
+            var column = this.columns[columnIndex];
+            var item = document.createElement('label');
+            item.classList.add('dropdown-item', 'd-flex', 'align-items-center', 'gap-2');
+            item.style.cursor = 'pointer';
+            item.style.userSelect = 'none';
+
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = column.visible == true || column.visible == 1;
+            checkbox.setAttribute('data-field', column.fieldName);
+            checkbox.classList.add('form-check-input', 'mt-0');
+
+            checkbox.onchange = function () {
+                var field = this.getAttribute('data-field');
+                if (this.checked) {
+                    self._hiddenColumns.delete(field);
+                    self.columns[field].visible = true;
+                } else {
+                    self._hiddenColumns.add(field);
+                    self.columns[field].visible = false;
+                }
+                self.saveHiddenColumns();
+                self.recountVisibleColumns();
+                self.draw();
+            };
+
+            var label = document.createElement('span');
+            label.innerText = column.label;
+
+            item.appendChild(checkbox);
+            item.appendChild(label);
+            dropdownMenu.appendChild(item);
+        }
+
+        // Reset button
+        var divider = document.createElement('div');
+        divider.classList.add('dropdown-divider');
+        dropdownMenu.appendChild(divider);
+
+        var resetItem = document.createElement('a');
+        resetItem.classList.add('dropdown-item', 'text-center');
+        resetItem.href = 'javascript:;';
+        resetItem.innerText = 'Reset All';
+        resetItem.onclick = function () {
+            self._hiddenColumns.clear();
+            self.saveHiddenColumns();
+            self.initColumns();
+            self.draw();
+        };
+        dropdownMenu.appendChild(resetItem);
+
+        btnGroup.appendChild(toggleBtn);
+        btnGroup.appendChild(dropdownMenu);
+        this.contentGridButtons.appendChild(btnGroup);
+    }
+
+    saveHiddenColumns() {
+        try {
+            if (this._hiddenColumns.size > 0) {
+                localStorage.setItem('laf.grid.' + this.name + '.hiddenColumns', JSON.stringify(Array.from(this._hiddenColumns)));
+            } else {
+                localStorage.removeItem('laf.grid.' + this.name + '.hiddenColumns');
+            }
+        } catch (e) { /* ignore storage errors */ }
+    }
+
+    recountVisibleColumns() {
+        this.columnCountVisible = 0;
+        for (var columnIndex in this.columns) {
+            if (this.columns[columnIndex].visible == true || this.columns[columnIndex].visible == 1) {
+                this.columnCountVisible++;
+            }
         }
     }
 
