@@ -156,9 +156,9 @@ switch (UrlParser::getAction()) {
 			UrlParser::redirectToListPage();
 			exit;
 		}
-        \$page->setContainerType(ContainerType::TYPE_DEFAULT);
+        \$page->setContainerType(ContainerType::TYPE_FLUID);
 		\$form->setDrawMode(DrawMode::UPDATE);
-		{$this->getAllFieldsCommentedOut($instanceName, true)}
+{$this->buildEditFormLayout($instanceName)}
 		\$page->addComponent(\$form);
 
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
@@ -166,8 +166,8 @@ switch (UrlParser::getAction()) {
 		echo \$html->draw();
 		break;
 	case 'new':
-	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
-	    {$this->getAllFieldsCommentedOut($instanceName, true)}
+	    \$page->setContainerType(ContainerType::TYPE_FLUID);
+{$this->buildEditFormLayout($instanceName)}
 		\$form->setDrawMode(DrawMode::INSERT);
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
@@ -649,6 +649,58 @@ switch (UrlParser::getAction()) {
             }
         }
         return '';
+    }
+
+    /**
+     * Build the edit (insert/update) form layout with multi-column support.
+     * Metadata fields are excluded entirely.
+     */
+    private function buildEditFormLayout(string $instanceName): string
+    {
+        $excludeFields = ['created_on', 'created_by', 'updated_on', 'updated_by'];
+        $fields = [];
+
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            $colName = $column['COLUMN_NAME'];
+            if (!in_array($colName, $excludeFields)) {
+                $fields[] = Util::tableFieldNameToMethodName($colName);
+            }
+        }
+
+        $fieldCount = count($fields);
+
+        // Determine number of columns based on total field count in the table
+        $totalColumns = count($this->getTableInspector()->getColumns());
+        if ($totalColumns < 10) {
+            $numCols = 1;
+        } elseif ($totalColumns <= 20) {
+            $numCols = 2;
+        } else {
+            $numCols = 3;
+        }
+
+        $file = "\t\t\$form->setComponents([]);\n";
+
+        if ($numCols <= 1) {
+            foreach ($fields as $method) {
+                $file .= "\t\t\$form->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+            }
+            return $file;
+        }
+
+        $file .= "\t\t\$row = new Div(['row']);\n";
+        $chunks = array_chunk($fields, (int)ceil($fieldCount / $numCols));
+        foreach ($chunks as $i => $chunk) {
+            $colVar = 'col' . ($i + 1);
+            $file .= "\t\t\${$colVar} = new Div(['col-lg']);\n";
+            foreach ($chunk as $method) {
+                $file .= "\t\t\${$colVar}->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+            }
+            $file .= "\t\t\$row->addComponent(\${$colVar});\n";
+        }
+        $file .= "\t\t\$form->addComponent(\$row);\n";
+
+        return $file;
     }
 
     /**
