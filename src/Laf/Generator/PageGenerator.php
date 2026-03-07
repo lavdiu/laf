@@ -279,7 +279,7 @@ switch (UrlParser::getAction()) {
             var gridTabMap = {$gridMapJson};
             var initialized = {};
             // Initialize the first tab's grid immediately
-            \\\$(document).ready(function() {
+            document.addEventListener('DOMContentLoaded', function() {
                 var firstGrid = '\" . addslashes('{$firstGridName}') . \"';
                 if (firstGrid && window.grid[firstGrid]) {
                     window.grid[firstGrid].initialize();
@@ -287,13 +287,15 @@ switch (UrlParser::getAction()) {
                 }
             });
             // Initialize other grids when their tab is shown
-            \\\$('#{$tabContainerId}_tab_links a[data-bs-toggle=\\\"tab\\\"]').on('shown.bs.tab', function(e) {
-                var paneId = e.target.getAttribute('aria-controls');
-                var gridName = gridTabMap[paneId];
-                if (gridName && !initialized[gridName] && window.grid[gridName]) {
-                    window.grid[gridName].initialize();
-                    initialized[gridName] = true;
-                }
+            document.querySelectorAll('#{$tabContainerId}_tab_links a[data-bs-toggle=\\\"tab\\\"]').forEach(function(tab) {
+                tab.addEventListener('shown.bs.tab', function(e) {
+                    var paneId = e.target.getAttribute('aria-controls');
+                    var gridName = gridTabMap[paneId];
+                    if (gridName && !initialized[gridName] && window.grid[gridName]) {
+                        window.grid[gridName].initialize();
+                        initialized[gridName] = true;
+                    }
+                });
             });
         })();
         </script>\";";
