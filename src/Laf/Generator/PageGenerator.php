@@ -619,7 +619,7 @@ switch (UrlParser::getAction()) {
 
         $file = "\n\t\t\${$gridName} = new PhpGrid('{$gridName}_list');
         \${$gridName}->setTitle('{$tableLabel} {$labels['list']}')
-            ->setRowsPerPage(20)
+            ->setRowsPerPage(10)
             ->setSqlQuery('\n{$sql}');\n";
 
         foreach ($otherDetails['columns'] as $alias => $column) {
@@ -841,7 +841,7 @@ switch (UrlParser::getAction()) {
 
         $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
         \${$grid_name}->setTitle('{$tableLabel} {$labels['list']}')
-            ->setRowsPerPage(20)
+            ->setRowsPerPage(10)
             ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
 
         foreach ($tableDetails['columns'] as $alias => $column) {
