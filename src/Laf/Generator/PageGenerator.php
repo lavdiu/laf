@@ -657,7 +657,7 @@ switch (UrlParser::getAction()) {
      */
     private function buildViewFormLayout(string $instanceName): string
     {
-        $metadataFieldNames = ['created_on', 'created_by', 'updated_on', 'updated_by'];
+        $metadataFieldNames = ['record_status_id', 'created_on', 'created_by', 'updated_on', 'updated_by'];
         $mainFields = [];
         $metadataFields = [];
 
@@ -672,12 +672,13 @@ switch (UrlParser::getAction()) {
         }
 
         $mainCount = count($mainFields);
+        $totalCount = $mainCount + count($metadataFields);
         $hasMetadata = count($metadataFields) > 0;
 
-        // Determine number of columns
-        if ($mainCount < 10) {
+        // Determine number of columns based on total field count
+        if ($totalCount < 10) {
             $numCols = 1;
-        } elseif ($mainCount <= 20) {
+        } elseif ($totalCount <= 20) {
             $numCols = 2;
         } else {
             $numCols = 3;
