@@ -119,6 +119,7 @@ use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
 use {$namespace}\\Factory;
+use Laf\UI\Container\Div;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
 
@@ -139,7 +140,7 @@ if (isset(\$_SESSION['flash_message'])) {
 }
 
 if (\$form->isSubmitted()) {
-	\$id = \$form->processForm();
+{$this->buildRecordStatusDefault()}	\$id = \$form->processForm();
 	\$_SESSION['flash_message'] = '{$labels['record-saved']}';
 	\$_SESSION['flash_type'] = Alert::Type_Success;
 	UrlParser::redirectToViewPage(\$id);
@@ -196,6 +197,7 @@ switch (UrlParser::getAction()) {
 		}
 	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
 		\$form->setDrawMode(DrawMode::VIEW);
+{$this->buildViewFormLayout($instanceName)}
 		\$page->addComponent(\$form);
 		\$page->addLink(new Link('{$labels['list']}', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
 
@@ -632,6 +634,111 @@ switch (UrlParser::getAction()) {
         if (\${$gridName}->isReadyToHandleRequests()) {
             \${$gridName}->bootstrap();
         }\n";
+        return $file;
+    }
+
+    /**
+     * If the table has a record_status_id column, generate code to default it to 1 on insert.
+     */
+    private function buildRecordStatusDefault(): string
+    {
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            if ($column['COLUMN_NAME'] === 'record_status_id') {
+                return "\tif (UrlParser::getAction() == 'new') {\n\t\t\$form->setSubmittedFieldValue('record_status_id', 1);\n\t}\n";
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Build the view mode form layout with multi-column support and a metadata tab.
+     * <10 fields: 1 column, <=20: 2 columns, >20: 3 columns.
+     * Metadata fields (created_on, created_by, updated_on, updated_by) go in a separate "Details" tab.
+     */
+    private function buildViewFormLayout(string $instanceName): string
+    {
+        $metadataFieldNames = ['created_on', 'created_by', 'updated_on', 'updated_by'];
+        $mainFields = [];
+        $metadataFields = [];
+
+        foreach ($this->getTableInspector()->getColumns() as $column) {
+            $colName = $column['COLUMN_NAME'];
+            $methodName = Util::tableFieldNameToMethodName($colName);
+            if (in_array($colName, $metadataFieldNames)) {
+                $metadataFields[] = $methodName;
+            } else {
+                $mainFields[] = $methodName;
+            }
+        }
+
+        $mainCount = count($mainFields);
+        $hasMetadata = count($metadataFields) > 0;
+
+        // Determine number of columns
+        if ($mainCount < 10) {
+            $numCols = 1;
+        } elseif ($mainCount <= 20) {
+            $numCols = 2;
+        } else {
+            $numCols = 3;
+        }
+
+        $file = "";
+
+        if ($numCols === 1 && !$hasMetadata) {
+            // Simple case: no columns, no tabs needed
+            $file .= "\t\t\$form->setComponents([])";
+            foreach ($mainFields as $method) {
+                $file .= "\n\t\t\t->addComponent(\${$instanceName}->get{$method}FormElement())";
+            }
+            $file .= ";\n";
+            return $file;
+        }
+
+        $file .= "\t\t\$form->setComponents([]);\n";
+
+        // Build the main fields in columns
+        if ($numCols > 1) {
+            $file .= "\t\t\$row = new Div(['row']);\n";
+            $chunks = array_chunk($mainFields, (int)ceil($mainCount / $numCols));
+            foreach ($chunks as $i => $chunk) {
+                $colVar = 'col' . ($i + 1);
+                $file .= "\t\t\${$colVar} = new Div(['col col-md']);\n";
+                foreach ($chunk as $method) {
+                    $file .= "\t\t\${$colVar}->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+                }
+                $file .= "\t\t\$row->addComponent(\${$colVar});\n";
+            }
+        }
+
+        if ($hasMetadata) {
+            // Wrap in tabs: General + Details
+            $file .= "\t\t\$formTabContainer = new TabContainer('{$this->getTable()->getName()}_form_tabs');\n";
+            $file .= "\t\t\$generalTab = new TabItem('General');\n";
+            if ($numCols > 1) {
+                $file .= "\t\t\$generalTab->addComponent(\$row);\n";
+            } else {
+                // Single column, but still has metadata to separate
+                $file .= "\t\t\$generalDiv = new Div();\n";
+                foreach ($mainFields as $method) {
+                    $file .= "\t\t\$generalDiv->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+                }
+                $file .= "\t\t\$generalTab->addComponent(\$generalDiv);\n";
+            }
+            $file .= "\t\t\$detailsTab = new TabItem('Details');\n";
+            foreach ($metadataFields as $method) {
+                $file .= "\t\t\$detailsTab->addComponent(\${$instanceName}->get{$method}FormElement());\n";
+            }
+            $file .= "\t\t\$formTabContainer->addComponent(\$generalTab);\n";
+            $file .= "\t\t\$formTabContainer->addComponent(\$detailsTab);\n";
+            $file .= "\t\t\$form->addComponent(\$formTabContainer);\n";
+        } else {
+            // No metadata, just add the row directly
+            if ($numCols > 1) {
+                $file .= "\t\t\$form->addComponent(\$row);\n";
+            }
+        }
+
         return $file;
     }
 
