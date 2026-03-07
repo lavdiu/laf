@@ -41,6 +41,7 @@ class Grid {
         this._contentPaginationFirstPage = null;
         this._contentPaginationPrevPage = null;
         this._contentPaginationNextPage = null;
+        this._contentGridTitleRow = null;
         this._contentPaginationLastPage = null;
         this._contentPaginationCurrPage = null;
         this._contentGridTitle = null;
@@ -75,25 +76,26 @@ class Grid {
             return;
         }
 
-        // Deferred: observe visibility
-        const container = document.getElementById(gridName + '_container');
-        if (!container) return;
+        // Deferred: observe visibility once DOM is ready
+        const observeGrid = function () {
+            const container = document.getElementById(gridName + '_container');
+            if (!container) return;
 
-        const observer = new IntersectionObserver(function (entries) {
-            for (const entry of entries) {
-                if (entry.isIntersecting) {
-                    grid.initialize();
-                    observer.unobserve(entry.target);
+            const observer = new IntersectionObserver(function (entries) {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        grid.initialize();
+                        observer.unobserve(entry.target);
+                    }
                 }
-            }
-        });
+            });
+            observer.observe(container);
+        };
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function () {
-                observer.observe(container);
-            });
+            document.addEventListener('DOMContentLoaded', observeGrid);
         } else {
-            observer.observe(container);
+            observeGrid();
         }
     }
 
@@ -248,6 +250,10 @@ class Grid {
     }
 
     refresh() {
+        if (!this.contentDrawTableOn) {
+            this.initialize();
+            return;
+        }
         this.fetchJson();
     }
 
@@ -1396,6 +1402,14 @@ class Column {
 
     set deferInitialize(value) {
         this._deferInitialize = value;
+    }
+
+    set contentGridTitleRow(value){
+        this._contentGridTitleRow = value;
+    }
+
+    get contentGridTitleRow(){
+        return this._contentGridTitleRow;
     }
 
 }
