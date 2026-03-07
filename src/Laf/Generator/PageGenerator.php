@@ -218,8 +218,6 @@ switch (UrlParser::getAction()) {
             $file .= "
         \$tabContainer = new TabContainer('{$tabContainerId}');\n\n";
 
-            $gridNames = [];
-            $tabLabels = [];
             foreach ($this->getTableInspector()->getReferencingTables() as $table) {
                 $table = array_change_key_case($table, CASE_UPPER);
                 $refTableName = $table['TABLE_NAME'];
@@ -245,9 +243,6 @@ switch (UrlParser::getAction()) {
                     $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
                 }
 
-                $gridNames[] = $gridVarName;
-                $tabLabels[$gridVarName] = $tabLabel;
-
                 $file .= "
         {$gridDraw}
         \${$gridVarName}->setDeferInitialize(true);
@@ -263,42 +258,6 @@ switch (UrlParser::getAction()) {
             ->addComponent(new HtmlContainer(\$tabContainer->draw()));
         \$html->addComponent(\$page2);";
 
-            // Build the lazy-init script: initialize grids when their tab is shown
-            $gridNameMap = [];
-            foreach ($gridNames as $gridName) {
-                $label = $tabLabels[$gridName];
-                $tabPaneId = preg_replace('/[^a-z0-9]/i', '', $label) . '-content';
-                $gridNameMap[$tabPaneId] = $gridName;
-            }
-            $gridMapJson = json_encode($gridNameMap);
-            $firstGridName = $gridNames[0] ?? '';
-
-            $file .= "
-        echo \"<script>
-        (function() {
-            var gridTabMap = {$gridMapJson};
-            var initialized = {};
-            // Initialize the first tab's grid immediately
-            document.addEventListener('DOMContentLoaded', function() {
-                var firstGrid = '\" . addslashes('{$firstGridName}') . \"';
-                if (firstGrid && window.grid[firstGrid]) {
-                    window.grid[firstGrid].initialize();
-                    initialized[firstGrid] = true;
-                }
-            });
-            // Initialize other grids when their tab is shown
-            document.querySelectorAll('#{$tabContainerId}_tab_links a[data-bs-toggle=\\\"tab\\\"]').forEach(function(tab) {
-                tab.addEventListener('shown.bs.tab', function(e) {
-                    var paneId = e.target.getAttribute('aria-controls');
-                    var gridName = gridTabMap[paneId];
-                    if (gridName && !initialized[gridName] && window.grid[gridName]) {
-                        window.grid[gridName].initialize();
-                        initialized[gridName] = true;
-                    }
-                });
-            });
-        })();
-        </script>\";";
         }
 
         $file .= "

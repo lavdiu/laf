@@ -53,6 +53,48 @@ class Grid {
         this._showTitleBar = true;
         this._showSearchBar = true;
         this._rowLevelJsCallback = null;
+        this._deferInitialize = false;
+    }
+
+    /**
+     * Auto-initialize a grid: immediately if deferInitialize is false,
+     * or via IntersectionObserver when the grid becomes visible.
+     */
+    static autoInit(gridName) {
+        const grid = window.grid[gridName];
+        if (!grid) return;
+
+        if (!grid.deferInitialize) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () {
+                    grid.initialize();
+                });
+            } else {
+                grid.initialize();
+            }
+            return;
+        }
+
+        // Deferred: observe visibility
+        const container = document.getElementById(gridName + '_container');
+        if (!container) return;
+
+        const observer = new IntersectionObserver(function (entries) {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    grid.initialize();
+                    observer.unobserve(entry.target);
+                }
+            }
+        });
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () {
+                observer.observe(container);
+            });
+        } else {
+            observer.observe(container);
+        }
     }
 
     /**
@@ -1348,6 +1390,13 @@ class Column {
         this._jsCallback = value;
     }
 
+    get deferInitialize() {
+        return this._deferInitialize;
+    }
+
+    set deferInitialize(value) {
+        this._deferInitialize = value;
+    }
 
 }
 

@@ -1322,10 +1322,7 @@ class PhpGrid
             $header .= "<th>" . $column->getLabel() . '</th>';
         }
 
-        $initScript = $this->isDeferInitialize() ? '' : "
-\t\$(document).ready(function () {
-\t     window.grid['{$gridName}'].initialize();
-\t});";
+        $deferJs = $this->isDeferInitialize() ? 'true' : 'false';
         $html =
             "
 <script type='text/javascript'>
@@ -1333,7 +1330,9 @@ class PhpGrid
 \twindow.grid['{$gridName}'] = new Grid('{$gridName}');
 \twindow.grid['{$gridName}']._rowsPerPage = {$this->getRowsPerPage()};
 \twindow.grid['{$gridName}'].showTitleBar = " . (var_export($this->getShowTitle(), true)) . ";
-\twindow.grid['{$gridName}'].showSearchBar = " . (var_export($this->getShowSearchBar(), true)) . ";{$initScript}
+\twindow.grid['{$gridName}'].showSearchBar = " . (var_export($this->getShowSearchBar(), true)) . ";
+\twindow.grid['{$gridName}'].deferInitialize = {$deferJs};
+\tGrid.autoInit('{$gridName}');
 </script>
 <div id='{$gridName}_container' data-rows-per-page='{$this->getRowsPerPage()}' data-show-title-bar='" . (var_export($this->getShowTitle(), true)) . "' data-show-search-bar='" . (var_export($this->getShowSearchBar(), true)) . "'>
   <div class='table-responsive' style='position:relative;overflow: visible'>
