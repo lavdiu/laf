@@ -112,6 +112,7 @@ use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
 use Laf\UI\Form\DrawMode;
 use Laf\UI\Form\Form;
+use Laf\UI\Form\FormRowDisplayMode;
 use Laf\UI\Page\AdminPage;
 use Laf\Util\UrlParser;
 use Laf\UI\Container\HtmlContainer;
@@ -195,7 +196,7 @@ switch (UrlParser::getAction()) {
 			UrlParser::redirectToListPage();
 			exit;
 		}
-	    \$page->setContainerType(ContainerType::TYPE_DEFAULT);
+	    \$page->setContainerType(ContainerType::TYPE_FLUID);
 		\$form->setDrawMode(DrawMode::VIEW);
 {$this->buildViewFormLayout($instanceName)}
 		\$page->addComponent(\$form);
@@ -697,6 +698,10 @@ switch (UrlParser::getAction()) {
         }
 
         $file .= "\t\t\$form->setComponents([]);\n";
+
+        if ($numCols > 1) {
+            $file .= "\t\t\$form->setFormRowDisplayMode(FormRowDisplayMode::INLINE);\n";
+        }
 
         // Build the main fields in columns
         if ($numCols > 1) {
