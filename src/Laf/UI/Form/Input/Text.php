@@ -121,7 +121,7 @@ class Text implements FormElementInterface, ComponentInterface
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
             " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-                <div id='{$this->getId()}' class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' {$params} >" . ($this->getValueForHtml() != "" ? $this->getValueForHtml() : "&nbsp;") . "</div>
+                <div id='{$this->getId()}' class='{$this->getCssClassesForHtml()}' style='word-wrap:break-word;overflow-wrap:break-word;{$this->getCssStyleForHtml()}' {$params} >" . ($this->getValueForHtml() != "" ? $this->getValueForHtml() : "&nbsp;") . "</div>
             ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";
 
