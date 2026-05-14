@@ -1,3 +1,3 @@
 # LAF
 
-sponsored by (https://routerarena.com)[https://routerarena.com]
+sponsored by [https://routerarena.com](https://routerarena.com)
