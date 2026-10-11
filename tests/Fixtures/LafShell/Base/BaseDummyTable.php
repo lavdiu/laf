@@ -20,9 +20,7 @@ class BaseDummyTable extends Database\BaseObject
 		parent::__construct($id);
 		$this->buildClass();
 		$this->setRecordId($id);
-		if (is_numeric($id) && in_array($this->getTable()->getPrimaryKey()->getFirstField()->getType(), [Database\Field\FieldType::TYPE_BIG_INTEGER, Database\Field\FieldType::TYPE_INTEGER])) {
-			self::select($id);
-		} else if ($id != '') {
+		if ($id != '') {
 			self::select($id);
 		}
 	}
@@ -256,6 +254,18 @@ class BaseDummyTable extends Database\BaseObject
 		$this->getTable()->addField($field);
 		$field = null;
 
+		$field = (new Field())
+			->setName("status")
+			->setLabel("Status")
+			->setPlaceHolder("Status")
+			->setRequired(false)
+			->setMaxLength(10)
+			->setAutoIncrement(false)
+			->setUnique(false)
+			->setType(new Database\Field\TypeVarchar());
+		$this->getTable()->addField($field);
+		$field = null;
+
 		$this->getTable()->setPrimaryKey($pk);
 
 		$this->getTable()->addForeignKey(
@@ -303,6 +313,8 @@ class BaseDummyTable extends Database\BaseObject
 	public function getRequiredFieldVal() { return $this->getFieldValue("required_field"); }
 	public function setUpdatedOnVal($value = null) { $this->setFieldValue("updated_on", $value); return static::returnLeafClass(); }
 	public function getUpdatedOnVal() { return $this->getFieldValue("updated_on"); }
+	public function setStatusVal($value = null) { $this->setFieldValue("status", $value); return static::returnLeafClass(); }
+	public function getStatusVal() { return $this->getFieldValue("status"); }
 
 	public function getParentIdObj()
 	{
@@ -315,24 +327,19 @@ class BaseDummyTable extends Database\BaseObject
 
 	public function listAllArray(): array
 	{
-		$db = Database\Db::getInstance();
-		$sql = "SELECT * FROM {$this->getTable()->getName()} ORDER BY {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC";
-		$res = $db->query($sql);
-		return $res->fetchAll(\PDO::FETCH_ASSOC);
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
+		}
+		return $query->arrays();
 	}
 
 	public function listAllObjects(): array
 	{
-		$db = Database\Db::getInstance();
-		$pk = $this->getTable()->getPrimaryKey();
-		$keyColumns = join(', ', $pk->getFieldNames());
-		$sql = "SELECT {$keyColumns} FROM {$this->getTable()->getName()} ORDER BY {$keyColumns} ASC";
-		$res = $db->query($sql);
-
-		$objects = [];
-		foreach ($res->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-			$objects[] = new static($pk->isComposite() ? $row : reset($row));
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
 		}
-		return $objects;
+		return $query->get();
 	}
 }

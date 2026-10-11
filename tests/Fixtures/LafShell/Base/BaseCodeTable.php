@@ -24,9 +24,7 @@ class BaseCodeTable extends Database\BaseObject
 		parent::__construct($id);
 		$this->buildClass();
 		$this->setRecordId($id);
-		if (is_numeric($id) && in_array($this->getTable()->getPrimaryKey()->getFirstField()->getType(), [Database\Field\FieldType::TYPE_BIG_INTEGER, Database\Field\FieldType::TYPE_INTEGER])) {
-			self::select($id);
-		} else if ($id != '') {
+		if ($id != '') {
 			self::select($id);
 		}
 	}
@@ -77,25 +75,20 @@ class BaseCodeTable extends Database\BaseObject
 
 	public function listAllArray(): array
 	{
-		$db = Database\Db::getInstance();
-		$sql = "SELECT * FROM {$this->getTable()->getName()} ORDER BY {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC";
-		$res = $db->query($sql);
-		return $res->fetchAll(\PDO::FETCH_ASSOC);
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
+		}
+		return $query->arrays();
 	}
 
 	public function listAllObjects(): array
 	{
-		$db = Database\Db::getInstance();
-		$pk = $this->getTable()->getPrimaryKey();
-		$keyColumns = join(', ', $pk->getFieldNames());
-		$sql = "SELECT {$keyColumns} FROM {$this->getTable()->getName()} ORDER BY {$keyColumns} ASC";
-		$res = $db->query($sql);
-
-		$objects = [];
-		foreach ($res->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-			$objects[] = new static($pk->isComposite() ? $row : reset($row));
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
 		}
-		return $objects;
+		return $query->get();
 	}
 
 	public function getAllFieldsAsFormElements(): array

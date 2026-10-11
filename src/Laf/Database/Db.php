@@ -138,7 +138,7 @@ class Db
     public function execute($sql): int
     {
         if (!is_a($this->getConnection(), 'PDO')) {
-            return false;
+            return 0;
         }
         $count = null;
         $this->sql = $sql;
@@ -610,12 +610,71 @@ class Db
     }
 
     /**
-     * Get the ID of the new record after an insert
+     * Get the ID of the new record after an insert.
+     * On PostgreSQL pass the sequence name, or rely on INSERT ... RETURNING
+     * instead: without a name lastInsertId() means lastval(), which fails when
+     * no sequence was used in the session and can belong to another table.
+     * @param string|null $sequence
      * @return string
      */
-    public function getInsertId()
+    public function getInsertId(?string $sequence = null): string
     {
-        return $this->getConnection()->lastInsertId();
+        $id = $this->getConnection()->lastInsertId($sequence);
+        return $id === false ? '' : (string)$id;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* transactions                                                        */
+    /* ------------------------------------------------------------------ */
+
+    public function beginTransaction(): bool
+    {
+        return $this->getConnection()->beginTransaction();
+    }
+
+    public function commit(): bool
+    {
+        return $this->getConnection()->commit();
+    }
+
+    public function rollBack(): bool
+    {
+        return $this->getConnection()->rollBack();
+    }
+
+    public function inTransaction(): bool
+    {
+        return is_a($this->getConnection(), 'PDO') && $this->getConnection()->inTransaction();
+    }
+
+    /**
+     * Run $fn inside a transaction: commit when it returns, roll back and
+     * rethrow when it throws. Nest-aware: when a transaction is already open
+     * (yours or the application's) $fn simply runs inside it and the outer
+     * transaction decides.
+     *
+     *   Db::getInstance()->transaction(function (Db $db) use ($order) { $order->store(); ... });
+     *
+     * @param callable(Db): mixed $fn
+     * @return mixed what $fn returned
+     * @throws \Throwable whatever $fn threw, after the rollback
+     */
+    public function transaction(callable $fn)
+    {
+        if ($this->inTransaction()) {
+            return $fn($this);
+        }
+        $this->beginTransaction();
+        try {
+            $result = $fn($this);
+            $this->commit();
+            return $result;
+        } catch (\Throwable $ex) {
+            if ($this->inTransaction()) {
+                $this->rollBack();
+            }
+            throw $ex;
+        }
     }
 
     /**

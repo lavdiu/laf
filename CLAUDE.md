@@ -70,7 +70,9 @@ Base/Base[TableName].php (auto-generated from schema)
 
 **BaseObject** is the foundation providing Active Record functionality:
 - CRUD operations: `select()`, `insert()`, `update()`, `store()`, `hardDelete()`, `softDelete()`
-- Query building: `find()`, `findOne()`, `bOfind()`, `bOfindOne()`, `getQueryBuilder()`
+- Query building: `find()`, `findOne()`, `bOfind()`, `bOfindOne()`, `findAsArray()`, `query()` (single-table `Query`)
+- Lifecycle hooks: `beforeInsert/afterInsert/beforeUpdate/afterUpdate/beforeDelete/afterDelete/afterLoad`
+- State: `isNew()`, `isDirty()`, `getChangedFields()`, `isLoaded()`, `validate()`, `transaction()`
 - Automatic audit logging of all data changes
 - Automatic timestamp management (`created_on`, `updated_on`, etc.)
 - Foreign key validation and object navigation
@@ -81,7 +83,8 @@ Base/Base[TableName].php (auto-generated from schema)
 - `Field`: Column definitions with validation rules and type information
 - `FieldType`: Strong typing system (TypeInteger, TypeVarchar, TypeDate, TypeBool, etc.)
 - `ForeignKey`: Manages relationships between tables
-- `QueryBuilder`: Fluent interface for complex queries
+- `Query`: single-table fluent finder (where/orderBy/limit, get/first/count/exists), engine-aware quoting, typed bindings
+- `Identifier`: the one quoting rule (backticks on MySQL, double quotes on PostgreSQL)
 - `Db`: Singleton PDO wrapper for database connections
 - `AuditLog`: Automatic change tracking (requires `BaseObject::setActiveUserId()`)
 
@@ -150,16 +153,27 @@ $customers = Customer::find(['city' => 'New York']);
 $customer = Customer::findOne(['email' => 'john@example.com']);
 ```
 
-**Complex Queries**:
+**Complex Queries** (single table; column names are validated against the model, values bound through the field types):
 ```php
-$results = Customer::getQueryBuilder()
-    ->where('city', '=', 'New York')
+$results = Customer::query()
+    ->where('city', 'New York')          // = (null → IS NULL, array → IN)
     ->orWhere('city', '=', 'Boston')
+    ->where('balance', '>', 0)
+    ->whereNull('deleted_on')
     ->orderBy('name', 'ASC')
-    ->with('address') // Eager load relationships
     ->limit(10)
-    ->get();
+    ->get();                             // Customer[] from one SELECT; also first(), arrays(), column(), count(), exists(), delete()
 ```
+
+**Write path**: `store()` = `insert()` when `isNew()` else `update()` (only changed fields; nothing changed = nothing written).
+Unset nullable columns are left out of the INSERT so database defaults apply (`reload()` reads them back). `created_on/by`
+and `updated_on/by` are filled automatically (user from `BaseObject::setActiveUserId()`, else `<package>\Person::getLoggedUserId()`).
+Required and single-column unique constraints are checked before the statement (`MissingFieldValueException`,
+`UniqueFieldDuplicateValueException`); statement failures throw `Laf\Exception\DatabaseException` (`getSql()`, `getSqlState()`,
+`isUniqueViolation()`, `isForeignKeyViolation()`, previous = the `PDOException`). Override the protected hooks
+`beforeInsert()`, `afterInsert()`, `beforeUpdate()`, `afterUpdate()`, `beforeDelete($mode)`, `afterDelete($mode)`, `afterLoad()`
+in a model class instead of `insert()`/`update()`. Group writes with `BaseObject::transaction(fn () => ...)` (nested calls
+join the outer transaction).
 
 **Form Handling**:
 ```php
@@ -198,7 +212,7 @@ echo $customer->getNameVal();
 1. **Active Record**: Each table = class with data + behavior
 2. **Singleton**: `Db`, `Settings`, `UrlParser` classes
 3. **Factory**: `FieldTypeFactory`, `FormElementFactory`
-4. **Builder**: `QueryBuilder` for SQL construction
+4. **Builder**: `Query` for single-table SQL, `Form` for markup
 5. **Template Method**: `BaseObject` defines CRUD skeleton, subclasses customize
 6. **Strategy**: `FieldType` classes for different data types
 

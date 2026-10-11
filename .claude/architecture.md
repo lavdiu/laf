@@ -4,9 +4,10 @@
 ```
 src/Laf/
 ├── Database/           # ORM layer (~3,700 lines)
-│   ├── BaseObject.php  # Active Record base (1,286 lines) — CRUD, forms, audit
-│   ├── Db.php          # Singleton PDO wrapper (695 lines)
-│   ├── QueryBuilder.php # Fluent query builder (345 lines)
+│   ├── BaseObject.php  # Active Record base (~1,500 lines) — load, CRUD, finders, hooks, audit, forms
+│   ├── Db.php          # Singleton PDO wrapper (transactions: beginTransaction/commit/rollBack/transaction())
+│   ├── Query.php       # Single-table finder: where/orderBy/limit → get/first/arrays/count/exists/delete
+│   ├── Identifier.php  # Engine-aware identifier quoting
 │   ├── Table.php       # Table metadata (332 lines)
 │   ├── Field/          # Field types & validation
 │   │   ├── Field.php   # Column definition (883 lines)
@@ -56,7 +57,7 @@ src/Laf/
 ## Design Patterns
 - **Active Record**: BaseObject — each class = table row with CRUD
 - **Singleton**: Db, Settings, UrlParser
-- **Builder**: QueryBuilder, Form (fluent interfaces throughout)
+- **Builder**: Query, Form (fluent interfaces throughout)
 - **Factory**: FieldTypeFactory, FormElementFactory
 - **Strategy**: FieldType classes for data type behavior
 - **Composite**: UI components contain child components
@@ -66,8 +67,9 @@ src/Laf/
 
 ## Key Methods — BaseObject
 - CRUD: `select()`, `insert()`, `update()`, `store()`, `hardDelete()`, `softDelete()`
-- Query: `bOfind()`, `bOfindOne()`, `findOne()`, `findAsArray()`, `getQueryBuilder()`
-- Fields: `setFieldValue()`, `getFieldValue()`, `getFieldValuesAsArray()`
+- Query: `query()` (returns `Query`), `bOfind()`, `bOfindOne()`, `findAsArray()`, `hydrate()`/`loadRow()` (objects from fetched rows)
+- Fields: `setFieldValue()`, `setFieldValues()`, `getFieldValue()`, `getFieldValuesAsArray()`/`toArray()`, `isDirty()`, `getChangedFields()`, `validate()`
+- Lifecycle: `isNew()`, `isLoaded()`, hooks `beforeInsert/afterInsert/beforeUpdate/afterUpdate/beforeDelete/afterDelete/afterLoad`, `transaction()`
 - Forms: `getForm()`, `getAllFieldsAsFormElements()`
 - Audit: `logAuditEntry()`, `auditLogDisable()`, `auditLogEnable()`
 - Table registry: `populateTableObjectList()` — populates `object_list` table from DB schema

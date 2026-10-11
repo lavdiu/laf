@@ -3,9 +3,9 @@
 ## Known Bugs
 - `FormElementTrait::setAutocomplete()` — sets attribute `'attribute'` instead of `'autocomplete'`
 - `Field.php` calls `Table::setDisplayFieldName()` which doesn't exist (should be `setDisplayField()`)
-- `BaseObject::returnLeafClass()` — potential infinite recursion
-- `checkUniqueFieldsForDuplicateValues()` — marked TODO, not implemented
-- `QueryBuilder::with()` — eager loading completely stubbed, `loadRelation()` not implemented
+- ~~`BaseObject::returnLeafClass()` — potential infinite recursion~~ fixed 2026-10-11 (returns `$this`)
+- ~~`checkUniqueFieldsForDuplicateValues()` — marked TODO~~ implemented 2026-10-11 (single-column unique fields checked before the statement)
+- ~~`QueryBuilder::with()` / `loadRelation()`~~ QueryBuilder deleted; replaced by the single-table `Laf\Database\Query` (2026-10-11)
 - `Settings::saveToFile()` / `loadFromFile()` — not implemented (stubbed)
 
 ## PHP 8+ Adoption Gaps
@@ -15,12 +15,11 @@
 - Only `mixed` return type used occasionally (Db.php)
 - Good use of nullable types and return types throughout
 
-## QueryBuilder Gaps
-- No GROUP BY, HAVING, UNION
-- No aggregate functions (COUNT, SUM, AVG)
-- No subqueries or nested WHERE conditions
-- No transaction support
-- Hardcoded backticks — PostgreSQL incompatible
+## Query (replaced QueryBuilder, 2026-10-11)
+- Single table only: no joins, GROUP BY, HAVING, subqueries or eager loading (by design; add when needed)
+- Aggregates: `count()` only
+- Transactions: `Db::transaction()` / `BaseObject::transaction()` (nest-aware); audit rows are still a separate statement
+- Quoting through `Identifier` on both engines
 
 ## Documentation Gaps
 - README.md is just `# LAF` — needs content
