@@ -1,5 +1,6 @@
-
--- Create audit_logs table for application-level logging
+-- audit_log table for MySQL / MariaDB (PostgreSQL version: create_audit_logs_table_postgres.sql)
+-- Written by Laf\Database\AuditLog for every INSERT / UPDATE / DELETE done through BaseObject.
+-- `changes` is TEXT (64 KB): use MEDIUMTEXT, or AuditLog::setMaxValueLength(), for tables with very large text columns.
 CREATE TABLE IF NOT EXISTS `audit_log` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NULL,

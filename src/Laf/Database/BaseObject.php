@@ -330,24 +330,29 @@ class BaseObject
         $this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
         $this->reload();
         if ($this->getTable()->hasField('record_status_id')) {
-            $this->addLoggerError("Soft Deleting by setting record_status_id to 0", []);
+            $this->addLoggerDebug("Soft deleting by setting record_status_id to 0", []);
             $this->setFieldValue('record_status_id', 0);
-            $this->store();
-            return true;
         } else if ($this->getTable()->hasField('deleted')) {
-            $this->addLoggerError("Soft deleting by setting deleted field to 0", []);
+            $this->addLoggerDebug("Soft deleting by setting deleted field to 1", []);
             $this->setFieldValue('deleted', 1);
-            $result = $this->store();
-
-            // Log the soft delete operation as DELETE action
-            if ($result) {
-                $this->logAuditEntry(AuditLog::ACTION_DELETE);
-            }
-
-            return $result;
+        } else {
+            $this->addLoggerError("Soft delete method failed: No 'deleted' or record_status_id property found", []);
+            return false;
         }
-        $this->addLoggerError("Soft delete method failed: No 'deleted' or record_status_id property found", []);
-        return false;
+
+        // one DELETE audit entry carrying the status change, instead of an UPDATE entry plus a DELETE snapshot
+        $changes = AuditLog::collectChanges($this);
+        $auditWasEnabled = $this->auditLoggingEnabled;
+        $this->auditLoggingEnabled = false;
+        try {
+            $result = $this->store();
+        } finally {
+            $this->auditLoggingEnabled = $auditWasEnabled;
+        }
+        if ($result) {
+            $this->logAuditEntry(AuditLog::ACTION_DELETE, $changes);
+        }
+        return $result;
     }
 
     /**
@@ -618,6 +623,9 @@ class BaseObject
         // Log the insert operation
         $this->logAuditEntry(AuditLog::ACTION_INSERT);
 
+        // the row now holds the current values: a following store() only writes what changes from here on
+        $this->markFieldsAsPersisted();
+
         return true;
     }
 
@@ -754,7 +762,21 @@ class BaseObject
         // Log the update operation (only changed fields)
         $this->logAuditEntry(AuditLog::ACTION_UPDATE);
 
+        // the row now holds the current values: a second store() must not re-send or re-log them
+        $this->markFieldsAsPersisted();
+
         return true;
+    }
+
+    /**
+     * Align every field's old value with its current value after a successful write,
+     * so hasChanged() is false until the object is modified again.
+     */
+    protected function markFieldsAsPersisted(): void
+    {
+        foreach ($this->getTable()->getFields() as $field) {
+            $field->setOldValue($field->getValue());
+        }
     }
 
     /**
@@ -812,9 +834,6 @@ class BaseObject
             return false;
         }
 
-        // Log the delete operation before deletion (capture all field values)
-        $this->logAuditEntry(AuditLog::ACTION_DELETE);
-
         $this->deleteSql = "DELETE FROM " . Identifier::quote($this->getTable()->getName()) . " ";
         if ($pk->isComposite()) {
             $this->deleteSql .= "\nWHERE " . $pk->getWhereClause('pk_') . ";";
@@ -855,6 +874,11 @@ class BaseObject
 
         $this->setAffectedRows($stmt->rowCount());
         $this->addLoggerDebug("DELETE SQL Affected Records", [$this->getAffectedRows()]);
+
+        // Log the delete once the row is really gone; the object still holds every value for the snapshot
+        if ($this->getAffectedRows() > 0) {
+            $this->logAuditEntry(AuditLog::ACTION_DELETE);
+        }
 
         return true;
     }
@@ -1361,32 +1385,40 @@ class BaseObject
 
 
     /**
-     * Log audit entry if audit logging is enabled
-     * @param string $action
+     * Whether writes on this object are audited (per-object switch AND the process-wide AuditLog switch)
      */
-    private function logAuditEntry(string $action): void
+    public function isAuditLoggingEnabled(): bool
     {
+        return $this->auditLoggingEnabled && AuditLog::isEnabled();
+    }
 
-        if (!$this->auditLoggingEnabled) {
-            return;
-        }
-
-        if (!class_exists('\\Laf\\Database\\AuditLog')) {
+    /**
+     * Log audit entry if audit logging is enabled.
+     * Overridable: a subclass can enrich or redirect the entry.
+     * @param string $action one of AuditLog::ACTION_*
+     * @param array|null $changes explicit change list (soft delete); null = derive from the fields
+     */
+    protected function logAuditEntry(string $action, ?array $changes = null): void
+    {
+        if (!$this->isAuditLoggingEnabled()) {
             return;
         }
 
         try {
-            $userId = BaseObject::getActiveUserId();
+            $userId = AuditLog::resolveUserId();
 
             if ($action === AuditLog::ACTION_INSERT) {
                 AuditLog::logInsert($this, $userId);
             } elseif ($action === AuditLog::ACTION_UPDATE) {
                 AuditLog::logUpdate($this, $userId);
             } elseif ($action === AuditLog::ACTION_DELETE) {
-                AuditLog::logDelete($this, $userId);
+                AuditLog::logDelete($this, $userId, $changes);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->addLoggerError('Audit logging failed', [$e->getMessage()]);
+            if (AuditLog::isStrict()) {
+                throw $e;
+            }
         }
     }
 

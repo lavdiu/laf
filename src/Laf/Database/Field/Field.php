@@ -414,6 +414,14 @@ class Field
 	}
 
 	/**
+	 * Whether a FieldType has been assigned
+	 */
+	public function hasType(): bool
+	{
+		return $this->type !== null;
+	}
+
+	/**
 	 * Get field type
 	 * @return FieldType
 	 */
