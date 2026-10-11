@@ -201,9 +201,11 @@ class UrlParser
      */
     public function _getId()
     {
-        if (!is_numeric($this->id))
-            return null;
-        return (int)$this->id;
+        if (is_numeric($this->id))
+            return (int)$this->id;
+        if (is_string($this->id) && preg_match('/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/', $this->id))
+            return strtolower($this->id);
+        return null;
     }
 
     /**

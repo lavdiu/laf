@@ -16,17 +16,17 @@ class Table
     private $name;
 
     /**
-     * @var string[]
+     * @var array<string, Field> keyed by field name
      */
     private $fields = [];
 
     /**
-     * @var PrimaryKey
+     * @var PrimaryKey|null
      */
     private $primaryKey = null;
 
     /**
-     * @var ForeignKey[]
+     * @var array<string, ForeignKey> keyed by the FK column name
      */
     private $foreignKey = [];
 
@@ -36,24 +36,24 @@ class Table
     private $uniqueFields = [];
 
     /**
-     * @var string
+     * @var Field|null
      */
     private $displayField = null;
 
     /**
      * Table constructor.
-     * @param $name
-     * @param array $fields
-     * @param PrimaryKey $primaryKey
-     * @param string[] $foreignKey
-     * @param Field $displayField
+     * @param string|null $name
+     * @param Field[]|null $fields
+     * @param PrimaryKey|null $primaryKey
+     * @param ForeignKey[]|null $foreignKey
+     * @param Field|null $displayField
      */
     public function __construct(?string $name = null, ?array $fields = [], ?PrimaryKey $primaryKey = null, ?array $foreignKey = [], ?Field $displayField = null)
     {
         $this->name = $name;
-        $this->fields = $fields;
+        $this->fields = $fields ?? [];
         $this->primaryKey = $primaryKey;
-        $this->foreignKey = $foreignKey;
+        $this->foreignKey = $foreignKey ?? [];
         $this->displayField = $displayField;
     }
 
@@ -117,7 +117,7 @@ class Table
     /**
      * Get table field by name
      * @param string $fieldName
-     * @return Field
+     * @return Field|null
      */
     public function getField(?string $fieldName)
     {
@@ -219,7 +219,7 @@ class Table
     /**
      * Get table foreign key
      * @param string $name
-     * @return ForeignKey
+     * @return ForeignKey|null
      */
     public function getForeignKey(string $name)
     {
@@ -290,6 +290,46 @@ class Table
     public function __toString()
     {
         return $this->getName();
+    }
+
+    /**
+     * Deep copy: fields, primary key, foreign keys, unique and display fields
+     * all point at the new Field instances, so two objects never share state.
+     */
+    public function __clone()
+    {
+        $fields = [];
+        foreach ($this->fields as $name => $field) {
+            $copy = clone $field;
+            $copy->setTable($this);
+            $fields[$name] = $copy;
+        }
+        $this->fields = $fields;
+
+        if ($this->primaryKey instanceof PrimaryKey) {
+            $pk = new PrimaryKey();
+            foreach ($this->primaryKey->getFields() as $pkField) {
+                $pk->addField($this->fields[$pkField->getName()] ?? clone $pkField);
+            }
+            $pk->setTable($this);
+            $this->primaryKey = $pk;
+        }
+
+        $foreignKeys = [];
+        foreach ($this->foreignKey as $name => $fk) {
+            $copy = clone $fk;
+            $copy->setTable($this);
+            if (isset($this->fields[$name])) {
+                $copy->setField($this->fields[$name]);
+            }
+            $foreignKeys[$name] = $copy;
+        }
+        $this->foreignKey = $foreignKeys;
+
+        $this->uniqueFields = array_map(fn(Field $f) => $this->fields[$f->getName()] ?? $f, $this->uniqueFields);
+        if ($this->displayField instanceof Field) {
+            $this->displayField = $this->fields[$this->displayField->getName()] ?? $this->displayField;
+        }
     }
 
     /**

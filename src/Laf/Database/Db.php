@@ -392,12 +392,20 @@ class Db
         $db = self::getInstance();
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
-        $value = $stmt->fetchColumn($columnIndex);
-        if ($value === false) {
+        // fetch the row, not the column: fetchColumn() returns false both for "no row" and
+        // for a PostgreSQL boolean false, which pdo_pgsql hands back as a real PHP false
+        $row = $stmt->fetch(\PDO::FETCH_NUM);
+        if ($row === false || !array_key_exists($columnIndex, $row)) {
             return null;
-        } else {
-            return $value;
         }
+        $value = $row[$columnIndex];
+        if ($value === null) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        return (string)$value;
     }
 
 

@@ -151,6 +151,39 @@ class TableInspector implements TableInspectorInterface
                 $this->setPrimaryColumnName($col['COLUMN_NAME']);
             }
         }
+        $this->detectMariaDbJsonColumns();
+    }
+
+    /**
+     * MariaDB has no native JSON type: `JSON` is an alias for LONGTEXT plus a
+     * CHECK (json_valid(col)) constraint, and information_schema reports the
+     * column as longtext. Read the check constraints and re-label such columns
+     * as DATA_TYPE 'json' so they get TypeJson. Harmless on MySQL 8 (native
+     * json) and silently skipped on servers without CHECK_CONSTRAINTS.
+     */
+    private function detectMariaDbJsonColumns(): void
+    {
+        $settings = Settings::getInstance();
+        $sql = "
+        SELECT cc.CHECK_CLAUSE
+        FROM information_schema.CHECK_CONSTRAINTS cc
+        JOIN information_schema.TABLE_CONSTRAINTS tc
+            ON cc.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+        WHERE tc.TABLE_SCHEMA = :schema
+            AND tc.TABLE_NAME = :table
+            AND cc.CHECK_CLAUSE LIKE '%json_valid(%'
+        ";
+        try {
+            $stmt = Db::getInstance()->prepare($sql);
+            $stmt->execute([':schema' => $settings->getProperty('database.database_name'), ':table' => $this->getTable()]);
+            while (($clause = $stmt->fetchColumn()) !== false) {
+                if (preg_match('/json_valid\s*\(\s*`?([A-Za-z0-9_]+)`?\s*\)/i', (string)$clause, $m) && isset($this->columns[$m[1]])) {
+                    $this->columns[$m[1]]['DATA_TYPE'] = 'json';
+                }
+            }
+        } catch (\Throwable $ex) {
+            // no CHECK_CONSTRAINTS view (MySQL < 8.0.16, MariaDB < 10.2): nothing to detect
+        }
     }
 
     /**
@@ -162,18 +195,22 @@ class TableInspector implements TableInspectorInterface
         $settings = Settings::getInstance();
 
         $sql = "
-		SELECT 
-			column_name,
-			referenced_table_name,
-			referenced_column_name,
-			constraint_name
-		FROM
-			information_schema.key_column_usage
-		WHERE
-			table_name = '{$this->getTable()}'
-			AND CONSTRAINT_SCHEMA='{$settings->getProperty('database.database_name')}'
-			AND referenced_table_name IS NOT NULL
-		";
+			SELECT
+				kcu.column_name,
+				kcu.referenced_table_name,
+				kcu.referenced_column_name,
+				kcu.constraint_name,
+				rc.delete_rule,
+				rc.update_rule
+			FROM
+				information_schema.key_column_usage kcu
+				LEFT JOIN information_schema.referential_constraints rc
+					ON rc.constraint_schema = kcu.constraint_schema AND rc.constraint_name = kcu.constraint_name
+			WHERE
+				kcu.table_name = '{$this->getTable()}'
+				AND kcu.constraint_schema = '{$settings->getProperty('database.database_name')}'
+				AND kcu.referenced_table_name IS NOT NULL
+			";
         $res = $db->query($sql);
         while ($r = $res->fetchObject()) {
 
@@ -184,6 +221,8 @@ class TableInspector implements TableInspectorInterface
                 'constraint_name' => $r->constraint_name,
                 'referenced_table_name' => $r->referenced_table_name,
                 'referenced_column_name' => $r->referenced_column_name,
+                'delete_rule' => $r->delete_rule ?? null,
+                'update_rule' => $r->update_rule ?? null,
             ];
         }
     }

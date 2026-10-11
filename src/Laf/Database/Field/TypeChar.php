@@ -2,55 +2,22 @@
 
 namespace Laf\Database\Field;
 
-use Laf\UI\Form\Text;
+use Laf\UI\Form\Input\Text;
 
-class TypeChar implements FieldType
+/**
+ * CHAR(n) / CHARACTER(n). Same rules as varchar; the DB pads on its side.
+ */
+class TypeChar extends TypeVarchar
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        return true;
+        return 'char';
     }
 
-    /**
-     * @param $value
-     * @return string
-     */
-    public function getValueDbSanitized($value)
-    {
-        $value = strip_tags($value??'');
-        return htmlspecialchars($value, ENT_COMPAT);
-    }
-
-    /**
-     * @return int
-     */
-    public function getPdoType()
-    {
-        return \PDO::PARAM_STR;
-    }
-
-    /**
-     * @param Field $field
-     * @return Text
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new Text();
         $formElement->setField($field);
         return $formElement;
-    }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        return (string)$value;
     }
 }

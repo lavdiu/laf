@@ -191,7 +191,7 @@ class Form implements ComponentInterface
 
             if (array_key_exists($field->getName(), $this->submittedFieldValues)) {
                 $value = trim($this->getSubmittedFieldValue($field->getName()) ?? '');
-                $field->setValue($field->getType()->formatForDb($value));
+                $field->setValue($field->getType()->fromInput($value));
             }else {
                 #only upload and store files if the file is submitted,
                 #if the form is updated and a replacement file is not uploaded, retain the old file id
@@ -203,21 +203,23 @@ class Form implements ComponentInterface
                             $value = Document::upload($field->getNameRot13());
                         }
                     }
-                    $field->setValue($field->getType()->formatForDb($value));
+                    $field->setValue($field->getType()->fromInput($value === null ? null : (string)$value));
                 }
             }
             /**
-             * boolean fields show up as check boxes. WHen checkbox is not checked, it doesn't submit a var with empty result or 0.
+             * boolean fields show up as check boxes. When the box is not ticked the browser
+             * sends nothing, which TypeBool::fromInput('') maps to false.
              */
-            if (get_class($field->getType()) == TypeBool::class) {
-                $field->setValue($field->getType()->formatForDb($value));
+            if ($field->getType() instanceof TypeBool) {
+                $field->setValue($field->getType()->fromInput($value));
             }
         }
 
-        $pkField = $object->getField($object->getTable()->getPrimaryKey()->getFirstField()->getName());
+        $pk = $object->getTable()->getPrimaryKey();
+        $pkField = $object->getField($pk->getFirstField()->getName());
 
 
-        if ($pkField->getValue() != '') {
+        if ($pk->hasValue()) {
             if (!$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
                 $object->insert();
             } else {

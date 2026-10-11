@@ -222,14 +222,14 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \tpublic function listAllObjects(): array
 \t{
 \t\t\$db = Database\Db::getInstance();
-\t\t\$primaryKeyField = \$this->getTable()->getPrimaryKey()->getFirstField()->getName();
-\t\t\$sql = \"SELECT {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {\$this->getTable()->getName()} ORDER BY {\$primaryKeyField} ASC\";
+\t\t\$pk = \$this->getTable()->getPrimaryKey();
+\t\t\$keyColumns = join(', ', \$pk->getFieldNames());
+\t\t\$sql = \"SELECT {\$keyColumns} FROM {\$this->getTable()->getName()} ORDER BY {\$keyColumns} ASC\";
 \t\t\$res = \$db->query(\$sql);
 
 \t\t\$objects = [];
-\t\t\$allIds = \$res->fetchAll(\PDO::FETCH_ASSOC);
-\t\tforeach (\$allIds as \$id) {
-\t\t\t\$objects[] = new static(\$id[\$primaryKeyField]);
+\t\tforeach (\$res->fetchAll(\PDO::FETCH_ASSOC) as \$row) {
+\t\t\t\$objects[] = new static(\$pk->isComposite() ? \$row : reset(\$row));
 \t\t}
 \t\treturn \$objects;
 \t}
@@ -457,6 +457,8 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
                     'constraint_name' => $column['FOREIGN_KEY']['constraint_name'],
                     'referenced_table_name' => $column['FOREIGN_KEY']['referenced_table_name'],
                     'referenced_column_name' => $column['FOREIGN_KEY']['referenced_column_name'],
+                    'delete_rule' => $column['FOREIGN_KEY']['delete_rule'] ?? null,
+                    'update_rule' => $column['FOREIGN_KEY']['update_rule'] ?? null,
                 ];
             }
         }
@@ -472,12 +474,20 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 		 */";
 
         foreach ($this->foreignKeys as $fk) {
+            $rules = '';
+            // only emit rules that change behaviour, so the common case stays byte-identical to older generator output
+            foreach (['delete_rule' => 'setOnDelete', 'update_rule' => 'setOnUpdate'] as $key => $setter) {
+                $rule = strtoupper(trim((string)($fk[$key] ?? '')));
+                if ($rule !== '' && !in_array($rule, ['NO ACTION', 'RESTRICT'], true)) {
+                    $rules .= "\n\t\t\t\t->{$setter}('" . addslashes($rule) . "')";
+                }
+            }
             $tmp .= "\n\t\t\$this->getTable()->addForeignKey(
 			(new ForeignKey())
 				->setField(\$this->getTable()->getField(\"{$fk['column_name']}\"))
 				->setKeyName('{$fk['constraint_name']}')
 				->setReferencingTable(\"{$fk['referenced_table_name']}\")
-				->setReferencingField(\"{$fk['referenced_column_name']}\")
+				->setReferencingField(\"{$fk['referenced_column_name']}\"){$rules}
 		);\n";
         }
         return $tmp;
@@ -509,17 +519,20 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
 			->setMaxLength(" . (is_numeric($column['CHARACTER_MAXIMUM_LENGTH']) ? $column['CHARACTER_MAXIMUM_LENGTH'] : '255') . ")
 			->setAutoIncrement(" . (strpos($column['EXTRA']??'', 'auto_increment') === false ? 'false' : 'true') . ")
 			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true' : 'false') . ")
-			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE']) . ");";
+			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE'], $column) . ");";
 
             $maxLength = $column['CHARACTER_MAXIMUM_LENGTH'];
             if (is_int($maxLength)) {
                 $tmp .= "\n\t\t\$field->setMaxLength({$maxLength});";
             }
 
-            if (Util::isJSON($column['COLUMN_COMMENT'])) {
+            if (Util::isJSON($column['COLUMN_COMMENT'] ?? '')) {
                 $params = json_decode($column['COLUMN_COMMENT']);
-                foreach ($params->fields as $method => $value) {
-                    if (method_exists((new Field()), $method)) {
+                foreach ($params->fields ?? [] as $method => $value) {
+                    if ($method == 'setType') {
+                        // {"fields":{"setType":"uuid"}} overrides the schema type, e.g. a MySQL char(36) holding UUIDs
+                        $tmp .= "\n\t\t\$field->setType(" . FieldTypeFactory::getClassLiteral((string)$value) . ");";
+                    } else if (method_exists((new Field()), $method)) {
                         $tmp .= "\n\t\t\$field->$method(\"{$value}\");";
                     } else if ($method == 'setDisplayField') {
                         $tmp .= "\n\t\t\$this->getTable()->setDisplayField(\$field);";

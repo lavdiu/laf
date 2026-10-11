@@ -4,6 +4,42 @@ namespace Laf\Util;
 
 class Util
 {
+    /**
+     * Escape a value for HTML text or attribute context.
+     *
+     * Storage keeps values verbatim; every place that writes a value into
+     * markup goes through here. Existing entities are not re-encoded
+     * (double_encode = false) so rows written by older LAF versions, which
+     * stored "&amp;"-style text, still display as "&" instead of "&amp;".
+     */
+    public static function e(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8', false);
+    }
+
+    /**
+     * Escape a value for a DOUBLE-quoted HTML attribute (key="...").
+     * Single quotes are left alone so inline handlers such as
+     * onclick="return confirm('Sure?')" render exactly as authored; the
+     * double quote, &, < and > are what can break out of the attribute.
+     */
+    public static function attr(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        return htmlspecialchars((string)$value, ENT_COMPAT | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8', false);
+    }
+
     public static function isJSON($string)
     {
         return is_string($string) && is_array(json_decode($string, true)) && (json_last_error() === JSON_ERROR_NONE);

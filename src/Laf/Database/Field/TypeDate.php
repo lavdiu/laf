@@ -3,62 +3,59 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\Date;
-use Laf\Util\Settings;
+use Laf\Util\Locale;
 
-class TypeDate implements FieldType
+/**
+ * DATE. Canonical value is a 'Y-m-d' string.
+ *
+ * Accepted input: 'Y-m-d', a datetime string (time part dropped), any
+ * DateTimeInterface, and the locale display format (Settings 'locale.date.format').
+ */
+class TypeDate extends AbstractFieldType
 {
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        if (is_null($value) || trim($value) == '')
-            return true;
-
-        $format = 'Y-m-d';
-        $f = \DateTime::createFromFormat($format, $value);
-        $valid = \DateTime::getLastErrors();
-        return $valid === false || ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
+        return 'date';
     }
 
-    public function getValueDbSanitized($value)
+    /** @return string[] */
+    protected function acceptedFormats(): array
     {
-        $format = 'Y-m-d';
-        $dt = \DateTime::createFromFormat($format, $value??'');
-        if ($dt === false) return null;
-        return $dt->format('Y-m-d');
+        return array_unique([
+            Locale::ISO_DATE,
+            'Y-m-d H:i:s',
+            'Y-m-d H:i:s.u',
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i:sP',
+            'Y-m-d\TH:i:s.uP',
+            'Y-m-d H:i:sP',
+            'Y-m-d H:i',
+            'Ymd',
+            Locale::dateFormat(),
+        ]);
     }
 
-    /**
-     * @return int
-     */
+    protected function convert(mixed $value): mixed
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format(Locale::ISO_DATE);
+        }
+        $dt = Locale::parseDate($this->toStringOrFail($value), $this->acceptedFormats());
+        if ($dt === null) {
+            throw $this->invalid($value, 'not a date');
+        }
+        return $dt->format(Locale::ISO_DATE);
+    }
+
     public function getPdoType()
     {
         return \PDO::PARAM_STR;
     }
 
-    /**
-     * @param Field $field
-     * @return Date
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new Date();
         $formElement->setField($field);
         return $formElement;
-    }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        $format = 'Y-m-d';
-        try {
-            $format = Settings::get('locale.date.format');
-        } catch (\Exception $ex) {
-        }
-        $dt = \DateTime::createFromFormat($format, $value??'');
-        if ($dt === false) return null;
-        return $dt->format('Y-m-d');
     }
 }

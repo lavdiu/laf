@@ -19,7 +19,7 @@ class DummyTable extends Base\BaseDummyTable
 		return parent::bOfindOne($keyValuePairs);
 	}
 
-	public static function find(array $keyValuePairs): array
+	public static function find(array $keyValuePairs = []): array
 	{
 		return parent::bOfind($keyValuePairs);
 	}

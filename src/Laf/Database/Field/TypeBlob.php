@@ -2,55 +2,57 @@
 
 namespace Laf\Database\Field;
 
-use Laf\UI\Form\Text;
+use Laf\UI\Form\Input\Text;
 
-class TypeBlob implements FieldType
+/**
+ * BLOB / BINARY / VARBINARY / BYTEA — opaque bytes.
+ *
+ * Nothing is trimmed or validated. PostgreSQL's pdo_pgsql returns bytea as a
+ * stream resource; fromDb() reads it into a string so the object always holds bytes.
+ * Bound as PDO::PARAM_LOB on both engines.
+ */
+class TypeBlob extends AbstractFieldType
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        return true;
+        return 'blob';
     }
 
-    /**
-     * @param $value
-     * @return mixed
-     */
-    public function getValueDbSanitized($value)
+    public function normalize(mixed $value): mixed
     {
-        return $value;
+        if ($value === null) {
+            return null;
+        }
+        return $this->convert($value);
     }
 
-    /**
-     * @return int
-     */
+    protected function convert(mixed $value): mixed
+    {
+        if (is_resource($value)) {
+            $contents = stream_get_contents($value);
+            if ($contents === false) {
+                throw $this->invalid($value, 'unreadable stream');
+            }
+            return $contents;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_scalar($value) || $value instanceof \Stringable) {
+            return (string)$value;
+        }
+        throw $this->invalid($value);
+    }
+
     public function getPdoType()
     {
         return \PDO::PARAM_LOB;
     }
 
-    /**
-     * @param Field $field
-     * @return Text
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new Text();
         $formElement->setField($field);
         return $formElement;
     }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        return $value;
-    }
-
 }

@@ -3,72 +3,73 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\Time;
-use Laf\Util\Settings;
+use Laf\Util\Locale;
 
-class TypeTime implements FieldType
+/**
+ * TIME. Canonical value is 'H:i:s' (plus '.u' when microseconds are present).
+ *
+ * Accepted input: 'H:i:s', 'H:i', fractional seconds, 12-hour forms with
+ * AM/PM, any DateTimeInterface, and the locale display format
+ * (Settings 'locale.time.format').
+ */
+class TypeTime extends AbstractFieldType
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        if (is_null($value))
-            return true;
-
-        $format = 'H:i:s';
-        $f = \DateTime::createFromFormat($format, $value);
-        if ($f === false) return false;
-        $valid = \DateTime::getLastErrors();
-        if ($valid === false) return true;
-        return ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
+        return 'time';
     }
 
-    /**
-     * @param $value
-     * @return null|string
-     */
-    public function getValueDbSanitized($value)
+    /** @return string[] */
+    protected function acceptedFormats(): array
     {
-        $format = 'H:i:s';
-        $dt = \DateTime::createFromFormat($format, $value);
-        if ($dt === false) return null;
-        return $dt->format('H:i:s');
+        // most specific first: PHP's parser lets 'g:i A' swallow ":07" from "9:05:07 am"
+        return array_unique([
+            Locale::ISO_TIME,
+            'H:i:s.u',
+            'H:i:sP',
+            'g:i:s A',
+            'g:i:s a',
+            'H:i:s A',
+            'H:i:s a',
+            'H:i',
+            'g:i A',
+            'g:i a',
+            'H:i A',
+            'H:i a',
+            Locale::timeFormat(),
+        ]);
     }
 
-    /**
-     * @return int
-     */
+    protected function convert(mixed $value): mixed
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $this->format($value);
+        }
+        $dt = Locale::parseDate($this->toStringOrFail($value), $this->acceptedFormats());
+        if ($dt === null) {
+            throw $this->invalid($value, 'not a time');
+        }
+        return $this->format($dt);
+    }
+
+    private function format(\DateTimeInterface $dt): string
+    {
+        $out = $dt->format(Locale::ISO_TIME);
+        if ((int)$dt->format('u') !== 0) {
+            $out .= '.' . rtrim($dt->format('u'), '0');
+        }
+        return $out;
+    }
+
     public function getPdoType()
     {
         return \PDO::PARAM_STR;
     }
 
-    /**
-     * @param Field $field
-     * @return Time
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new Time();
         $formElement->setField($field);
         return $formElement;
-    }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param null|string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        $format = 'H:i:s';
-        try {
-            $format = Settings::get('locale.time.format');
-        } catch (\Exception $ex) {
-        }
-        $dt = \DateTime::createFromFormat($format, $value);
-        if ($dt === false) return null;
-        return $dt->format('H:i:s');
     }
 }

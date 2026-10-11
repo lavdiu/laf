@@ -199,6 +199,14 @@ class Field
 	}
 
 	/**
+	 * Whether the field has been attached to a Table (false for a bare `new Field()`)
+	 */
+	public function hasTable(): bool
+	{
+		return $this->table !== null;
+	}
+
+	/**
 	 * Set table ref
 	 * @return Table
 	 */
@@ -233,7 +241,10 @@ class Field
 	 */
 	public function getValueNl2Br()
 	{
-		return nl2br($this->value);
+		if ($this->allowHtml()) {
+			return nl2br((string)$this);
+		}
+		return nl2br(Util::e((string)$this));
 	}
 
 	/**
@@ -254,45 +265,62 @@ class Field
 	 */
 	public function setValue($value): Field
 	{
+		if ($this->type === null) {
+			return $this->setValueRaw($value);
+		}
 
-        /**
-         * for float/double/numeric types, try to parse the numbers with different formats, such as ##,###.## ##.###,## ###,## ###.##
-         */
-        if(get_class($this->getType()) == TypeFloat::class && str_contains($value, ',')){
-            $value = Util::toFloat($value);
-        }
+		try {
+			$tmpVal = $this->type->normalize($value);
+		} catch (Exception\InvalidValueException $ex) {
+			throw new Exception\InvalidValueException(sprintf(
+				'Invalid Value of \'%s\' for type:%s and field: %s:%s (%s)',
+				is_scalar($value) ? $value : gettype($value),
+				get_class($this->getType()),
+				$this->getTableName(),
+				$this->getName(),
+				$ex->getMessage()
+			), 0, $ex);
+		}
 
-		if ($this->type->isValid($value)) {
-
-            $tmpVal = "";
-            if($this->allowHtml()){
-                #$tmpVal = strip_tags($value, "<a><b><span><div><table><tr><td><thead><tbody><li><ul><ol><p><img><p><h1><h2><h3><h4><h5><h6><br><hr><strong><em><i><u><s><sub><sup><code><pre><blockquote><cite><abbr><acronym><address><big><small>");
-                $tmpVal = trim($value);
-            }else{
-			    $tmpVal = $this->sanitize($value);
-            }
-			if ($this->value !== $tmpVal) {
-				$this->value = $tmpVal;
-				$this->setUpdatedOnTs();
-			}
-		} else {
-			throw new Exception\InvalidValueException(sprintf('Invalid Value of \'%s\' for type:%s and field: %s:%s ', $value, get_class($this->getType()), $this->getTableName(), $this->getName()));
+		if ($this->value !== $tmpVal) {
+			$this->value = $tmpVal;
+			$this->setUpdatedOnTs();
 		}
 		return $this;
 	}
 
 	/**
 	 * Load value from DB, sets value and oldValue
-	 * Bypasses all validation
+	 * Bypasses validation; the value is converted to the type's canonical PHP
+	 * form (int, bool, decimal string, 'Y-m-d', …) when the type recognises it,
+	 * and kept as-is otherwise so a row can always be loaded.
 	 * @param $value
 	 * @return Field
 	 */
 	public function loadValueFromDb($value): Field
 	{
-		$this->value = $value;
-		$this->oldValue = $value;
+		$converted = $this->type === null ? $value : $this->type->fromDb($value);
+		$this->value = $converted;
+		$this->oldValue = $converted;
 		$this->setLoadedOnTs(time());
 		return $this;
+	}
+
+	/**
+	 * Constraint check for the current value: required, length, range, precision.
+	 * @return string[] empty when valid
+	 */
+	public function validate(): array
+	{
+		$messages = [];
+		$label = $this->getLabel() ?: $this->getName();
+		if ($this->isRequired() && !$this->isPrimaryKey() && ($this->value === null || $this->value === '')) {
+			$messages[] = sprintf('%s is required', $label);
+		}
+		if ($this->type !== null && $this->value !== null) {
+			$messages = array_merge($messages, $this->type->validate($this->value, $this));
+		}
+		return $messages;
 	}
 
 	/**
@@ -379,6 +407,9 @@ class Field
 	 */
 	public function hasChanged()
 	{
+		if ($this->type !== null) {
+			return !$this->type->equals($this->getOldValue(), $this->getValue());
+		}
 		return $this->getOldValue() != $this->getValue();
 	}
 
@@ -408,7 +439,7 @@ class Field
 	 */
 	public function getLength(): ?int
 	{
-		return mb_strlen($this->getValue());
+		return mb_strlen((string)$this);
 	}
 
 	/**
@@ -417,7 +448,7 @@ class Field
 	 */
 	public function isRequired(): bool
 	{
-		return $this->required;
+		return (bool)$this->required;
 	}
 
 	/**
@@ -436,7 +467,7 @@ class Field
 	 */
 	public function isUnique(): bool
 	{
-		return $this->unique;
+		return (bool)$this->unique;
 	}
 
 	/**
@@ -456,7 +487,7 @@ class Field
 	 */
 	public function isAutoIncrement(): bool
 	{
-		return $this->autoIncrement;
+		return (bool)$this->autoIncrement;
 	}
 
 	/**
@@ -582,7 +613,14 @@ class Field
 	 */
 	public function __toString()
 	{
-		return $this->getValue();
+		$value = $this->getValue();
+		if ($value === null) {
+			return '';
+		}
+		if (is_bool($value)) {
+			return $value ? '1' : '0';
+		}
+		return (string)$value;
 	}
 
 	/**
@@ -593,14 +631,13 @@ class Field
 	{
 		$settings = Settings::getInstance();
 		if ($this->isForeignKey()) {
-			$field = $this->getTable()->getField($this->getName());
 			$foreignKey = $this->getTable()->getForeignKey($this->getName());
-
-			$referencedTable = new  Table($foreignKey->getReferencingTable());
-			$referencedObjectName = "\\" . $settings->getProperty('project.package_name') . "\\" . $referencedTable->getNameAsClassname();
-			$referencedTableObject = new $referencedObjectName($this->getValue());
-			$referencedValue = $referencedTableObject->getTable()->getDisplayField()->getValue();
-			return $referencedValue;
+			$referencedTableObject = $foreignKey->getReferencedObject($this->getValue());
+			if ($referencedTableObject === null) {
+				return $this->getValue();
+			}
+			$displayField = $referencedTableObject->getTable()->getDisplayField();
+			return $displayField ? $displayField->getValue() : $this->getValue();
 		} else {
 			return $this->getValue();
 		}
@@ -771,11 +808,16 @@ class Field
 	 */
 	public function setTableDisplayField()
 	{
-		$this->getTable()->setDisplayFieldName($this->getName());
+		$this->getTable()->setDisplayField($this);
 		return $this;
 	}
 
 	/**
+	 * Returns the input component for this field (cached until clearFormElementCache()).
+	 * The type decides, taking the column's role into account: a foreign key is a
+	 * Select whatever its type, a foreign key to the document table is a File
+	 * upload, an auto-increment primary key is Hidden.
+	 *
 	 * @param FormElementInterface|null $formElementOverride
 	 * @return FormElementInterface
 	 */
@@ -792,8 +834,12 @@ class Field
 		if (is_object($formElementOverride)) {
 			$this->formElement = $formElementOverride;
 			$this->formElement->setField($this);
-		} else {
-			$this->formElement = $this->getType()->getFormElement($this);
+			return $this->formElement;
+		}
+
+		$this->formElement = $this->getType()->getFormElement($this);
+		if ($this->formElement instanceof FormElementInterface && $this->formElement->getField() === null) {
+			$this->formElement->setField($this);
 		}
 		return $this->formElement;
 	}
@@ -803,6 +849,12 @@ class Field
 	 * This allows clearing cache so it can be reloaded
 	 */
 	public function clearFormElementCache()
+	{
+		$this->formElement = null;
+	}
+
+	/** A cloned field starts without a cached form element (it would still point at the original field). */
+	public function __clone()
 	{
 		$this->formElement = null;
 	}

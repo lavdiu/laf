@@ -62,7 +62,7 @@ class Dropdown implements FormElementInterface, ComponentInterface
         $params = '';
         foreach ($this->getAttributes() as $key => $value)
             if (mb_strlen($value) > 0 && $key != 'value')
-                $params .= "\n\t" . $key . '="' . $value . '" ';
+                $params .= "\n\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
         $text = $this->getText();
         if ($this->getIcon() != '') {
             $text = "<i class='{$this->getIcon()}'></i> " . $text;

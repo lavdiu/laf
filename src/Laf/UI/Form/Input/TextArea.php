@@ -37,7 +37,7 @@ class TextArea extends Text implements FormElementInterface, ComponentInterface
 
         $params = '';
         foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
         $html = "
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
@@ -48,7 +48,7 @@ class TextArea extends Text implements FormElementInterface, ComponentInterface
                 style='{$this->getCssStyleForHtml()}' 
                 {$params}
                 " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "")
-            . ">{$this->getValue()}</textarea>
+            . ">" . \Laf\Util\Util::e($this->getValue()) . "</textarea>
                 " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
             ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
         </div>";

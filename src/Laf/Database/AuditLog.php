@@ -32,6 +32,10 @@ class AuditLog extends BaseObject
      */
     public static function logChange(string $action, string $tableName, $recordId, array $changes = [], ?int $userId = null): bool
     {
+        if (is_array($recordId)) {
+            // composite primary key: store "v1,v2" in record_id (VARCHAR)
+            $recordId = implode(',', array_map(fn($v) => is_bool($v) ? ($v ? '1' : '0') : (string)$v, $recordId));
+        }
         try {
             $db = Db::getInstance();
             $sql = "

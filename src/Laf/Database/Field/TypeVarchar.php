@@ -3,57 +3,53 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\Text;
+use Laf\Util\Util;
 
-class TypeVarchar implements FieldType
+/**
+ * VARCHAR / CHARACTER VARYING and short text-like columns (inet, interval, …).
+ *
+ * Values are stored exactly as typed (trimmed). HTML escaping happens at
+ * output time in the UI layer, never here: encoding at storage time corrupts
+ * data for every non-HTML consumer (exports, API, LIKE searches).
+ */
+class TypeVarchar extends AbstractFieldType
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        return true;
+        return 'varchar';
     }
 
-    /**
-     * @param $value
-     * @return string
-     */
-    public function getValueDbSanitized($value)
+    protected function convert(mixed $value): mixed
     {
-        $value = strip_tags($value??'');
-        #$value = strip_tags($value);
-        return htmlspecialchars($value, ENT_COMPAT);
+        return trim($this->toStringOrFail($value));
     }
 
-    /**
-     * @return int
-     */
     public function getPdoType()
     {
         return \PDO::PARAM_STR;
     }
 
-    /**
-     * @param Field $field
-     * @return Text
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new Text();
         $formElement->setField($field);
         return $formElement;
     }
 
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
+    public function validate(mixed $value, ?Field $field = null): array
     {
-        if (mb_strlen($value??'') == 0)
-            return null;
-        return (string)$value;
+        if ($value === null || $field === null) {
+            return [];
+        }
+        $max = $field->getMaxLength();
+        if (is_int($max) && $max > 0 && mb_strlen((string)$value) > $max) {
+            return [sprintf('%s must be at most %d characters', $field->getLabel() ?: $field->getName(), $max)];
+        }
+        return [];
+    }
+
+    public function generatePrimaryKeyValue(): ?string
+    {
+        return Util::uuid();
     }
 }

@@ -1,11 +1,20 @@
 <?php
 
-
 namespace Laf\UI\Table;
 
+use Laf\Util\Util;
 
+/**
+ * One <tr>. Cell ids are derived at draw time from the row's current index and
+ * section (body/head/foot), so re-indexing a row after cells were added keeps
+ * ids consistent.
+ */
 class Tr
 {
+    public const SECTION_BODY = 'body';
+    public const SECTION_HEAD = 'head';
+    public const SECTION_FOOT = 'foot';
+
     private $cells = [];
     private $classes = [];
     private $styles = [];
@@ -13,19 +22,12 @@ class Tr
     private $table = null;
     private $rowIndex = 0;
     private $prettyPrint = false;
+    private $section = self::SECTION_BODY;
 
-    /**
-     * Cell constructor.
-     */
     public function __construct()
     {
-
     }
 
-    /**
-     * @param Cell $cell
-     * @return Tr
-     */
     public function addCell(Cell $cell): Tr
     {
         $cell->setRowIndex($this->getRowIndex())
@@ -35,9 +37,19 @@ class Tr
     }
 
     /**
-     * @param int $index
-     * @return Cell|null
+     * Add several plain-text cells at once (escaped). Use $header = true for <th>.
+     * @param array $values
      */
+    public function addCells(array $values, bool $header = false): Tr
+    {
+        foreach ($values as $value) {
+            $cell = $header ? new Th('') : new Td('');
+            $cell->setText($value === null ? '' : (string)$value);
+            $this->addCell($cell);
+        }
+        return $this;
+    }
+
     public function getCell(int $index): ?Cell
     {
         if (array_key_exists($index, $this->cells)) {
@@ -47,18 +59,13 @@ class Tr
         }
     }
 
-    /**
-     * @return Cell[]
-     */
+    /** @return Cell[] */
     public function getCells(): array
     {
         return $this->cells;
     }
 
-    /**
-     * @param Cell[] $cells
-     * @return Tr
-     */
+    /** @param Cell[] $cells */
     public function setCells(array $cells): Tr
     {
         $i = 0;
@@ -71,58 +78,34 @@ class Tr
         return $this;
     }
 
-
-    /**
-     * @return array
-     */
     public function getClasses(): array
     {
         return $this->classes;
     }
 
-    /**
-     * @param string $class
-     * @return Tr
-     */
     public function addClass(string $class): Tr
     {
         $this->classes[] = $class;
         return $this;
     }
 
-    /**
-     * @param array $classes
-     * @return Tr
-     */
     public function setClasses(array $classes): Tr
     {
         $this->classes = $classes;
         return $this;
     }
 
-    /**
-     * @return array
-     */
     public function getStyles(): array
     {
         return $this->styles;
     }
 
-    /**
-     * @param string $property
-     * @param string $value
-     * @return Tr
-     */
     public function addStyle(string $property, string $value): Tr
     {
         $this->styles[$property] = $value;
         return $this;
     }
 
-    /**
-     * @param array $styles
-     * @return Tr
-     */
     public function setStyles(array $styles): Tr
     {
         $this->styles = $styles;
@@ -135,75 +118,84 @@ class Tr
         return $this;
     }
 
-    /**
-     * @return array
-     */
     public function getParams(): array
     {
         return $this->params;
     }
 
-    /**
-     * @param array $params
-     * @return Tr
-     */
     public function setParams(array $params): Tr
     {
         $this->params = $params;
         return $this;
     }
 
-
-    /**
-     * @return int
-     */
     public function getRowIndex(): int
     {
         return $this->rowIndex;
     }
 
-    /**
-     * @param int $rowIndex
-     * @return Tr
-     */
     public function setRowIndex(int $rowIndex): Tr
     {
         $this->rowIndex = $rowIndex;
+        foreach ($this->cells as $cell) {
+            $cell->setRowIndex($rowIndex);
+        }
         return $this;
     }
 
-    /**
-     * @return string
-     */
+    public function getSection(): string
+    {
+        return $this->section;
+    }
+
+    /** body (default), head or foot; set by Table::draw() */
+    public function setSection(string $section): Tr
+    {
+        $this->section = in_array($section, [self::SECTION_BODY, self::SECTION_HEAD, self::SECTION_FOOT], true) ? $section : self::SECTION_BODY;
+        return $this;
+    }
+
+    /** "tbl_3" for body rows, "tbl_head_0" / "tbl_foot_0" for the other sections; null when drawn standalone. */
+    public function getHtmlId(): ?string
+    {
+        if ($this->getTable() === null) {
+            return null;
+        }
+        $prefix = $this->section === self::SECTION_BODY ? '' : $this->section . '_';
+        return $this->getTable()->getId() . '_' . $prefix . $this->getRowIndex();
+    }
+
     public function draw(): string
     {
-        /*if(!$this->hasCells()){
-            return "";
-        }*/
-
-
         $_style = [];
         foreach ($this->getStyles() as $k => $v) {
-            $_style[] = $k . ':' . $v;
+            $_style[] = Util::e($k) . ':' . Util::e($v);
         }
         $_params = [];
         foreach ($this->getParams() as $k => $v) {
-            $_params[] = "{$k}='{$v}'";
+            $_params[] = Util::e($k) . "='" . Util::e($v) . "'";
         }
         $html = "";
         if ($this->isPrettyPrint()) {
             $html .= "\n\t\t\t";
         }
+        $id = $this->getHtmlId();
         $html
             .= "<tr"
-            . " id='{$this->getTable()->getId()}_{$this->getRowIndex()}'"
-            . (count($this->getClasses()) > 0 ? " class='" . join(' ', $this->getClasses()) . "'" : '')
+            . ($id !== null ? " id='" . Util::e($id) . "'" : '')
+            . (count($this->getClasses()) > 0 ? " class='" . Util::e(join(' ', $this->getClasses())) . "'" : '')
             . (count($this->getStyles()) > 0 ? " style='" . join(';', $_style) . "'" : '')
             . (count($this->getParams()) > 0 ? ' ' . join(' ', $_params) : '')
             . '>';
 
+        $column = 0;
         foreach ($this->getCells() as $cell) {
-            $cell->setTable($this->getTable())
+            if ($this->getTable() !== null) {
+                $cell->setTable($this->getTable());
+            }
+            $cell->setRowIndex($this->getRowIndex())
+                ->setColumnIndex($column++)
+                ->setRowHtmlId($id)
                 ->setPrettyPrint($this->isPrettyPrint());
             $html .= $cell->draw();
         }
@@ -214,57 +206,35 @@ class Tr
         return $html;
     }
 
-
-    /**
-     * @return bool
-     */
     public function hasCells(): bool
     {
         return $this->getCellCount() > 0;
     }
 
-    /**
-     * @return int
-     */
     public function getCellCount(): int
     {
         return count($this->cells);
     }
 
-    /**
-     * @param Table $table
-     * @return Tr
-     */
     public function setTable(Table $table): Tr
     {
         $this->table = $table;
         return $this;
     }
 
-    /**
-     * @return Table
-     */
     public function getTable(): ?Table
     {
         return $this->table;
     }
 
-    /**
-     * @return bool
-     */
     public function isPrettyPrint(): bool
     {
         return $this->prettyPrint;
     }
 
-    /**
-     * @param bool $prettyPrint
-     * @return Tr
-     */
     public function setPrettyPrint(bool $prettyPrint): Tr
     {
         $this->prettyPrint = $prettyPrint;
         return $this;
     }
-
 }
