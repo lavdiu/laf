@@ -19,12 +19,15 @@ src/Laf/
 ├── UI/                 # Component system (~3,200 lines)
 │   ├── ComponentInterface.php (261 lines)
 │   ├── Traits/
-│   │   ├── ComponentTrait.php (578 lines) — CSS, attributes, composition
-│   │   └── FormElementTrait.php (495 lines) — form input properties
+│   │   ├── ComponentTrait.php — CSS, attributes, composition
+│   │   └── FormElementTrait.php — form input properties (attribute-backed), validation messages
 │   ├── Form/
-│   │   ├── Form.php (763 lines) — auto-generates forms from BaseObject
-│   │   ├── DrawMode.php — VIEW, INSERT, UPDATE constants
-│   │   └── Input/*.php — Checkbox, Date, Email, File, Hidden, Integer, Password, Select, Text, TextArea, etc.
+│   │   ├── Form.php — form bound to a BaseObject: detectSubmission/applySubmittedValues/validate/processForm, CSRF
+│   │   ├── FormElementFactory.php — Field -> input element
+│   │   ├── FormElementInterface.php (extends ComponentInterface), DrawMode.php, FormRowDisplayMode.php, InputType.php
+│   │   ├── Control/ — Button, SubmitButton
+│   │   └── Input/ — Text (base: renderWrapper/getDisplayValue), Select -> Radio, CheckboxCollection; Checkbox;
+│   │       TemporalInput -> Date, DateTime, Time; TextArea, File, Hidden, Password, Url, Email, Integer, Color, Search
 │   ├── Grid/
 │   │   ├── SimpleTable.php (757 lines) — server-side pagination
 │   │   └── PhpGrid/ — client-side grid with JS (ActionButton.php, Column.php, Settings.php)

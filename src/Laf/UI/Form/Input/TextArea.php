@@ -2,58 +2,28 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
+use Laf\Util\Util;
 
-class TextArea extends Text implements FormElementInterface, ComponentInterface
+/**
+ * <textarea> for text and JSON columns; 5 rows unless setRows() says otherwise.
+ */
+class TextArea extends Text implements FormElementInterface
 {
-    public function drawUpdateMode()
+    public function drawUpdateMode(): string
     {
         $this->addCssClass(static::getComponentCssControlClass());
 
-        if (!is_numeric($this->getCols()))
-            $this->setCols(5);
-        if (!is_numeric($this->getRows()))
-            $this->setRows('5');
-        if (!is_numeric($this->getHeight()))
-            $this->setHeight('100');
+        $attributes = $this->controlAttributes(['value', 'type', 'max', 'min', 'step', 'pattern', 'inputmode', 'size', 'accept', 'checked', 'multiple']);
+        if (!is_numeric($attributes['rows'] ?? null)) {
+            $attributes['rows'] = '5';
+        }
 
-        $attributes = $this->getAttributes();
-        unset($attributes['value']);
-        unset($attributes['type']);
-        unset($attributes['class']);
-        unset($attributes['style']);
-        unset($attributes['max']);
-        unset($attributes['min']);
-        unset($attributes['height']);
-        unset($attributes['width']);
+        $control = "<textarea class='" . Util::e(join(' ', $this->controlClasses('form-control'))) . "' style='" . Util::e($this->controlStyle()) . "'"
+            . $this->renderAttributes($attributes)
+            . $this->describedBy() . ">" . Util::e($this->getValue()) . "</textarea>";
 
-        if ($this->getHeight())
-            $this->addCssStyleItem('height', $this->getHeight() . 'px');
-        if ($this->getWidth())
-            $this->addCssStyleItem('width', $this->getWidth() . 'px');
-
-        $this->addCssClass('form-control');
-
-        $params = '';
-        foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
-
-        $html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
-            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-            <textarea 
-                class='{$this->getCssClassesForHtml()}' 
-                style='{$this->getCssStyleForHtml()}' 
-                {$params}
-                " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "")
-            . ">" . \Laf\Util\Util::e($this->getValue()) . "</textarea>
-                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
-        </div>";
-
-        return $html;
+        return $this->renderWrapper($control);
     }
 
     /**

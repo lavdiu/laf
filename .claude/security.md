@@ -9,10 +9,10 @@
 ### XSS
 - **SimpleTable.php line ~324** — cell values rendered without `htmlentities()`, DB results go straight to HTML
 - **SimpleTable.php button substitution** — row data substituted into button URLs without URL encoding
-- **Form.php lines 534-535** — inline jQuery in onclick attributes
+- ~~**Form.php** — inline jQuery in onclick attributes~~ fixed 2026-10-11: vanilla JS, attributes escaped
 
 ### Missing Protections
-- **No CSRF tokens** — `Form::processForm()` has no CSRF validation
+- ~~**No CSRF tokens**~~ fixed: `Form::processForm()` validates `_csrf_token_{form}` against a per-session token (`CsrfTokenException`); `setCsrfProtection(false)` opts out
 - **ROT13 "security"** — used for field name encoding (`Util::scrambleFieldOrTableName()`) and form table name obfuscation — not real security
 
 ### QueryBuilder (no input validation on identifiers)
@@ -28,6 +28,6 @@
 
 ### Good Practices Already Present
 - PDO prepared statements used correctly in most BaseObject methods
-- `FormElementTrait::getValueForHtml()` uses `htmlentities()`
+- Form inputs escape labels, hints, values, attributes and the form action with `Util::e()` / `Util::attr()`
 - `bOfind()`/`bOfindOne()` validate field names with regex + `hasField()` check
 - PDO configured with `ERRMODE_EXCEPTION` and `EMULATE_PREPARES=false`

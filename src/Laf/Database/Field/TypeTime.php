@@ -37,6 +37,7 @@ class TypeTime extends AbstractFieldType
             'H:i A',
             'H:i a',
             Locale::timeFormat(),
+            Locale::formatWithSeconds(Locale::timeFormat()),
         ]);
     }
 

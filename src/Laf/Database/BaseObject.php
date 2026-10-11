@@ -1151,7 +1151,11 @@ class BaseObject
      */
     public function getAllFieldsAsFormElements(): array
     {
-        return static::getAllFieldsAsFormElements();
+        $elements = [];
+        foreach ($this->getTable()->getFields() as $field) {
+            $elements[] = $field->getFormElement();
+        }
+        return $elements;
     }
 
     /**
@@ -1162,7 +1166,7 @@ class BaseObject
     {
         $msg = [];
         foreach ($this->getTable()->getFields() as $field) {
-            if ($field->isRequired() && ((string)$field->getValue()) == '' && !$field->isPrimaryKey()) {
+            if ($field->isRequired() && ($field->getValue() === null || $field->getValue() === '') && !$field->isPrimaryKey()) {
                 $msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), $field->getValue());
             }
         }

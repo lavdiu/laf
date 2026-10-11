@@ -2,45 +2,44 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 use Laf\Util\Locale;
 
-class DateTime extends Text implements FormElementInterface, ComponentInterface
+/**
+ * Date and time input: text + "date-time-picker" class showing the locale
+ * date-time format (seconds kept when not zero), or a native
+ * <input type="datetime-local"> (see TemporalInput).
+ */
+class DateTime extends TemporalInput implements FormElementInterface
 {
-    /**
-     * Re-render the canonical 'Y-m-d H:i:s[.u][P]' value in the locale display format.
-     * A value that does not parse is left untouched so the user sees what is stored.
-     */
-    private function applyDisplayFormat(): void
+    protected function pickerClass(): string
     {
-        $value = $this->getValue();
-        if ($value === null || trim($value) === '') {
-            return;
-        }
-        $date = Locale::parseDate($value, [
-            Locale::ISO_DATETIME, 'Y-m-d H:i:s.u', 'Y-m-d H:i:sP', 'Y-m-d H:i:s.uP',
-            'Y-m-d H:i', Locale::ISO_DATE, Locale::dateTimeFormat(),
-        ]);
-        if ($date !== null) {
-            $this->setValue($date->format(Locale::dateTimeFormat()));
-        }
+        return 'date-time-picker';
     }
 
-    public function drawUpdateMode()
+    protected function nativeType(): string
     {
-        $this->setType(InputType::Text);
-        $this->addCssClass('date-time-picker');
-        $this->applyDisplayFormat();
-        return parent::drawUpdateMode();
+        return InputType::DatetimeLocal;
     }
 
-    public function drawViewMode()
+    protected function acceptedFormats(): array
     {
-        $this->applyDisplayFormat();
-        $this->removeCssClass('date-time-picker');
-        return parent::drawViewMode();
+        return [
+            Locale::ISO_DATETIME, 'Y-m-d H:i:s.u', 'Y-m-d H:i:sP', 'Y-m-d H:i:s.uP', 'Y-m-d H:i:sO', 'Y-m-d H:i:s.uO',
+            'Y-m-d\TH:i:s', 'Y-m-d\TH:i:s.u', 'Y-m-d\TH:i:sP', 'Y-m-d\TH:i:s.uP', 'Y-m-d\TH:i:sO',
+            'Y-m-d H:i', 'Y-m-d\TH:i', Locale::ISO_DATE, Locale::dateTimeFormat(),
+        ];
+    }
+
+    protected function displayFormat(): string
+    {
+        return Locale::dateTimeFormat();
+    }
+
+    protected function nativeFormat(\DateTimeImmutable $dt): string
+    {
+        return $dt->format($dt->format('s') === '00' ? 'Y-m-d\TH:i' : 'Y-m-d\TH:i:s');
     }
 
     /**

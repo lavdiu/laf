@@ -2,44 +2,39 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 use Laf\Util\Locale;
 
-class Date extends Text implements FormElementInterface, ComponentInterface
+/**
+ * Date input: text + "date-picker" class showing the locale date format,
+ * or a native <input type="date"> (see TemporalInput).
+ */
+class Date extends TemporalInput implements FormElementInterface
 {
-    /**
-     * Re-render the canonical 'Y-m-d' value in the locale display format.
-     * A value that does not parse is left untouched so the user sees what is stored.
-     */
-    private function applyDisplayFormat(): void
+    protected function pickerClass(): string
     {
-        $value = $this->getValue();
-        if ($value === null || trim($value) === '') {
-            return;
-        }
-        $date = Locale::parseDate($value, [Locale::ISO_DATE, 'Y-m-d H:i:s', Locale::dateFormat()]);
-        if ($date !== null) {
-            $this->setValue($date->format(Locale::dateFormat()));
-        }
+        return 'date-picker';
     }
 
-    public function drawUpdateMode()
+    protected function nativeType(): string
     {
-        $this->setType(InputType::Text);
-        $this->addCssClass('date-picker');
-        $this->applyDisplayFormat();
-        return parent::drawUpdateMode();
+        return InputType::Date;
     }
 
-    public function drawViewMode()
+    protected function acceptedFormats(): array
     {
-        $this->removeCssClass('date-picker');
-        $this->applyDisplayFormat();
-        $this->addCssClass('form-control-plaintext');
-        $this->addCssClass('border border-secondary border-1');
-        return parent::drawViewMode();
+        return [Locale::ISO_DATE, 'Y-m-d H:i:s', 'Y-m-d H:i:s.u', 'Y-m-d\TH:i:s', Locale::dateFormat()];
+    }
+
+    protected function displayFormat(): string
+    {
+        return Locale::dateFormat();
+    }
+
+    protected function nativeFormat(\DateTimeImmutable $dt): string
+    {
+        return $dt->format(Locale::ISO_DATE);
     }
 
     /**

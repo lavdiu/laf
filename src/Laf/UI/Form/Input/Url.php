@@ -2,26 +2,15 @@
 
 namespace Laf\UI\Form\Input;
 
-
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
-class Url extends Text implements FormElementInterface, ComponentInterface
+class Url extends Text implements FormElementInterface
 {
-
-    /**
-     * @return string
-     */
-    public function __toString()
+    public function drawUpdateMode(): string
     {
-        return $this->draw();
-    }
-
-    public function draw(): ?string
-    {
-        $this->addAttribute('type', InputType::Url);
-        return parent::drawViewMode();
+        $this->setType(InputType::Url);
+        return parent::drawUpdateMode();
     }
 
     /**

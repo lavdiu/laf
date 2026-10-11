@@ -3,7 +3,6 @@
 namespace Laf\UI\Traits;
 
 use Laf\UI\ComponentInterface;
-use Laf\UI\Container\GenericContainer;
 use Laf\UI\Form\DrawMode;
 use Laf\Util\Util;
 
@@ -128,11 +127,11 @@ trait ComponentTrait
 
     /**
      * @param string $property
-     * @return array
+     * @return string|null the style value, null when the property is not set
      */
-    public function getCssStyleItem(string $property): array
+    public function getCssStyleItem(string $property): ?string
     {
-        return $this->cssStyle[$property];
+        return $this->hasCssStyleItem($property) ? $this->cssStyle[$property] : null;
     }
 
     /**
@@ -349,14 +348,11 @@ trait ComponentTrait
 
     /**
      * @param string $property
-     * @return array
+     * @return string|null the style value, null when the property is not set
      */
-    public function getWrapperCssStyleItem(string $property): array
+    public function getWrapperCssStyleItem(string $property): ?string
     {
-        if ($this->hasWrapperCssStyleItem($property))
-            return $this->wrapperCssStyle[$property];
-        else
-            return [];
+        return $this->hasWrapperCssStyleItem($property) ? $this->wrapperCssStyle[$property] : null;
     }
 
     /**
@@ -443,7 +439,7 @@ trait ComponentTrait
 
     /**
      * @param array $attributes
-     * @return mixed
+     * @return ComponentInterface
      */
     public function setWrapperAttributes(array $attributes): ComponentInterface
     {
@@ -486,8 +482,8 @@ trait ComponentTrait
 
     /**
      * @param string $key
-     * @param string $value
-     * @return mixed
+     * @param string|null $value
+     * @return ComponentInterface
      */
     public function addAttribute(string $key, ?string $value): ComponentInterface
     {
@@ -531,7 +527,7 @@ trait ComponentTrait
     /**
      * Use ContainerType::
      * @param string $containerType
-     * @return GenericContainer
+     * @return ComponentInterface
      */
     public function setContainerType(string $containerType): ComponentInterface
     {

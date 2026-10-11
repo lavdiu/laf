@@ -9,7 +9,7 @@ use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\UI\Traits\FormElementTrait;
 
-class Dropdown implements FormElementInterface, ComponentInterface
+class Dropdown implements FormElementInterface
 {
     use ComponentTrait;
     use FormElementTrait;
@@ -158,9 +158,10 @@ class Dropdown implements FormElementInterface, ComponentInterface
     }
 
     /**
+     * Not bound to a field
      * @param Field $field
-     * @return mixed
-     * @throws \Exception
+     * @return ComponentInterface
+     * @throws \Exception always
      */
     public function setField(Field $field): ComponentInterface
     {
@@ -168,8 +169,9 @@ class Dropdown implements FormElementInterface, ComponentInterface
     }
 
     /**
-     * @return mixed
-     * @throws \Exception
+     * Not bound to a field
+     * @return Field|null
+     * @throws \Exception always
      */
     public function getField(): ?Field
     {

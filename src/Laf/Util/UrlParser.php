@@ -84,7 +84,7 @@ class UrlParser
             $this->id = $_GET['id'] ?? '';
         } else {
 
-            $this->fullUrl = str_replace('?', '', $this->fullUrl);
+            $this->fullUrl = str_replace('?', '', (string)$this->fullUrl);
 
             if (stripos($this->fullUrl, '/') !== false) {
                 $this->pieces = explode('/', $this->fullUrl);

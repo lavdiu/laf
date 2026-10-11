@@ -2,41 +2,39 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 use Laf\Util\Locale;
 
-class Time extends Text implements FormElementInterface, ComponentInterface
+/**
+ * Time input: text + "time-picker" class showing the locale time format
+ * (seconds kept when not zero), or a native <input type="time"> (see TemporalInput).
+ */
+class Time extends TemporalInput implements FormElementInterface
 {
-    /**
-     * Re-render the canonical 'H:i:s[.u]' value in the locale display format.
-     * A value that does not parse is left untouched so the user sees what is stored.
-     */
-    private function applyDisplayFormat(): void
+    protected function pickerClass(): string
     {
-        $value = $this->getValue();
-        if ($value === null || trim($value) === '') {
-            return;
-        }
-        $time = Locale::parseDate($value, [Locale::ISO_TIME, 'H:i:s.u', 'H:i', Locale::timeFormat()]);
-        if ($time !== null) {
-            $this->setValue($time->format(Locale::timeFormat()));
-        }
+        return 'time-picker';
     }
 
-    public function drawViewMode()
+    protected function nativeType(): string
     {
-        $this->applyDisplayFormat();
-        return parent::drawViewMode();
+        return InputType::Time;
     }
 
-    public function drawUpdateMode()
+    protected function acceptedFormats(): array
     {
-        $this->setType(InputType::Text);
-        $this->addCssClass('time-picker');
-        $this->applyDisplayFormat();
-        return parent::drawUpdateMode();
+        return [Locale::ISO_TIME, 'H:i:s.u', 'H:i', 'g:i:s A', 'g:i:s a', 'g:i A', 'g:i a', 'H:i A', 'H:i a', Locale::timeFormat()];
+    }
+
+    protected function displayFormat(): string
+    {
+        return Locale::timeFormat();
+    }
+
+    protected function nativeFormat(\DateTimeImmutable $dt): string
+    {
+        return $dt->format($dt->format('s') === '00' ? 'H:i' : Locale::ISO_TIME);
     }
 
     /**
