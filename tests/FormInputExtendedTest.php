@@ -266,13 +266,10 @@ class FormInputExtendedTest extends TestCase
     }
 
     /** @test */
-    public function button_get_field_throws_exception(): void
+    public function button_is_not_bound_to_a_field(): void
     {
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Invalid call');
-
         $btn = new Button();
-        $btn->getField();
+        $this->assertNull($btn->getField());
     }
 
     /** @test */
@@ -319,11 +316,10 @@ class FormInputExtendedTest extends TestCase
     }
 
     /** @test */
-    public function submit_button_get_field_throws_exception(): void
+    public function submit_button_is_not_bound_to_a_field(): void
     {
-        $this->expectException(\Exception::class);
         $btn = new SubmitButton();
-        $btn->getField();
+        $this->assertNull($btn->getField());
     }
 
     /** @test */

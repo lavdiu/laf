@@ -50,9 +50,9 @@ interface ComponentInterface
 
     /**
      * @param string $property
-     * @return array
+     * @return string|null
      */
-    public function getCssStyleItem(string $property): array;
+    public function getCssStyleItem(string $property): ?string;
 
     /**
      * @param array $classes
@@ -178,9 +178,9 @@ interface ComponentInterface
 
     /**
      * @param string $property
-     * @return array
+     * @return string|null
      */
-    public function getWrapperCssStyleItem(string $property): array;
+    public function getWrapperCssStyleItem(string $property): ?string;
 
     /**
      * @param array $classes

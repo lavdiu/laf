@@ -55,6 +55,7 @@ class TypeDateTime extends AbstractFieldType
             'Y-m-d\TH:i',
             Locale::ISO_DATE,
             Locale::dateTimeFormat(),
+            Locale::formatWithSeconds(Locale::dateTimeFormat()),
         ]);
     }
 

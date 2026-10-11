@@ -24,7 +24,7 @@ class Locale
 
     public const DEFAULT_DATE_FORMAT = 'F d, Y';
     public const DEFAULT_DATETIME_FORMAT = 'F d, Y H:i';
-    public const DEFAULT_TIME_FORMAT = 'H:i A';
+    public const DEFAULT_TIME_FORMAT = 'g:i A';
 
     private static function setting(string $key, string $default): string
     {
@@ -49,6 +49,19 @@ class Locale
     public static function timeFormat(): string
     {
         return self::setting('locale.time.format', self::DEFAULT_TIME_FORMAT);
+    }
+
+    /**
+     * The format with ":s" after the minutes when it has no seconds token ('H:i' gives 'H:i:s',
+     * 'F d, Y H:i' gives 'F d, Y H:i:s'); unchanged when it already shows seconds or has no minutes.
+     */
+    public static function formatWithSeconds(string $format): string
+    {
+        if (preg_match('/(?<!\\\\)s/', $format)) {
+            return $format;
+        }
+        $result = preg_replace('/(?<!\\\\)i/', 'i:s', $format, 1);
+        return $result === null ? $format : $result;
     }
 
     public static function decimalSeparator(): string

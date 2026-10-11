@@ -98,7 +98,7 @@ class FieldTypeExtendedTest extends TestCase
 		$this->assertInstanceOf(Text::class, $this->fieldWithTable('f', new TypeBlob())->getFormElement());
 		$this->assertInstanceOf(Checkbox::class, $this->fieldWithTable('f', new TypeBool())->getFormElement());
 		$this->assertInstanceOf(Select::class, $this->fieldWithTable('f', new TypeEnum(['x']))->getFormElement());
-		$this->assertInstanceOf(Text::class, $this->fieldWithTable('f', new TypeEnum(['x'], true))->getFormElement());
+		$this->assertInstanceOf(\Laf\UI\Form\Input\CheckboxCollection::class, $this->fieldWithTable('f', new TypeEnum(['x'], true))->getFormElement());
 	}
 
 	/** @test */

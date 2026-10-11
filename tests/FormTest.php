@@ -432,8 +432,9 @@ class FormTest extends TestCase
 
         $method = new \ReflectionMethod(Form::class, 'validateCsrfToken');
         $this->assertTrue($method->invoke($form));
-        // Token should be consumed after validation
-        $this->assertArrayNotHasKey($sessionKey, $_SESSION);
+        // The token stays valid for the session: a second tab or the back button must not fail
+        $this->assertArrayHasKey($sessionKey, $_SESSION);
+        $this->assertTrue($method->invoke($form));
     }
 
     /** @test */
@@ -650,5 +651,301 @@ class FormTest extends TestCase
         $this->assertEquals('POST', Form::METHOD_POST);
         $this->assertEquals('on', Form::AUTOCOMPLETE_ON);
         $this->assertEquals('off', Form::AUTOCOMPLETE_OFF);
+    }
+
+    // ── Processing (the request is read from $_POST, so it can be simulated) ──
+
+    /** Posts like a browser: marker, draw mode and rot13 field names */
+    private function post(array $fields, string $mode = DrawMode::INSERT): void
+    {
+        $_POST = ['dummy_table' => '1', 'dummy_table_draw_mode' => $mode];
+        foreach ($fields as $name => $value) {
+            $_POST[str_rot13($name)] = $value;
+        }
+    }
+
+    /** @test */
+    public function detect_submission_reads_method_and_draw_mode(): void
+    {
+        $form = $this->makeForm('/submit');
+        $this->assertFalse($form->detectSubmission());
+
+        $this->post([], DrawMode::UPDATE);
+        $this->assertTrue($form->detectSubmission());
+        $this->assertSame(Form::METHOD_POST, $form->getMethod());
+        $this->assertSame(DrawMode::UPDATE, $form->getDrawMode());
+    }
+
+    /** @test */
+    public function apply_submitted_values_converts_posted_fields_with_their_types(): void
+    {
+        $form = $this->makeForm('/submit');
+        $this->post(['varchar_field45' => '  hello  ', 'bool_field' => '1', 'text_field' => '']);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+
+        $object = $form->getObject();
+        $this->assertSame('hello', $object->getField('varchar_field45')->getValue());
+        $this->assertTrue($object->getField('bool_field')->getValue());
+        $this->assertNull($object->getField('text_field')->getValue());
+        $this->assertFalse($form->hasErrors());
+    }
+
+    /** @test */
+    public function unposted_boolean_is_false_only_when_its_checkbox_was_on_the_form(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $object->getField('bool_field')->setValue(true);
+
+        $form->setComponents([$object->getField('varchar_field45')->getFormElement()]);
+        $this->post(['varchar_field45' => 'x']);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $this->assertTrue($object->getField('bool_field')->getValue(), 'not on the form: untouched');
+
+        $form->setComponents([$object->getField('bool_field')->getFormElement()]);
+        $form->applySubmittedValues();
+        $this->assertFalse($object->getField('bool_field')->getValue(), 'on the form but absent: unchecked');
+    }
+
+    /** @test */
+    public function posted_arrays_are_joined_with_commas(): void
+    {
+        $form = $this->makeForm('/submit');
+        $this->post(['varchar_field45' => ['a', '', 'b']]);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $this->assertSame('a,b', $form->getObject()->getField('varchar_field45')->getValue());
+    }
+
+    /** @test */
+    public function submitted_field_values_set_by_code_win_over_the_request(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setSubmittedFieldValue('varchar_field45', 42);
+        $this->post(['varchar_field45' => 'from request']);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $this->assertSame('42', $form->getObject()->getField('varchar_field45')->getValue());
+        $this->assertSame('42', $form->getSubmittedFieldValue('varchar_field45'));
+    }
+
+    /** @test */
+    public function document_field_keeps_its_value_when_no_file_is_uploaded(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $field = $object->getField('text_field');
+        $object->getTable()->addForeignKey((new \Laf\Database\ForeignKey())->setField($field)->setReferencingTable('document')->setReferencingField('id'));
+        $this->assertTrue($field->isDocumentField());
+        $field->setValue('17');
+
+        $this->post(['text_field' => '1']);
+        $_FILES = [];
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $this->assertSame('17', $field->getValue());
+        $this->assertFalse($form->hasErrors());
+
+        $_FILES[str_rot13('text_field')] = ['name' => 'big.jpg', 'type' => 'image/jpeg', 'tmp_name' => '', 'error' => UPLOAD_ERR_INI_SIZE, 'size' => 0];
+        $form->applySubmittedValues();
+        $this->assertSame('17', $field->getValue());
+        $this->assertArrayHasKey('text_field', $form->getErrors());
+        $_FILES = [];
+    }
+
+    /** @test */
+    public function conversion_errors_are_collected_per_field_instead_of_thrown(): void
+    {
+        $form = $this->makeForm('/submit');
+        $this->post(['bool_field' => 'maybe', 'varchar_field45' => 'fine']);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+
+        $this->assertTrue($form->hasErrors());
+        $this->assertArrayHasKey('bool_field', $form->getErrors());
+        $this->assertSame('fine', $form->getObject()->getField('varchar_field45')->getValue());
+    }
+
+    /** @test */
+    public function validate_reports_required_and_length_constraints_and_marks_the_elements(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $object->getField('varchar_field45')->setRequired(true);
+        $form->setComponents($object->getAllFieldsAsFormElements());
+
+        $this->post(['varchar_field45' => '']);
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $errors = $form->validate();
+        $this->assertSame(['Varchar Field is required'], $errors['varchar_field45']);
+
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+        $this->assertStringContainsString('is-invalid', $html);
+        $this->assertStringContainsString("<div id='" . str_rot13('varchar_field45') . "_feedback' class='invalid-feedback d-block'>Varchar Field is required</div>", $html);
+
+        $this->post(['varchar_field45' => str_repeat('x', 46)]);
+        $form->applySubmittedValues();
+        $errors = $form->validate();
+        $this->assertSame(['Varchar Field must be at most 45 characters'], $errors['varchar_field45']);
+
+        $form->clearErrors();
+        $this->assertStringNotContainsString('is-invalid', $form->draw());
+    }
+
+    /** @test */
+    public function process_form_throws_a_validation_exception_carrying_every_message(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setCsrfProtection(false);
+        $form->setComponents($form->getObject()->getAllFieldsAsFormElements());
+        $this->post(['varchar_field45' => str_repeat('x', 46), 'bool_field' => 'maybe']);
+
+        try {
+            $form->processForm();
+            $this->fail('expected FormValidationException');
+        } catch (\Laf\Exception\FormValidationException $ex) {
+            $this->assertArrayHasKey('varchar_field45', $ex->getErrors());
+            $this->assertArrayHasKey('bool_field', $ex->getErrors());
+            $this->assertStringContainsString('at most 45', $ex->getMessage());
+            $this->assertCount(2, $ex->getMessages());
+        }
+    }
+
+    /** @test */
+    public function process_form_rejects_a_post_without_csrf_token(): void
+    {
+        $form = $this->makeForm('/submit');
+        $this->post(['varchar_field45' => 'x']);
+        $this->expectException(\Laf\Exception\CsrfTokenException::class);
+        $form->processForm();
+    }
+
+    /** @test */
+    public function process_form_accepts_the_session_token(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setComponents($form->getObject()->getAllFieldsAsFormElements());
+        $form->setDrawMode(DrawMode::INSERT);
+        $form->draw();
+
+        $this->post(['varchar_field45' => str_repeat('x', 46)]);
+        $_POST[$form->getCsrfSessionKey()] = $form->getCsrfToken();
+        // past the CSRF check: the too-long value is what stops it now
+        $this->expectException(\Laf\Exception\FormValidationException::class);
+        $form->processForm();
+    }
+
+    /** @test */
+    public function action_is_escaped_in_the_form_tag(): void
+    {
+        $form = $this->makeForm("/page?x='><script>alert(1)</script>");
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString("action='/page?x=&apos;&gt;&lt;script&gt;", $html);
+    }
+
+    /** @test */
+    public function an_element_with_its_own_view_mode_stays_read_only_in_an_update_form(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $object->getField('varchar_field45')->setValue('keep');
+        $readOnly = $object->getField('varchar_field45')->getFormElement()->setDrawMode(DrawMode::VIEW);
+        $form->setComponents([$readOnly, $object->getField('text_field')->getFormElement()]);
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+
+        $this->assertStringContainsString('form-control-plaintext', $html);
+        $this->assertStringContainsString('keep', $html);
+        $this->assertStringContainsString('<textarea', $html);
+        $this->assertStringNotContainsString('name="' . str_rot13('varchar_field45') . '"', $html);
+    }
+
+    /** @test */
+    public function csrf_token_is_stable_across_draws(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setDrawMode(DrawMode::UPDATE);
+        $first = $form->draw();
+        $second = $form->draw();
+
+        $token = $_SESSION[$form->getCsrfSessionKey()];
+        $this->assertSame(64, strlen($token));
+        $this->assertStringContainsString("value='{$token}'", $first);
+        $this->assertStringContainsString("value='{$token}'", $second);
+        $this->assertSame($token, $form->getCsrfToken());
+        $this->assertNotSame($token, $form->regenerateCsrfToken());
+    }
+
+    /** @test */
+    public function tab_navigation_buttons_use_plain_javascript(): void
+    {
+        $form = $this->makeForm('/submit');
+        $tabs = new \ReflectionProperty(Form::class, 'tabs');
+        $tabs->setValue($form, [1, 2]);
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+
+        $this->assertStringContainsString('Previous', $html);
+        $this->assertStringContainsString('previousElementSibling', $html);
+        $this->assertStringNotContainsString("$('", $html);
+    }
+
+    /** @test */
+    public function hidden_submit_button_is_not_drawn(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->hideSubmitButton();
+        $form->setDrawMode(DrawMode::UPDATE);
+        $this->assertStringNotContainsString('<button', $form->draw());
+    }
+
+    /** @test */
+    public function rendered_field_names_and_element_lookup_search_containers(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $div = new \Laf\UI\Container\Div();
+        $div->addComponent($object->getField('text_field')->getFormElement());
+        $form->setComponents([$object->getField('varchar_field45')->getFormElement(), $div, $form->getSubmitButton()]);
+
+        $this->assertSame(['varchar_field45', 'text_field'], $form->getRenderedFieldNames());
+        $this->assertInstanceOf(\Laf\UI\Form\Input\TextArea::class, $form->getFieldElement('text_field'));
+        $this->assertNull($form->getFieldElement('bool_field'));
+    }
+
+    /** @test */
+    public function add_fields_from_object_builds_elements_and_fieldsets(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->addFieldsFromObject();
+        $this->assertCount(4, $form->getComponents());
+
+        $grouped = $this->makeForm('/submit');
+        $grouped->groupFields('Main', ['varchar_field45', 'text_field']);
+        $grouped->addFieldsFromObject();
+        $this->assertCount(1, $grouped->getComponents());
+        $this->assertInstanceOf(\Laf\UI\Container\Fieldset::class, $grouped->getComponents()[0]);
+
+        $grouped->setDrawMode(DrawMode::UPDATE);
+        $html = $grouped->draw();
+        $this->assertStringContainsString('<legend>Main</legend>', $html);
+        $this->assertStringContainsString('<textarea', $html);
+    }
+
+    /** @test */
+    public function file_input_on_the_form_switches_to_multipart(): void
+    {
+        $form = $this->makeForm('/submit');
+        $file = new \Laf\UI\Form\Input\File();
+        $file->setField($form->getObject()->getField('text_field'));
+        $form->setComponents([$file]);
+        $form->setDrawMode(DrawMode::UPDATE);
+        $this->assertStringContainsString("enctype='multipart/form-data'", $form->draw());
     }
 }

@@ -2,13 +2,12 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
-class Search extends Text implements FormElementInterface, ComponentInterface
+class Search extends Text implements FormElementInterface
 {
-    public function drawUpdateMode()
+    public function drawUpdateMode(): string
     {
         $this->setType(InputType::Search);
         return parent::drawUpdateMode();

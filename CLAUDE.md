@@ -167,12 +167,23 @@ $customer = new Customer(UrlParser::getId());
 $form = $customer->getForm();
 
 if ($form->isSubmitted()) {
-    $id = $form->processForm(); // Automatically saves data
-    UrlParser::redirectToViewPage($id);
+    try {
+        $id = $form->processForm(); // reads $_POST, validates, inserts or updates
+        UrlParser::redirectToViewPage($id);
+    } catch (\Laf\Exception\FormValidationException $ex) {
+        $errors = $ex->getErrors(); // field => messages; the redrawn form shows them (is-invalid + invalid-feedback)
+    }
 }
 
-$form->draw(DrawMode::UPDATE);
+$form->setDrawMode(DrawMode::UPDATE);
+$page->addComponent($form);
 ```
+Forms: every field element comes from `Field::getFormElement()` (`FormElementFactory::create()`); inputs render Bootstrap 5
+markup and never change their own state when drawn; `processForm()` = `detectSubmission()` + CSRF (one token per session
+and form, `CsrfTokenException`) + `applySubmittedValues()` + `validate()` (opt-out `setValidateOnSubmit(false)`); a
+checkbox posts a hidden `0` so unchecked is distinguishable from "not on the form"; `Select`/`Radio`/`CheckboxCollection`
+take `setOptions()` or the FK table; Date/DateTime/Time inputs show the locale format (`locale.*.format`) with a picker
+class, or native inputs with `setNativeInput(true)` / Settings `form.native_date_inputs`.
 
 **Foreign Key Navigation**:
 Generated classes include methods to traverse relationships:

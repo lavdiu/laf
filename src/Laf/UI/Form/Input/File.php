@@ -3,88 +3,87 @@
 namespace Laf\UI\Form\Input;
 
 use Laf\Filesystem\Document;
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
+use Laf\Util\Settings;
+use Laf\Util\Util;
 
-class File extends Text implements FormElementInterface, ComponentInterface
+/**
+ * Upload input for a foreign key to the document table.
+ *
+ * The file travels in $_FILES under the field's (rot13) name; Form uploads it
+ * through the document handler only when a file was actually sent, otherwise
+ * the stored document id is kept. VIEW mode links the stored document
+ * (thumbnail for images, download link otherwise).
+ */
+class File extends Text implements FormElementInterface
 {
+    public function drawViewMode(): string
+    {
+        $this->addCssClass(static::getComponentCssControlClass());
 
-	public function drawViewMode()
-	{
-		$this->addCssClass(static::getComponentCssControlClass());
+        $content = '(no file attached)';
+        $value = $this->getValue();
+        if (is_numeric($value) && (int)$value > 0) {
+            $id = Util::e((int)$value);
+            $document = new Document((int)$value);
+            if (!$document->fileFullSizeExists()) {
+                $content = '(file removed)';
+            } elseif ($document->isImage()) {
+                $content = "<a target='_blank' href='?module=document&amp;submodule=view&amp;id={$id}'>"
+                    . "<img src='?module=document&amp;submodule=thumbnail&amp;id={$id}' alt='image' style='height:150px;" . Util::e($this->controlStyle()) . "' class='" . Util::e($this->getCssClassesForHtml()) . "' />"
+                    . "</a>";
+            } else {
+                $content = "<a href='?module=document&amp;submodule=download&amp;id={$id}'>Download File</a>";
+            }
+        }
 
-		$this->removeAttribute('class')
-			->removeAttribute('style');
-		$content = "(no file attached)";
-		if (is_numeric($this->getValue()) && $this->getValue() > 0) {
-			$document = new Document($this->getValue());
-			if (!$document->fileFullSizeExists()) {
-				$content = '(file removed)';
-			} else if ($document->isImage())
-				$content = "<a target='_blank' href='?module=document&submodule=view&id={$this->getValue()}'><img src='?module=document&submodule=thumbnail&id={$this->getValue()}' style='height:150px;' alt='image' style='{$this->getCssStyleForHtml()}' class='{$this->getCssClassesForHtml()}' /></a>";
-			else
-				$content = "<a href='?module=document&submodule=download&id={$this->getValue()}'>Download File</a>";
+        $control = "<div class='bg-light rounded p-2' id='" . Util::e($this->getId()) . "'>\n                {$content}\n                </div>";
+        return $this->renderWrapper($control, $this->viewWrapperOptions());
+    }
 
-		}
-		return "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->hasCssClass('d-none') || $this->isHidden() ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
-            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-                <div class='bg-light rounded p-2' id='{$this->getId()}'>
-                {$content}
-                </div>
-            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
-        </div>";
-	}
+    public function drawUpdateMode(): string
+    {
+        $this->setType(InputType::File);
+        $this->addCssClass(static::getComponentCssControlClass());
 
-	/**
-	 * Returns the CSS class unique to the UI component
-	 * @return string
-	 */
-	public function getComponentCssControlClass(): string
-	{
-		return str_replace('\\', '-', static::class);
-	}
+        $attributes = $this->controlAttributes(['value', 'placeholder', 'autocomplete', 'maxlength', 'minlength', 'pattern', 'inputmode', 'step', 'min', 'max', 'checked']);
+        if (empty($attributes['accept'])) {
+            $accept = self::acceptFromSettings();
+            if ($accept !== null) {
+                $attributes['accept'] = $accept;
+            }
+        }
 
-	public function drawUpdateMode()
-	{
-		$this->addCssClass(static::getComponentCssControlClass());
+        $control = "<input class='" . Util::e(join(' ', $this->controlClasses('form-control'))) . "' style='" . Util::e($this->controlStyle()) . "'"
+            . $this->renderAttributes($attributes)
+            . $this->describedBy() . " />";
 
-		$this->setType(InputType::File);
-		$attributes = [];
-		foreach ($this->getAttributes() as $key => $value) {
-			if ($value != '') {
-				$attributes[$key] = $value;
-			}
-		}
+        return $this->renderWrapper($control);
+    }
 
-		if ($this->getHeight()) {
-			$this->addCssStyleItem('height', $this->getHeight() . 'px');
-			unset($attributes['height']);
-		}
-		if ($this->getWidth()) {
-			$this->addCssStyleItem('width', $this->getWidth() . 'px');
-			unset($attributes['width']);
-		}
+    /**
+     * The allowed MIME types (Settings upload.allowed_mime_types) as an "accept" attribute, when configured
+     */
+    private static function acceptFromSettings(): ?string
+    {
+        try {
+            $types = Settings::get('upload.allowed_mime_types');
+        } catch (\Throwable $ex) {
+            return null;
+        }
+        if (!is_array($types) || count($types) === 0) {
+            return null;
+        }
+        return join(',', array_map('strval', $types));
+    }
 
-		unset($attributes['value']);
-		unset($attributes['placeholder']);
-		unset($attributes['autocomplete']);
-
-		$params = '';
-		foreach ($attributes as $key => $value)
-			$params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
-		$html = "
-        <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()} " . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
-            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-            <input {$params} class='{$this->getCssClassesForHtml()}' style='{$this->getCssStyleForHtml()}' " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "/>
-            <input type='hidden' name='{$this->getField()->getNameRot13()}' value='1' />
-                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            ".($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
-        </div>";
-
-		return $html;
-	}
+    /**
+     * Returns the CSS class unique to the UI component
+     * @return string
+     */
+    public function getComponentCssControlClass(): string
+    {
+        return str_replace('\\', '-', static::class);
+    }
 }

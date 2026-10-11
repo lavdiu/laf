@@ -875,4 +875,97 @@ class BaseObjectTest extends TestCase
 		$this->assertCount(1, $this->auditRows(), 'writes resume once the table is right again');
 		$this->assertNull(AuditLog::getLastError());
 	}
+
+	// ── forms ──
+
+	/** Posts the fields of a form like a browser would: marker, draw mode and rot13 names. */
+	private static function postForm(string $drawMode, array $fields): void
+	{
+		$_POST = ['dummy_table' => '1', 'dummy_table_draw_mode' => $drawMode];
+		foreach ($fields as $name => $value) {
+			$_POST[str_rot13($name)] = $value;
+		}
+	}
+
+	/** @test */
+	public function form_round_trip_inserts_and_updates_through_post()
+	{
+		$parentId = $this->object->getRecordId();
+
+		$form = (new DummyTable())->getForm();
+		$form->setCsrfProtection(false);
+		self::postForm(\Laf\UI\Form\DrawMode::INSERT, [
+			'varchar_field45' => 'posted',
+			'required_field' => 'req',
+			'unique_field' => 'form-unique',
+			'integer_field' => '7',
+			'decimal_field' => '12.5',
+			'date_field' => (new \DateTimeImmutable('2024-02-29'))->format(\Laf\Util\Locale::dateFormat()),
+			'datetime_field' => '2024-02-29 13:45:10',
+			'time_field' => '13:45',
+			'bool_field' => '0',
+			'parent_id' => (string)$parentId,
+		]);
+		$id = $form->processForm();
+		$_POST = [];
+		$this->assertNotEmpty($id);
+
+		$saved = new DummyTable($id);
+		$this->assertSame('posted', $saved->getVarcharField45Val());
+		$this->assertEquals(7, $saved->getIntegerFieldVal());
+		$this->assertEquals(12.5, $saved->getDecimalFieldVal());
+		$this->assertSame('2024-02-29', $saved->getDateFieldVal());
+		$this->assertSame('2024-02-29 13:45:10', $saved->getDatetimeFieldVal());
+		$this->assertSame('13:45:00', $saved->getTimeFieldVal());
+		$this->assertFalse((bool)$saved->getBoolFieldVal());
+		$this->assertEquals($parentId, $saved->getParentIdVal());
+
+		// update: the drawn form shows the stored values (seconds included) with the parent option selected
+		$form = $saved->getForm();
+		$form->setCsrfProtection(false);
+		$form->setDrawMode(\Laf\UI\Form\DrawMode::UPDATE);
+		$html = $form->draw();
+		$this->assertStringContainsString("<option value='{$parentId}' selected='selected'>", $html);
+		$dateTimeShown = $form->getFieldElement('datetime_field')->getEditValue();
+		$this->assertStringContainsString(':10', $dateTimeShown);
+
+		self::postForm(\Laf\UI\Form\DrawMode::UPDATE, [
+			'id' => (string)$id,
+			'varchar_field45' => 'changed',
+			'required_field' => 'req',
+			'unique_field' => 'form-unique',
+			'datetime_field' => $dateTimeShown,
+			'bool_field' => '1',
+			'parent_id' => (string)$parentId,
+		]);
+		$form->processForm();
+		$_POST = [];
+
+		$saved = new DummyTable($id);
+		$this->assertSame('changed', $saved->getVarcharField45Val());
+		$this->assertTrue((bool)$saved->getBoolFieldVal());
+		$this->assertSame('2024-02-29 13:45:10', $saved->getDatetimeFieldVal());
+
+		$entries = AuditLog::findForObject($saved);
+		$this->assertSame('UPDATE', $entries[0]->getActionVal());
+		$this->assertSame(['varchar_field45', 'bool_field'], $entries[0]->getChangedFieldNames());
+		$this->assertSame('INSERT', $entries[1]->getActionVal());
+	}
+
+	/** @test */
+	public function form_validation_stops_the_write_and_reports_the_fields()
+	{
+		$form = (new DummyTable())->getForm();
+		$form->setCsrfProtection(false);
+		self::postForm(\Laf\UI\Form\DrawMode::INSERT, ['required_field' => '', 'varchar_field45' => str_repeat('x', 46)]);
+		try {
+			$form->processForm();
+			$this->fail('expected FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$this->assertArrayHasKey('required_field', $ex->getErrors());
+			$this->assertArrayHasKey('varchar_field45', $ex->getErrors());
+		}
+		$_POST = [];
+		$this->assertCount(1, DummyTable::find());
+	}
 }

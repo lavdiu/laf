@@ -8,7 +8,7 @@ use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\UI\Traits\FormElementTrait;
 
-class Image implements ComponentInterface, FormElementInterface
+class Image implements FormElementInterface
 {
     use ComponentTrait;
     use FormElementTrait;
@@ -73,26 +73,6 @@ class Image implements ComponentInterface, FormElementInterface
     public function setAlt(string $value): Image
     {
         $this->setAttribute('alt', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return Text
-     */
-    public function setHeight(?int $value): Text
-    {
-        $this->setAttribute('height', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return Text
-     */
-    public function setWidth(?int $value): Text
-    {
-        $this->setAttribute('width', $value);
         return $this;
     }
 
@@ -170,26 +150,10 @@ class Image implements ComponentInterface, FormElementInterface
 
         $html = "\n<img 
             {$params}
-            class='" . join(' ', $this->getClasses()) . " bg-light rounded p-2' 
+            class='" . $this->getCssClassesForHtml() . " bg-light rounded p-2' 
             style='{$this->getCssStyleForHtml()}'
             />\n";
         return $html;
-    }
-
-    /**
-     * @return int
-     */
-    public function getHeight(): ?int
-    {
-        return $this->getAttribute('height');
-    }
-
-    /**
-     * @return int
-     */
-    public function getWidth(): ?int
-    {
-        return $this->getAttribute('width');
     }
 
     /**
@@ -202,9 +166,10 @@ class Image implements ComponentInterface, FormElementInterface
     }
 
     /**
+     * Not bound to a field
      * @param Field $field
-     * @return mixed
-     * @throws \Exception
+     * @return ComponentInterface
+     * @throws \Exception always
      */
     public function setField(Field $field): ComponentInterface
     {
@@ -212,8 +177,9 @@ class Image implements ComponentInterface, FormElementInterface
     }
 
     /**
-     * @return mixed
-     * @throws \Exception
+     * Not bound to a field
+     * @return Field|null
+     * @throws \Exception always
      */
     public function getField(): ?Field
     {

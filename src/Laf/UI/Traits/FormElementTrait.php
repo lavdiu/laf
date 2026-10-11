@@ -4,64 +4,57 @@ namespace Laf\UI\Traits;
 
 use Laf\UI\ComponentInterface;
 
+/**
+ * Attribute-backed accessors shared by form inputs and controls.
+ *
+ * Every value lives in the component's attribute bag (see ComponentTrait), so
+ * addAttribute()/getAttribute() and these typed accessors always agree. Boolean
+ * attributes (required, disabled, readonly, hidden, multiple, autofocus) are
+ * stored as their own name, or '' when off, which the renderer skips.
+ */
 trait FormElementTrait
 {
-
-    /**
-     * @var bool
-     */
+    /** @var bool */
     protected $excluded = false;
 
+    /** @var string[] validation messages shown next to the control in update mode */
+    protected $errors = [];
 
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
     public function setType(?string $value): ComponentInterface
     {
         $this->addAttribute('type', $value);
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getType(): string
+    public function getType(): ?string
     {
         return $this->getAttribute('type');
     }
 
-    /**
-     * @return string
-     */
-    public function getName(): string
+    public function getName(): ?string
     {
         return $this->getAttribute('name');
     }
 
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
     public function setName(?string $value): ComponentInterface
     {
         $this->addAttribute('name', $value);
         return $this;
     }
 
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
     public function setId(?string $value): ComponentInterface
     {
         $this->addAttribute('id', $value);
         return $this;
     }
 
+    public function getId(): ?string
+    {
+        return $this->getAttribute('id');
+    }
+
     /**
-     * @param int $value
-     * @return ComponentInterface
+     * @param int|float|string|null $value
      */
     public function setMin(int|float|string|null $value): ComponentInterface
     {
@@ -70,343 +63,7 @@ trait FormElementTrait
     }
 
     /**
-     * @param string $value
-     * @return ComponentInterface
-     */
-    public function setLabel(?string $value): ComponentInterface
-    {
-        $this->addWrapperAttribute('label', $value);
-        return $this;
-    }
-
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
-    public function setHint(?string $value): ComponentInterface
-    {
-        $this->addWrapperAttribute('hint', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setHeight(?int $value): ComponentInterface
-    {
-        $this->addAttribute('height', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setWidth(?int $value): ComponentInterface
-    {
-        $this->addAttribute('width', $value);
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isDisabled(): bool
-    {
-        return $this->getAttribute('disabled') == 'disabled';
-    }
-
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
-    public function setDisabled(bool $value): ComponentInterface
-    {
-        $this->addAttribute('disabled', ($value ? 'disabled' : ''));
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isReadonly(): bool
-    {
-        return $this->getAttribute('readonly') == 'readonly';
-    }
-
-    /**
-     * @param bool $readonly
-     * @return ComponentInterface
-     */
-    public function setReadonly(bool $readonly): ComponentInterface
-    {
-        $this->addAttribute('readonly', ($readonly ? 'readonly' : ''));
-        return $this;
-    }
-
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
-    public function setHidden(bool $value): ComponentInterface
-    {
-        $this->addAttribute('hidden', ($value ? 'hidden' : ''));
-        return $this;
-    }
-
-
-    /**
-     * @return int
-     */
-    public function getHeight(): ?int
-    {
-        return $this->getAttribute('height');
-    }
-
-
-    /**
-     * @return int
-     */
-    public function getWidth(): ?int
-    {
-        return $this->getAttribute('width');
-    }
-
-    /**
-     * @return string
-     */
-    public function getId(): ?string
-    {
-        return $this->getAttribute('id');
-    }
-
-    /**
-     * @return bool
-     */
-    public function isHidden(): bool
-    {
-        return $this->getAttribute('hidden') == 'hidden';
-    }
-
-    /**
-     * @return string
-     */
-    public function getLabel(): ?string
-    {
-        return $this->getWrapperAttribute('label');
-    }
-
-
-    /**
-     * @return bool
-     */
-    public function isRequired(): bool
-    {
-        return $this->getAttribute('required') == 'required';
-    }
-
-    /**
-     * @return string
-     */
-    public function getHint(): ?string
-    {
-        return $this->getWrapperAttribute('hint');
-    }
-
-    /**
-     * @return string
-     */
-    public function getValueForHtml(): ?string
-    {
-        return nl2br(\Laf\Util\Util::e($this->getAttribute('value') ?? ''));
-    }
-
-    /**
-     * @return bool
-     */
-    public function isExcluded(): bool
-    {
-        return $this->excluded;
-    }
-
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
-    public function setExcluded(bool $value): ComponentInterface
-    {
-        $this->excluded = $value;
-        return $this;
-    }
-
-    /**
-     * @return int
-     */
-    public function getSize(): ?int
-    {
-        return $this->getAttribute('size');
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setSize(?int $value): ComponentInterface
-    {
-        $this->addAttribute('size', $value);
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isMultiple(): bool
-    {
-        return $this->getAttribute('multiple') == 'multiple';
-    }
-
-    /**
-     * @param bool $multiple
-     * @return ComponentInterface
-     */
-    public function setMultiple(bool $multiple): ComponentInterface
-    {
-        $this->addAttribute('multiple', ($multiple ? 'multiple' : ''));
-        return $this;
-    }
-
-    /**
-     * @return int
-     */
-    public function getCols(): ?int
-    {
-        return $this->getAttribute('cols');
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setCols(?int $value): ComponentInterface
-    {
-        $this->addAttribute('cols', $value);
-        return $this;
-    }
-
-    /**
-     * @return int
-     */
-    public function getRows(): ?int
-    {
-        return $this->getAttribute('rows');
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setRows(?int $value): ComponentInterface
-    {
-        $this->addAttribute('rows', $value);
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isAutofocus(): ?bool
-    {
-        return $this->getAttribute('autofocus') == 'autofocus';
-    }
-
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
-    public function setAutofocus(bool $value): ComponentInterface
-    {
-        $this->addAttribute('autofocus', ($value ? 'autofocus' : ''));
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isAutocomplete(): bool
-    {
-        return $this->getAttribute('autocomplete') == 'autocomplete';
-    }
-
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
-    public function setAutocomplete(bool $value): ComponentInterface
-    {
-        $this->addAttribute('attribute', ($value ? 'autocomplete' : ''));
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getPlaceholder(): ?string
-    {
-        return $this->getAttribute('placeholder');
-    }
-
-    /**
-     * @return string
-     */
-    public function getPattern(): ?string
-    {
-        return $this->getAttribute('pattern');
-    }
-
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
-    public function setPattern(?string $value): ComponentInterface
-    {
-        $this->addAttribute('pattern', $value);
-        return $this;
-    }
-
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
-    public function setPlaceholder(?string $value): ComponentInterface
-    {
-        $this->addAttribute('placeholder', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setMaxLength(?int $value): ComponentInterface
-    {
-        $this->addAttribute('maxlength', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
-     */
-    public function setMinLength(?int $value): ComponentInterface
-    {
-        $this->addAttribute('minlength', $value);
-        return $this;
-    }
-
-    /**
-     * @param int $value
-     * @return ComponentInterface
+     * @param int|float|string|null $value
      */
     public function setMax(int|float|string|null $value): ComponentInterface
     {
@@ -416,7 +73,6 @@ trait FormElementTrait
 
     /**
      * @param int|float|string|null $value e.g. 1, 0.01, 'any'
-     * @return ComponentInterface
      */
     public function setStep(int|float|string|null $value): ComponentInterface
     {
@@ -424,10 +80,106 @@ trait FormElementTrait
         return $this;
     }
 
-    /**
-     * @param bool $value
-     * @return ComponentInterface
-     */
+    /** @return int|float|string|null int or float when numeric, the string otherwise ('any', '18446744073709551615') */
+    public function getMin(): int|float|string|null
+    {
+        return $this->numericAttribute('min');
+    }
+
+    /** @return int|float|string|null */
+    public function getMax(): int|float|string|null
+    {
+        return $this->numericAttribute('max');
+    }
+
+    /** @return int|float|string|null */
+    public function getStep(): int|float|string|null
+    {
+        return $this->numericAttribute('step');
+    }
+
+    public function setLabel(?string $value): ComponentInterface
+    {
+        $this->addWrapperAttribute('label', $value);
+        return $this;
+    }
+
+    public function getLabel(): ?string
+    {
+        return $this->getWrapperAttribute('label');
+    }
+
+    public function setHint(?string $value): ComponentInterface
+    {
+        $this->addWrapperAttribute('hint', $value);
+        return $this;
+    }
+
+    public function getHint(): ?string
+    {
+        return $this->getWrapperAttribute('hint');
+    }
+
+    public function setHeight(?int $value): ComponentInterface
+    {
+        $this->addAttribute('height', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function getHeight(): ?int
+    {
+        return $this->intAttribute('height');
+    }
+
+    public function setWidth(?int $value): ComponentInterface
+    {
+        $this->addAttribute('width', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function getWidth(): ?int
+    {
+        return $this->intAttribute('width');
+    }
+
+    public function isDisabled(): bool
+    {
+        return $this->getAttribute('disabled') == 'disabled';
+    }
+
+    public function setDisabled(bool $value): ComponentInterface
+    {
+        $this->addAttribute('disabled', ($value ? 'disabled' : ''));
+        return $this;
+    }
+
+    public function isReadonly(): bool
+    {
+        return $this->getAttribute('readonly') == 'readonly';
+    }
+
+    public function setReadonly(bool $readonly): ComponentInterface
+    {
+        $this->addAttribute('readonly', ($readonly ? 'readonly' : ''));
+        return $this;
+    }
+
+    public function setHidden(bool $value): ComponentInterface
+    {
+        $this->addAttribute('hidden', ($value ? 'hidden' : ''));
+        return $this;
+    }
+
+    public function isHidden(): bool
+    {
+        return $this->getAttribute('hidden') == 'hidden';
+    }
+
+    public function isRequired(): bool
+    {
+        return $this->getAttribute('required') == 'required';
+    }
+
     public function setRequired(bool $value): ComponentInterface
     {
         $this->addAttribute('required', ($value ? 'required' : ''));
@@ -435,61 +187,256 @@ trait FormElementTrait
     }
 
     /**
-     * @return int
+     * The value, escaped for HTML output with line breaks kept.
      */
+    public function getValueForHtml(): ?string
+    {
+        return nl2br(\Laf\Util\Util::e($this->getAttribute('value') ?? ''));
+    }
+
+    public function isExcluded(): bool
+    {
+        return $this->excluded;
+    }
+
+    public function setExcluded(bool $value): ComponentInterface
+    {
+        $this->excluded = $value;
+        return $this;
+    }
+
+    public function getSize(): ?int
+    {
+        return $this->intAttribute('size');
+    }
+
+    public function setSize(?int $value): ComponentInterface
+    {
+        $this->addAttribute('size', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function isMultiple(): bool
+    {
+        return $this->getAttribute('multiple') == 'multiple';
+    }
+
+    public function setMultiple(bool $multiple): ComponentInterface
+    {
+        $this->addAttribute('multiple', ($multiple ? 'multiple' : ''));
+        return $this;
+    }
+
+    public function getCols(): ?int
+    {
+        return $this->intAttribute('cols');
+    }
+
+    public function setCols(?int $value): ComponentInterface
+    {
+        $this->addAttribute('cols', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function getRows(): ?int
+    {
+        return $this->intAttribute('rows');
+    }
+
+    public function setRows(?int $value): ComponentInterface
+    {
+        $this->addAttribute('rows', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function isAutofocus(): ?bool
+    {
+        return $this->getAttribute('autofocus') == 'autofocus';
+    }
+
+    public function setAutofocus(bool $value): ComponentInterface
+    {
+        $this->addAttribute('autofocus', ($value ? 'autofocus' : ''));
+        return $this;
+    }
+
+    /**
+     * HTML autocomplete: true/false map to 'on'/'off'; a string is used as the token ('email', 'new-password', …).
+     * @param bool|string|null $value
+     */
+    public function setAutocomplete(bool|string|null $value): ComponentInterface
+    {
+        if (is_bool($value)) {
+            $value = $value ? 'on' : 'off';
+        }
+        $this->addAttribute('autocomplete', $value);
+        return $this;
+    }
+
+    public function getAutocomplete(): ?string
+    {
+        return $this->getAttribute('autocomplete');
+    }
+
+    /** False only when autocomplete is explicitly 'off' (the browser default is on). */
+    public function isAutocomplete(): bool
+    {
+        return $this->getAttribute('autocomplete') !== 'off';
+    }
+
+    public function getPlaceholder(): ?string
+    {
+        return $this->getAttribute('placeholder');
+    }
+
+    public function setPlaceholder(?string $value): ComponentInterface
+    {
+        $this->addAttribute('placeholder', $value);
+        return $this;
+    }
+
+    public function getPattern(): ?string
+    {
+        return $this->getAttribute('pattern');
+    }
+
+    public function setPattern(?string $value): ComponentInterface
+    {
+        $this->addAttribute('pattern', $value);
+        return $this;
+    }
+
+    /** HTML inputmode hint for virtual keyboards: 'numeric', 'decimal', 'email', 'tel', 'url', 'search' */
+    public function setInputMode(?string $value): ComponentInterface
+    {
+        $this->addAttribute('inputmode', $value);
+        return $this;
+    }
+
+    public function getInputMode(): ?string
+    {
+        return $this->getAttribute('inputmode');
+    }
+
+    /** Tooltip / native validation message text */
+    public function setTitle(?string $value): ComponentInterface
+    {
+        $this->addAttribute('title', $value);
+        return $this;
+    }
+
+    public function getTitle(): ?string
+    {
+        return $this->getAttribute('title');
+    }
+
+    /** Writes data-{name}; the name is used as given (e.g. 'bs-toggle' gives data-bs-toggle). */
+    public function setDataAttribute(string $name, ?string $value): ComponentInterface
+    {
+        $this->addAttribute('data-' . $name, $value);
+        return $this;
+    }
+
+    public function getDataAttribute(string $name): ?string
+    {
+        return $this->getAttribute('data-' . $name);
+    }
+
+    public function setAriaLabel(?string $value): ComponentInterface
+    {
+        $this->addAttribute('aria-label', $value);
+        return $this;
+    }
+
+    public function setMaxLength(?int $value): ComponentInterface
+    {
+        $this->addAttribute('maxlength', $value === null ? null : (string)$value);
+        return $this;
+    }
+
+    public function setMinLength(?int $value): ComponentInterface
+    {
+        $this->addAttribute('minlength', $value === null ? null : (string)$value);
+        return $this;
+    }
+
     public function getMaxLength(): ?int
     {
-        return $this->getAttribute('maxlength');
+        return $this->intAttribute('maxlength');
     }
 
-    /**
-     * @return int
-     */
     public function getMinLength(): ?int
     {
-        return $this->getAttribute('minlength');
+        return $this->intAttribute('minlength');
     }
 
-    /**
-     * @return int
-     */
-    public function getMax(): ?int
-    {
-        return $this->getAttribute('max');
-    }
-
-    /**
-     * @return int
-     */
-    public function getMin(): ?int
-    {
-        return $this->getAttribute('min');
-    }
-
-    /**
-     * @return int
-     */
-    public function getStep(): ?int
-    {
-        return $this->getAttribute('step');
-    }
-
-    /**
-     * @return string
-     */
     public function getValue(): ?string
     {
         return $this->getAttribute('value');
     }
 
-    /**
-     * @param string $value
-     * @return ComponentInterface
-     */
     public function setValue(?string $value): ComponentInterface
     {
         $this->addAttribute('value', $value);
         return $this;
     }
 
+    /* ───────────── validation messages ───────────── */
+
+    /** @param string[] $errors */
+    public function setErrors(array $errors): ComponentInterface
+    {
+        $this->errors = array_values(array_map('strval', $errors));
+        return $this;
+    }
+
+    public function addError(string $message): ComponentInterface
+    {
+        $this->errors[] = $message;
+        return $this;
+    }
+
+    /** @return string[] */
+    public function getErrors(): array
+    {
+        return $this->errors;
+    }
+
+    public function hasErrors(): bool
+    {
+        return count($this->errors) > 0;
+    }
+
+    public function clearErrors(): ComponentInterface
+    {
+        $this->errors = [];
+        return $this;
+    }
+
+    /** Numeric attribute as int, null when unset or not numeric */
+    private function intAttribute(string $key): ?int
+    {
+        $value = $this->getAttribute($key);
+        return is_numeric($value) ? (int)$value : null;
+    }
+
+    /**
+     * Attribute as int (whole number within PHP's range), float (other numbers) or the string itself
+     * @return int|float|string|null
+     */
+    private function numericAttribute(string $key): int|float|string|null
+    {
+        $value = $this->getAttribute($key);
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (preg_match('/^-?\d+$/', $value)) {
+            // whole number: int when it fits, otherwise the digits themselves (no precision loss)
+            return (string)(int)$value === $value ? (int)$value : $value;
+        }
+        if (is_numeric($value)) {
+            return (float)$value;
+        }
+        return $value;
+    }
 }

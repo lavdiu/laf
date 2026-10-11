@@ -2,19 +2,41 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
-use Laf\UI\Form\FormElementInterface;
 use Laf\Database\Db;
-use Laf\Util\Settings;
+use Laf\Database\Identifier;
+use Laf\UI\Form\FormElementInterface;
 use Laf\Util\Util;
 
-class Select extends Text implements FormElementInterface, ComponentInterface
+/**
+ * <select> whose options come from a static list (setOptions(), ENUM columns)
+ * or from the table the field's foreign key references: "key => display field",
+ * filtered by the field's db selection criteria, ordered by the display field.
+ * Options are loaded once per element and per request.
+ *
+ * setMultiple(true) posts the field as an array; Form joins it with commas.
+ */
+class Select extends Text implements FormElementInterface
 {
+    /** attributes that belong to <input> and must not be printed on a <select> or a choice list */
+    protected const NON_SELECT_ATTRIBUTES = ['type', 'value', 'placeholder', 'maxlength', 'minlength', 'pattern', 'inputmode', 'step', 'min', 'max', 'accept', 'checked'];
+
     /**
      * @var array|null static option list (value => label); when set, the
      * foreign-key lookup is skipped. Used for ENUM columns and hand-built selects.
      */
     private ?array $options = null;
+
+    /** @var array|null options read from the referenced table, cached per request */
+    private ?array $loadedOptions = null;
+
+    /** Whether the empty "no selection" option is rendered */
+    private bool $emptyOption = true;
+
+    /** Text of the empty option; null renders a blank option */
+    private ?string $emptyOptionLabel = null;
+
+    /** Radio / CheckboxCollection: choices side by side */
+    private bool $inline = false;
 
     /**
      * Provide the options directly instead of reading them from the FK table
@@ -24,6 +46,7 @@ class Select extends Text implements FormElementInterface, ComponentInterface
     public function setOptions(array $options): self
     {
         $this->options = $options;
+        $this->loadedOptions = null;
         return $this;
     }
 
@@ -32,137 +55,247 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         return $this->options !== null;
     }
 
-    public function drawViewMode()
+    public function getStaticOptions(): ?array
     {
-        $this->addCssClass('form-control-plaintext');
-        $this->addCssClass('border border-secondary');
-        $this->setValue($this->getSelectedLabel());
-        return parent::drawViewMode();
+        return $this->options;
     }
 
     /**
-     * Returns the label from the FK table, or from the static option list
-     * @return string
-     */
-    protected function getSelectedLabel()
-    {
-        if ($this->options !== null) {
-            $value = $this->getField()->getValue();
-            return $this->options[(string)$value] ?? (string)$value;
-        }
-        return $this->getField()->getReferencedValue();
-    }
-
-    public function drawUpdateMode()
-    {
-        $this->addCssClass(static::getComponentCssControlClass());
-
-        $attributes = [];
-        foreach ($this->getAttributes() as $key => $value) {
-            if ($value != '') {
-                $attributes[$key] = $value;
-            }
-        }
-
-        if ($this->getHeight()) {
-            $this->addCssStyleItem('height', $this->getHeight() . 'px');
-            unset($attributes['height']);
-        }
-        if ($this->getWidth()) {
-            $this->addCssStyleItem('width', $this->getWidth() . 'px');
-            unset($attributes['width']);
-        }
-
-        $this->addCssClass('form-control');
-
-        unset($attributes['placeholder']);
-        unset($attributes['type']);
-        unset($attributes['value']);
-        unset($attributes['maxlength']);
-        unset($attributes['minlength']);
-
-        $params = '';
-        foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
-
-        $options = "<option value=''>&nbsp;</option>";
-
-        foreach ($this->getOptions() as $ok => $ov) {
-            $okHtml = Util::e($ok);
-            $ovHtml = Util::e($ov);
-            if ($ok == $this->getValue() && mb_strlen($ok??'') == mb_strlen($this->getValue()??'')) {
-                $options .= "\n\t\t\t\t<option value='{$okHtml}' selected='selected'>{$ovHtml}</option>";
-            } else {
-                $options .= "\n\t\t\t\t<option value='{$okHtml}'>{$ovHtml}</option>";
-            }
-        }
-
-        $html = "
-        <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
-            <label id='{$this->getId()}_label' for='{$this->getId()}' class='" . ($this->getFormRowDisplayMode() == 'row' ? "col-sm-2" : "") . " col-form-label'>{$this->getLabel()}" . ($this->isRequired() ? '*' : '') . " :</label>
-            " . ($this->getFormRowDisplayMode() == 'row' ? "<div class='col-sm-10'>" : "") . "
-            <select {$params}
-                class='{$this->getCssClassesForHtml()}' 
-                style='{$this->getCssStyleForHtml()}' 
-                " . ((mb_strlen($this->getHint()??'') > 0) ? "aria-describedby='{$this->getId()}_hint'" : "") . "
-                >
-                {$options}
-                </select>
-                " . ((mb_strlen($this->getHint()??'') > 0) ? "\n\t\t\t\t<small id='{$this->getId()}_hint' class='form-text text-muted'>{$this->getHint()}</small>" : "") . "
-            " . ($this->getFormRowDisplayMode() == 'row' ? "</div>" : "") . "
-        </div>";
-
-        return $html;
-    }
-
-    /**
-     * Returns all options from the FK table, to build select element options
-     * @return array
+     * Returns all options: the static list, or the referenced table's rows (cached).
+     * @return array value => label
      * @throws \Exception
      */
-    protected function getOptions()
+    public function getOptions(): array
     {
         if ($this->options !== null) {
             return $this->options;
         }
+        if ($this->loadedOptions === null) {
+            $this->loadedOptions = $this->loadOptionsFromReferencedTable();
+        }
+        return $this->loadedOptions;
+    }
 
-        $fk = $this->getField()->getTable()->getForeignKey($this->getField()->getName());
-        $fkTable = $fk->getReferencingTable();
+    /**
+     * Forget the options read from the referenced table so the next draw reloads them.
+     */
+    public function clearOptionsCache(): self
+    {
+        $this->loadedOptions = null;
+        return $this;
+    }
+
+    /**
+     * Render (default) or omit the empty first option.
+     */
+    public function setEmptyOption(bool $render): self
+    {
+        $this->emptyOption = $render;
+        return $this;
+    }
+
+    public function hasEmptyOption(): bool
+    {
+        return $this->emptyOption;
+    }
+
+    /**
+     * Text of the empty option, e.g. '-- choose --'; null renders a blank option.
+     */
+    public function setEmptyOptionLabel(?string $label): self
+    {
+        $this->emptyOptionLabel = $label;
+        return $this;
+    }
+
+    public function getEmptyOptionLabel(): ?string
+    {
+        return $this->emptyOptionLabel;
+    }
+
+    public function setInline(bool $inline): self
+    {
+        $this->inline = $inline;
+        return $this;
+    }
+
+    public function isInline(): bool
+    {
+        return $this->inline;
+    }
+
+    /**
+     * VIEW mode shows the label(s) of the selected value(s)
+     */
+    public function getDisplayValue(): ?string
+    {
+        return $this->getSelectedLabel();
+    }
+
+    /**
+     * Returns the label from the FK table, or from the static option list;
+     * several labels joined with ", " for multi-valued controls.
+     */
+    public function getSelectedLabel(): string
+    {
+        $value = $this->getValue();
+        if ($value === null || $value === '') {
+            return '';
+        }
+        if (!$this->isMultiValued()) {
+            return $this->labelFor($value);
+        }
+        return join(', ', array_map([$this, 'labelFor'], $this->getSelectedValues()));
+    }
+
+    /**
+     * Label of one option value; the value itself when it is not an option.
+     */
+    protected function labelFor(string $value): string
+    {
+        if ($this->options !== null) {
+            return isset($this->options[$value]) ? (string)$this->options[$value] : $value;
+        }
+        $field = $this->getField();
+        if ($field !== null && $field->hasTable() && $field->isForeignKey() && static::valueToString($field->getValue()) === $value) {
+            $label = static::valueToString($field->getReferencedValue());
+            return $label === null ? $value : $label;
+        }
+        $options = $this->getOptions();
+        return isset($options[$value]) ? (string)$options[$value] : $value;
+    }
+
+    public function drawUpdateMode(): string
+    {
+        $this->addCssClass(static::getComponentCssControlClass());
+
+        $attributes = $this->controlAttributes(self::NON_SELECT_ATTRIBUTES);
+        if ($this->isMultiple() && isset($attributes['name'])) {
+            $attributes['name'] = $attributes['name'] . '[]';
+        }
+
+        $control = "<select class='" . Util::e(join(' ', $this->controlClasses('form-control', 'form-select'))) . "' style='" . Util::e($this->controlStyle()) . "'"
+            . $this->renderAttributes($attributes)
+            . $this->describedBy() . ">"
+            . $this->renderOptions()
+            . "\n\t\t\t\t</select>";
+
+        return $this->renderWrapper($control);
+    }
+
+    /**
+     * The <option> list with the current value(s) selected.
+     */
+    protected function renderOptions(): string
+    {
+        $selected = $this->getSelectedValues();
+        $html = '';
+        if ($this->emptyOption && !$this->isMultiple()) {
+            $label = ($this->emptyOptionLabel === null || $this->emptyOptionLabel === '') ? '&nbsp;' : Util::e($this->emptyOptionLabel);
+            $html .= "<option value=''>{$label}</option>";
+        }
+        foreach ($this->getOptions() as $ok => $ov) {
+            $okHtml = Util::e($ok);
+            $ovHtml = Util::e($ov);
+            $sel = in_array((string)$ok, $selected, true) ? " selected='selected'" : '';
+            $html .= "\n\t\t\t\t<option value='{$okHtml}'{$sel}>{$ovHtml}</option>";
+        }
+        return $html;
+    }
+
+    /**
+     * One radio / checkbox per option, Bootstrap "form-check" markup, used by Radio and CheckboxCollection.
+     *
+     * @param string $inputType 'radio' or 'checkbox'
+     * @param bool $asList post as name[] and start with an empty hidden value so "nothing selected" is submitted too
+     */
+    protected function renderChoiceList(string $inputType, bool $asList): string
+    {
+        $this->addCssClass(static::getComponentCssControlClass());
+
+        $attributes = $this->controlAttributes(array_merge(self::NON_SELECT_ATTRIBUTES, ['id', 'name', 'multiple', 'size', 'autocomplete']));
+        $classes = join(' ', array_values(array_diff($this->controlClasses('form-check-input'), ['form-control', 'form-select'])));
+        $style = $this->controlStyle();
+        $selected = $this->getSelectedValues();
+        $id = (string)$this->getId();
+        $name = (string)$this->getName() . ($asList ? '[]' : '');
+
+        $items = '';
+        if ($asList && !$this->isDisabled() && $name !== '[]') {
+            $items .= "\n\t\t\t\t<input type='hidden' name='" . Util::e($name) . "' value='' />";
+        }
+        $n = 0;
+        $firstId = null;
+        foreach ($this->getOptions() as $ok => $ov) {
+            $n++;
+            $optionId = $id . '_' . $n;
+            if ($firstId === null) {
+                $firstId = $optionId;
+            }
+            $checked = in_array((string)$ok, $selected, true) ? ' checked="checked"' : '';
+            $items .= "\n\t\t\t\t<div class='form-check" . ($this->inline ? ' form-check-inline' : '') . "'>"
+                . "\n\t\t\t\t\t<input type='" . Util::e($inputType) . "' id='" . Util::e($optionId) . "' name='" . Util::e($name) . "' value='" . Util::e($ok) . "' class='" . Util::e($classes) . "' style='" . Util::e($style) . "'"
+                . $this->renderAttributes($attributes) . $checked . " />"
+                . "\n\t\t\t\t\t<label class='form-check-label' for='" . Util::e($optionId) . "'>" . Util::e($ov) . "</label>"
+                . "\n\t\t\t\t</div>";
+        }
+
+        $control = "<div id='" . Util::e($id) . "' class='laf-choice-list'" . $this->describedBy() . ">" . $items . "\n\t\t\t\t</div>";
+        return $this->renderWrapper($control, ['labelFor' => $firstId]);
+    }
+
+    /**
+     * Reads "key => display" rows from the table the foreign key references.
+     * Identifiers are quoted for the configured engine (MySQL backticks, PostgreSQL double quotes).
+     * @return array
+     * @throws \Exception
+     */
+    protected function loadOptionsFromReferencedTable(): array
+    {
+        $field = $this->getField();
+        if ($field === null || !$field->hasTable()) {
+            return [];
+        }
+        $fk = $field->getTable()->getForeignKey($field->getName());
+        if ($fk === null) {
+            return [];
+        }
         $meta = $fk->getReferencedTableMeta();
         if ($meta === null) {
             return [];
         }
-        $field = $meta->getDisplayField()->getName();
-        $pkFieldName = $fk->resolveReferencedFieldName();
+        $displayField = $meta->getDisplayField();
+        if ($displayField === null) {
+            return [];
+        }
+        $display = $displayField->getName();
+        $key = $fk->resolveReferencedFieldName();
+        $table = (string)$fk->getReferencingTable();
 
         $where = '';
         $params = [];
-        if ($this->getField()->hasDbSelectionCriteria()) {
+        if ($field->hasDbSelectionCriteria()) {
             $i = 0;
-            foreach ($this->getField()->getDbSelectionCriteria() as $key => $value) {
-                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+            foreach ($field->getDbSelectionCriteria() as $column => $value) {
+                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string)$column)) {
                     continue;
                 }
                 $placeholder = ':crit' . $i++;
-                $where .= " AND {$key} = {$placeholder}";
+                $where .= ' AND ' . Identifier::quote((string)$column) . ' = ' . $placeholder;
                 $params[$placeholder] = $value;
             }
         }
 
-        $isMysql = false;
-        try {
-            $isMysql = strtolower((string)Settings::get('database.engine')) === 'mysql';
-        } catch (\Throwable $ex) {
-        }
-        $q = $isMysql ? '`' : '';
-        $sql = "SELECT {$q}{$pkFieldName}{$q}, {$q}{$field}{$q} FROM {$q}{$fkTable}{$q} WHERE 1=1 {$where} ORDER BY {$q}{$field}{$q} ASC";
+        $sql = 'SELECT ' . Identifier::quote($key) . ', ' . Identifier::quote($display)
+            . ' FROM ' . Identifier::quote($table)
+            . ' WHERE 1=1' . $where
+            . ' ORDER BY ' . Identifier::quote($display) . ' ASC';
 
-        $db = Db::getInstance();
-        $stmt = $db->prepare($sql);
+        $stmt = Db::getInstance()->prepare($sql);
         $stmt->execute($params);
         $options = [];
-        while ($res = $stmt->fetchObject()) {
-            $options[$res->$pkFieldName] = $res->$field;
+        while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+            $options[static::valueToString($row[0]) ?? ''] = static::valueToString($row[1]) ?? '';
         }
         return $options;
     }

@@ -2,8 +2,8 @@
 
 namespace Laf\Database\Field;
 
+use Laf\UI\Form\Input\CheckboxCollection;
 use Laf\UI\Form\Input\Select;
-use Laf\UI\Form\Input\Text;
 
 /**
  * MySQL ENUM / SET and PostgreSQL enum types.
@@ -103,12 +103,7 @@ class TypeEnum extends AbstractFieldType
 
     protected function createFormElement(Field $field)
     {
-        if ($this->multiple) {
-            $formElement = new Text();
-            $formElement->setField($field);
-            return $formElement;
-        }
-        $formElement = new Select();
+        $formElement = $this->multiple ? new CheckboxCollection() : new Select();
         $formElement->setOptions(array_combine($this->options, $this->options));
         $formElement->setField($field);
         return $formElement;

@@ -2,56 +2,40 @@
 
 namespace Laf\UI\Form\Input;
 
-use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
+use Laf\Util\Util;
 
-class Hidden extends Text implements FormElementInterface, ComponentInterface
+/**
+ * <input type="hidden">, used for auto-increment primary keys. Never visible in any mode.
+ */
+class Hidden extends Text implements FormElementInterface
 {
-	public function drawUpdateMode()
-	{
-		$this->addCssClass(static::getComponentCssControlClass());
+    public function drawUpdateMode(): string
+    {
+        $this->setType(InputType::Hidden);
+        $this->addCssClass(static::getComponentCssControlClass());
 
-		$this->setType(InputType::Hidden);
-		$this->setHidden(true);
-		$attributes = $this->getAttributes();
-		$this->removeCssClass('form-control');
+        $attributes = $this->controlAttributes(['required', 'placeholder', 'maxlength', 'minlength', 'pattern', 'inputmode', 'step', 'min', 'max', 'hidden', 'autocomplete', 'checked', 'accept', 'multiple', 'size']);
+        $classes = array_values(array_diff($this->getCssClasses(), ['form-control']));
 
-		unset($attributes['required']);
-		unset($attributes['placeholder']);
-		unset($attributes['class']);
-		unset($attributes['style']);
-		unset($attributes['maxlength']);
-		unset($attributes['minlength']);
-		$params = '';
-		foreach ($attributes as $key => $value)
-			$params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
-
-		$html = "
+        return "
         <div class='d-none'>
-            <input 
-                {$params}
-                class='{$this->getCssClassesForHtml()}' 
-				style='{$this->getCssStyleForHtml()}'
-                />
+            <input class='" . Util::e(join(' ', $classes)) . "' style='" . Util::e($this->controlStyle()) . "'" . $this->renderAttributes($attributes) . " />
         </div>";
+    }
 
-		return $html;
-	}
+    protected function viewWrapperOptions(): array
+    {
+        return ['hidden' => true] + parent::viewWrapperOptions();
+    }
 
-	public function drawViewMode()
-	{
-		$this->addCssClass(static::getComponentCssControlClass());
-		$this->setHidden(true);
-		return parent::drawViewMode();
-	}
-
-	/**
-	 * Returns the CSS class unique to the UI component
-	 * @return string
-	 */
-	public function getComponentCssControlClass(): string
-	{
-		return str_replace('\\', '-', static::class);
-	}
+    /**
+     * Returns the CSS class unique to the UI component
+     * @return string
+     */
+    public function getComponentCssControlClass(): string
+    {
+        return str_replace('\\', '-', static::class);
+    }
 }
