@@ -176,11 +176,37 @@ class PostgresTableInspector implements TableInspectorInterface
         $q = $db->query($sql);
         while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
             $col = array_change_key_case($col, CASE_UPPER);
+            if (($col['DATA_TYPE'] ?? '') === 'USER-DEFINED' && !empty($col['UDT_NAME'])) {
+                $col['ENUM_OPTIONS'] = $this->fetchEnumLabels($col['UDT_NAME']);
+            }
             $this->columns[$col['COLUMN_NAME']] = $col;
             if ($col['COLUMN_KEY'] == 'PRI') {
                 $this->setPrimaryColumnName($col['COLUMN_NAME']);
             }
         }
+    }
+
+    /**
+     * Labels of a PostgreSQL enum type in declaration order.
+     * Returns an empty array for user-defined types that are not enums (domains, composites).
+     * @return string[]
+     */
+    private function fetchEnumLabels(string $udtName): array
+    {
+        $sql = "
+        SELECT e.enumlabel
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = :udt
+        ORDER BY e.enumsortorder
+        ";
+        $stmt = Db::getInstance()->prepare($sql);
+        $stmt->execute([':udt' => $udtName]);
+        $labels = [];
+        while (($label = $stmt->fetchColumn()) !== false) {
+            $labels[] = (string)$label;
+        }
+        return $labels;
     }
 
     /**
@@ -196,10 +222,13 @@ class PostgresTableInspector implements TableInspectorInterface
             kcu.column_name,
             ccu.table_name AS referenced_table_name,
             ccu.column_name AS referenced_column_name,
-            kcu.constraint_name
+            kcu.constraint_name,
+            rc.delete_rule,
+            rc.update_rule
         FROM information_schema.table_constraints AS tc
         JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
         JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name AND tc.constraint_schema = ccu.constraint_schema
+        LEFT JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
         WHERE
             tc.constraint_type = 'FOREIGN KEY'
             AND tc.table_schema = 'public'
@@ -215,6 +244,8 @@ class PostgresTableInspector implements TableInspectorInterface
                 'constraint_name' => $r->constraint_name,
                 'referenced_table_name' => $r->referenced_table_name,
                 'referenced_column_name' => $r->referenced_column_name,
+                'delete_rule' => $r->delete_rule ?? null,
+                'update_rule' => $r->update_rule ?? null,
             ];
         }
     }

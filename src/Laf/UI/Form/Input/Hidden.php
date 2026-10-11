@@ -25,7 +25,7 @@ class Hidden extends Text implements FormElementInterface, ComponentInterface
 		unset($attributes['minlength']);
 		$params = '';
 		foreach ($attributes as $key => $value)
-			$params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+			$params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
 		$html = "
         <div class='d-none'>

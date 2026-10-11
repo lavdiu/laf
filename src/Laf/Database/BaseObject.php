@@ -143,7 +143,8 @@ class BaseObject
             $filters[] = $k . ' = :' . $k;
         }
 
-        $sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+        $pk = $object->getTable()->getPrimaryKey();
+        $sql = "SELECT " . join(', ', $pk->getFieldNames()) . " FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
         foreach ($params as $fieldK => $fieldV) {
@@ -151,9 +152,9 @@ class BaseObject
         }
         $return = [];
         if ($stmt->execute()) {
-            $res = $stmt->fetch(\PDO::FETCH_NUM);
+            $res = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (is_array($res) && count($res) > 0) {
-                return new static($res[0]);
+                return new static($pk->isComposite() ? $res : reset($res));
             } else {
                 return null;
             }
@@ -190,7 +191,8 @@ class BaseObject
             $filters[] = ' 1=1 ';
         }
 
-        $sql = "SELECT {$object->getTable()->getPrimaryKey()->getFirstField()->getName()} FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
+        $pk = $object->getTable()->getPrimaryKey();
+        $sql = "SELECT " . join(', ', $pk->getFieldNames()) . " FROM {$object->getTable()->getName()} WHERE " . join(' AND ', $filters);
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
         foreach ($params as $fieldK => $fieldV) {
@@ -198,10 +200,10 @@ class BaseObject
         }
         $return = [];
         if ($stmt->execute()) {
-            $res = $stmt->fetchAll(\PDO::FETCH_NUM);
+            $res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             if (is_array($res) && count($res) > 0) {
                 foreach ($res as $r) {
-                    $return[] = new static($r[0]);
+                    $return[] = new static($pk->isComposite() ? $r : reset($r));
                 }
 
             } else {
@@ -366,6 +368,11 @@ class BaseObject
     public function setRecordId($recordId): bool
     {
         $this->addLoggerDebug(__METHOD__, [$recordId]);
+        if (is_array($recordId)) {
+            // composite key: name => value (or positional in key order)
+            $this->recordId = $recordId;
+            return count($recordId) > 0;
+        }
         if (filter_var($recordId, FILTER_VALIDATE_INT) && $this->getTable()->getPrimaryKey()->getFirstField()->isAutoIncrement()) {
             $this->recordId = $recordId;
             return true;
@@ -404,12 +411,19 @@ class BaseObject
         $this->recordId = $id;
         $this->addLoggerDebug(__METHOD__, [$this->getRecordId()]);
 
-        $idFieldName = $this->getTable()->getPrimaryKey()->getFirstField()->getName();
+        $pk = $this->getTable()->getPrimaryKey();
+        $idFieldName = $pk->getFirstField()->getName();
+        $tableSql = Identifier::quote($this->getTable()->getName());
 
-        if ($this->isMySqlDriver()) {
-            $this->selectSql = "SELECT * FROM `{$this->getTable()->getName()}` WHERE `{$idFieldName}` = :recordId LIMIT 1 OFFSET 0;";
+        if (is_array($id)) {
+            // composite (or explicitly keyed) primary key: address the row by every key column
+            $pk->setValues($id);
+            $this->selectSql = "SELECT * FROM {$tableSql} WHERE " . $pk->getWhereClause('pk_') . " LIMIT 1 OFFSET 0;";
+            $bindings = $pk->getBindings('pk_', false);
+            $this->recordId = $pk->isComposite() ? $pk->getValues() : $pk->getFirstField()->getValue();
         } else {
-            $this->selectSql = "SELECT * FROM {$this->getTable()->getName()} WHERE {$idFieldName} = :recordId LIMIT 1 OFFSET 0;";
+            $this->selectSql = "SELECT * FROM {$tableSql} WHERE " . Identifier::quote($idFieldName) . " = :recordId LIMIT 1 OFFSET 0;";
+            $bindings = [':recordId' => [$this->getRecordId(), \PDO::PARAM_STR]];
         }
         $this->addLoggerDebug("SELECT SQL", [$this->selectSql]);
         $this->addLoggerDebug("SELECT SQL Params", [$this->getRecordId()]);
@@ -417,7 +431,10 @@ class BaseObject
         $db = Db::getInstance();
         $stmt = $db->prepare($this->selectSql);
         $this->addLoggerDebug("Running query on DB", ['host' => $db->getHostName(), 'db' => $db->getDatabase()]);
-        $ok = $stmt->execute(['recordId' => $this->getRecordId()]);
+        foreach ($bindings as $placeholder => [$boundValue, $pdoType]) {
+            $stmt->bindValue($placeholder, $boundValue, $pdoType);
+        }
+        $ok = $stmt->execute();
         $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         $this->addLoggerDebug("SELECT SQL Result Count", [@count($results)]);
 
@@ -521,31 +538,21 @@ class BaseObject
             if ($field->isAutoIncrement()) {
                 continue;
             }
-            if ($field->isPrimaryKey()) {
-                if ($this->isMySqlDriver()) {
-                    $prepareColumns[] = "`{$field->getName()}`";
-                } else {
-                    $prepareColumns[] = "{$field->getName()}";
+            if ($field->isPrimaryKey() && ((string)$field->getValue()) == '') {
+                $generated = $field->getType()->generatePrimaryKeyValue();
+                if ($generated === null) {
+                    throw new \Exception("Missing PK Field value. Field is not AI and its type cannot generate a value");
                 }
-                $prepareValues[] = ":{$field->getName()}";
-
-                if (((string)$field->getValue()) != '') {
-                    $executeValues[':' . $field->getName()] = $field->getValue();
-                } else if (in_array($field->getType()->getPdoType(), [FieldType::TYPE_VARCHAR, FieldType::TYPE_TEXT, FieldType::TYPE_CHAR])) {
-                    $executeValues[':' . $field->getName()] = Util::uuid();
-                } else {
-                    throw new \Exception("Missing PK Field value. Field is not AI and it doesn't match any of the required data types for auto-population");
-                }
-
-            } else {
-                if ($this->isMySqlDriver()) {
-                    $prepareColumns[] = "`{$field->getName()}`";
-                } else {
-                    $prepareColumns[] = "{$field->getName()}";
-                }
-                $prepareValues[] = ":{$field->getName()}";
-                $executeValues[':' . $field->getName()] = $field->getValue();
+                $field->setValueRaw($generated);
             }
+
+            if ($this->isMySqlDriver()) {
+                $prepareColumns[] = "`{$field->getName()}`";
+            } else {
+                $prepareColumns[] = "{$field->getName()}";
+            }
+            $prepareValues[] = ":{$field->getName()}";
+            $executeValues[':' . $field->getName()] = $field->getType()->toDb($field->getValue());
         }
 
         if (count($prepareColumns) == 0) {
@@ -564,7 +571,10 @@ class BaseObject
             $db = Db::getInstance();
             $stmt = $db->prepare($this->insertSql);
             $this->addLoggerDebug("Running query on DB", ['host' => $db->getHostName(), 'db' => $db->getDatabase()]);
-            $count = $stmt->execute($executeValues);
+            foreach ($executeValues as $placeholder => [$boundValue, $pdoType]) {
+                $stmt->bindValue($placeholder, $boundValue, $pdoType);
+            }
+            $count = $stmt->execute();
         } catch (\PDOException $ex) {
             $this->addLoggerError("INSERT SQL failed", [$this->insertSql, json_encode($executeValues)]);
             $this->addLoggerError("Error Message", [$ex->getMessage()]);
@@ -586,17 +596,24 @@ class BaseObject
         /**
          * Non-Auto auto-increment fields getInsertId() returns 0
          */
-        if ($this->getTable()->getPrimaryKey()->getFirstField()->isAutoIncrement() && $db->getInsertId() !== '0') {
+        $pk = $this->getTable()->getPrimaryKey();
+        if ($pk->getFirstField()->isAutoIncrement() && $db->getInsertId() !== '0') {
             $this->setRecordId($db->getInsertId());
+            $pk->getFirstField()->setValue($this->getRecordId());
+        } else if ($pk->isComposite()) {
+            $this->setRecordId($pk->getValues());
         } else {
-            $this->setRecordId($this->getTable()->getPrimaryKey()->getFirstField()->getValue());
+            $this->setRecordId($pk->getFirstField()->getValue());
+        }
+
+        // the key columns now hold what the row was stored with
+        foreach ($pk->getFields() as $pkField) {
+            $pkField->setOldValue($pkField->getValue());
         }
 
         $this->recordSelected = true;
         $this->addLoggerDebug("INSERT Id", [$this->getRecordId()]);
         $this->addLoggerDebug("INSERT SQL Affected Records", [$this->getAffectedRows()]);
-
-        static::getTable()->getPrimaryKey()->getFirstField()->setValue($this->getRecordId());
 
         // Log the insert operation
         $this->logAuditEntry(AuditLog::ACTION_INSERT);
@@ -677,10 +694,18 @@ class BaseObject
             return true;
         }
 
+        $pk = $this->getTable()->getPrimaryKey();
         $this->updateSql .= "\n\t  ";
         $this->updateSql .= join("\n\t, ", $prepareColumns);
         $this->updateSql .= "\nWHERE ";
-        $this->updateSql .= "\n\t{$this->getTable()->getPrimaryKey()->getFirstField()->getName()} = :primaryKeyField\n;";
+        if ($pk->isComposite()) {
+            // every key column, bound to the values the row was loaded with
+            $this->updateSql .= "\n\t" . $pk->getWhereClause('pk_') . "\n;";
+            $pkBindings = $pk->getBindings('pk_', true);
+        } else {
+            $this->updateSql .= "\n\t" . Identifier::quote($pk->getFirstField()->getName()) . " = :primaryKeyField\n;";
+            $pkBindings = [':primaryKeyField' => $pk->getFirstField()->getType()->toDb($this->getRecordId())];
+        }
 
         try {
             $db = Db::getInstance();
@@ -692,15 +717,15 @@ class BaseObject
                 }
 
                 if ($field->hasChanged()) {
-                    $type = $field->getType()->getPdoType();
-                    if (mb_strlen($field->getValue() ?? '') == 0)
-                        $type = \PDO::PARAM_NULL;
-                    $stmt->bindValue(':' . $field->getName(), $field->getValue(), $type);
-                    $this->addLoggerDebug("Store bindValue", [$field->getName(), $field->getValue()]);
+                    [$boundValue, $pdoType] = $field->getType()->toDb($field->getValue());
+                    $stmt->bindValue(':' . $field->getName(), $boundValue, $pdoType);
+                    $this->addLoggerDebug("Store bindValue", [$field->getName(), $boundValue]);
                 }
             }
-            $stmt->bindValue(':primaryKeyField', $this->getRecordId(), \PDO::PARAM_INT);
-            $this->addLoggerDebug("Store bindValue", [':primaryKeyField', $this->getRecordId()]);
+            foreach ($pkBindings as $placeholder => [$pkValue, $pkType]) {
+                $stmt->bindValue($placeholder, $pkValue, $pkType);
+                $this->addLoggerDebug("Store bindValue", [$placeholder, $pkValue]);
+            }
 
             $this->addLoggerDebug("UPDATE SQL", [$this->updateSql]);
             $this->addLoggerDebug("UPDATE SQL Params", [json_encode($stmt)]);
@@ -780,24 +805,24 @@ class BaseObject
             return false;
         }
 
-        if (trim($this->getRecordId() ?? '') == '') {
-            $this->addLoggerError("Delete method failed: Invalid record id provided", [$this->getRecordId()]);
+        $pk = $this->getTable()->getPrimaryKey();
+        $recordId = $this->getRecordId();
+        if ($pk->isComposite() ? !$pk->hasValue() : trim((string)(is_array($recordId) ? '' : $recordId)) == '') {
+            $this->addLoggerError("Delete method failed: Invalid record id provided", [$recordId]);
             return false;
         }
 
         // Log the delete operation before deletion (capture all field values)
         $this->logAuditEntry(AuditLog::ACTION_DELETE);
 
-        $this->deleteSql = "DELETE FROM {$this->getTable()->getName()} ";
-        if ($this->isMySqlDriver()) {
-            $this->deleteSql = "DELETE FROM `{$this->getTable()->getName()}` ";
-        }
-        if ($this->isMySqlDriver()) {
-            $this->deleteSql .= "\nWHERE `{$this->getTable()->getPrimaryKey()->getFirstField()->getName()}` =:primaryKeyField;";
+        $this->deleteSql = "DELETE FROM " . Identifier::quote($this->getTable()->getName()) . " ";
+        if ($pk->isComposite()) {
+            $this->deleteSql .= "\nWHERE " . $pk->getWhereClause('pk_') . ";";
+            $executeValues = $pk->getBindings('pk_', true);
         } else {
-            $this->deleteSql .= "\nWHERE {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} =:primaryKeyField;";
+            $this->deleteSql .= "\nWHERE " . Identifier::quote($pk->getFirstField()->getName()) . " = :primaryKeyField;";
+            $executeValues = [':primaryKeyField' => $pk->getFirstField()->getType()->toDb($recordId)];
         }
-        $executeValues = [':primaryKeyField' => $this->getRecordId()];
 
         $this->addLoggerDebug("DELETE SQL", [$this->deleteSql]);
         $this->addLoggerDebug("DELETE SQL PARAMS", [json_encode($executeValues)]);
@@ -806,7 +831,11 @@ class BaseObject
             $db = Db::getInstance();
             $stmt = $db->prepare($this->deleteSql);
             $this->addLoggerDebug("Running query on DB", [$db->getHostName(), $db->getDatabase()]);
-            $count = $stmt->execute($executeValues);
+            foreach ($executeValues as $placeholder => [$boundValue, $pdoType]) {
+                $stmt->bindValue($placeholder, $boundValue, $pdoType);
+            }
+            $count = $stmt->execute();
+            ForeignKey::clearValidationCache($this->getTable()->getName());
         } catch (\PDOException $ex) {
             $this->addLoggerError("INSERT SQL failed", [$this->deleteSql, json_encode($executeValues)]);
             $this->addLoggerError("Error Message", [$ex->getMessage()]);
@@ -938,10 +967,23 @@ class BaseObject
      */
     public function __clone()
     {
-        if ($this->getTable()->hasField('id')) {
+        // deep-copy the metadata: a shallow clone would share Field objects with the
+        // original, so setting the clone's id would also change the original's
+        if ($this->table !== null) {
+            $this->table = clone $this->table;
+        }
+        $pk = $this->getTable()->getPrimaryKey();
+        if ($pk !== null) {
+            foreach ($pk->getFields() as $pkField) {
+                $pkField->setValueRaw(null);
+                $pkField->setOldValue(null);
+            }
+        } else if ($this->getTable()->hasField('id')) {
             $this->setFieldValue('id', null);
         }
-        $this->setRecordId(null);
+        $this->recordId = null;
+        $this->recordSelected = false;
+        $this->affectedRows = null;
     }
 
     /**
@@ -952,6 +994,10 @@ class BaseObject
     {
         if (!$this->getTable()->getPrimaryKey()->getFirstField())
             return false;
+
+        if ($this->getTable()->getPrimaryKey()->isComposite()) {
+            return $this->getTable()->getPrimaryKey()->hasValue();
+        }
 
         if (is_numeric($this->getTable()->getPrimaryKey()->getFirstField()->getValue())) {
             return true;

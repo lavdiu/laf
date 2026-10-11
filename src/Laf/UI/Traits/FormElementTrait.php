@@ -63,9 +63,9 @@ trait FormElementTrait
      * @param int $value
      * @return ComponentInterface
      */
-    public function setMin(?int $value): ComponentInterface
+    public function setMin(int|float|string|null $value): ComponentInterface
     {
-        $this->addAttribute('min', $value);
+        $this->addAttribute('min', $value === null ? null : (string)$value);
         return $this;
     }
 
@@ -219,7 +219,7 @@ trait FormElementTrait
      */
     public function getValueForHtml(): ?string
     {
-        return nl2br(htmlentities($this->getAttribute('value')??''));
+        return nl2br(\Laf\Util\Util::e($this->getAttribute('value') ?? ''));
     }
 
     /**
@@ -408,19 +408,19 @@ trait FormElementTrait
      * @param int $value
      * @return ComponentInterface
      */
-    public function setMax(?int $value): ComponentInterface
+    public function setMax(int|float|string|null $value): ComponentInterface
     {
-        $this->addAttribute('max', $value);
+        $this->addAttribute('max', $value === null ? null : (string)$value);
         return $this;
     }
 
     /**
-     * @param int $value
+     * @param int|float|string|null $value e.g. 1, 0.01, 'any'
      * @return ComponentInterface
      */
-    public function setStep(?int $value): ComponentInterface
+    public function setStep(int|float|string|null $value): ComponentInterface
     {
-        $this->addAttribute('step', $value);
+        $this->addAttribute('step', $value === null ? null : (string)$value);
         return $this;
     }
 

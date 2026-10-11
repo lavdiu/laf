@@ -43,11 +43,86 @@ class FieldTest extends TestCase
 	}
 
 	/** @test */
-	public function set_value_sanitizes_input()
+	public function set_value_keeps_input_verbatim()
+	{
+		// escaping is an output concern (see Text::getValueForHtml), not a storage one
+		$field = $this->makeField('name', new TypeVarchar());
+		$field->setValue('<b>bold</b> & "quotes"');
+		$this->assertSame('<b>bold</b> & "quotes"', $field->getValue());
+	}
+
+	/** @test */
+	public function load_value_from_db_converts_to_canonical_php_type()
+	{
+		$int = $this->makeField('qty', new TypeInteger());
+		$int->loadValueFromDb('42');
+		$this->assertSame(42, $int->getValue());
+		$this->assertSame(42, $int->getOldValue());
+
+		$bool = $this->makeField('active', new \Laf\Database\Field\TypeBool());
+		$bool->loadValueFromDb('0');
+		$this->assertFalse($bool->getValue());
+
+		$unknown = $this->makeField('when', new TypeDate());
+		$unknown->loadValueFromDb('garbage');
+		$this->assertSame('garbage', $unknown->getValue(), 'unparseable DB values are kept so the row still loads');
+	}
+
+	/** @test */
+	public function has_changed_uses_type_aware_equality()
+	{
+		$int = $this->makeField('qty', new TypeInteger());
+		$int->loadValueFromDb('42');
+		$int->setValue(42);
+		$this->assertFalse($int->hasChanged());
+		$int->setValue('43');
+		$this->assertTrue($int->hasChanged());
+
+		$bool = $this->makeField('active', new \Laf\Database\Field\TypeBool());
+		$bool->loadValueFromDb(null);
+		$bool->setValue(false);
+		$this->assertTrue($bool->hasChanged(), 'NULL -> false must be written');
+
+		$dec = $this->makeField('price', new \Laf\Database\Field\TypeDecimal(8, 2));
+		$dec->loadValueFromDb('2.10');
+		$dec->setValue('2.1');
+		$this->assertFalse($dec->hasChanged());
+
+		$text = $this->makeField('code', new TypeVarchar());
+		$text->loadValueFromDb('1000');
+		$text->setValue('1e3');
+		$this->assertTrue($text->hasChanged(), 'strings compare strictly, not numerically');
+	}
+
+	/** @test */
+	public function to_string_handles_typed_values()
+	{
+		$bool = $this->makeField('active', new \Laf\Database\Field\TypeBool());
+		$bool->setValue(false);
+		$this->assertSame('0', (string)$bool);
+		$int = $this->makeField('qty', new TypeInteger());
+		$this->assertSame('', (string)$int);
+	}
+
+	/** @test */
+	public function validate_reports_required_and_type_constraints()
 	{
 		$field = $this->makeField('name', new TypeVarchar());
-		$field->setValue('<b>bold</b>');
-		$this->assertSame('bold', $field->getValue());
+		$field->setRequired(true)->setMaxLength(3)->setLabel('Name');
+		$this->assertSame(['Name is required'], $field->validate());
+		$field->setValue('abcd');
+		$this->assertSame(['Name must be at most 3 characters'], $field->validate());
+		$field->setValue('abc');
+		$this->assertSame([], $field->validate());
+	}
+
+	/** @test */
+	public function set_table_display_field_marks_the_table()
+	{
+		$table = $this->makeTable();
+		$field = $this->makeField('title', new TypeVarchar(), $table);
+		$field->setTableDisplayField();
+		$this->assertSame($field, $table->getDisplayField());
 	}
 
 	/** @test */

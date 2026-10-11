@@ -11,7 +11,6 @@ class UrlParserTest extends TestCase
 		// Reset the singleton between tests
 		$ref = new \ReflectionClass(UrlParser::class);
 		$prop = $ref->getProperty('instance');
-		$prop->setAccessible(true);
 		$prop->setValue(null, null);
 	}
 

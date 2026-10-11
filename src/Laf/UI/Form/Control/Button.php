@@ -74,11 +74,11 @@ class Button implements FormElementInterface, ComponentInterface
         }
 
         if ($this->getHeight()) {
-            $this->addStyle('height', $this->getHeight() . 'px');
+            $this->addCssStyleItem('height', $this->getHeight() . 'px');
             unset($attributes['height']);
         }
         if ($this->getWidth()) {
-            $this->addStyle('width', $this->getWidth() . 'px');
+            $this->addCssStyleItem('width', $this->getWidth() . 'px');
             unset($attributes['width']);
         }
         unset($attributes['value']);
@@ -86,7 +86,7 @@ class Button implements FormElementInterface, ComponentInterface
         $params = '';
         foreach ($attributes as $key => $value) {
             if (!is_array($value))
-                $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+                $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
         }
 
         if ($this->getWrapInDiv()) {

@@ -3,62 +3,91 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\Text;
+use Laf\Util\Locale;
 
-class TypeFloat implements FieldType
+/**
+ * FLOAT / DOUBLE / REAL / DOUBLE PRECISION — approximate numbers (measurements, ratios).
+ * For money and anything that must round-trip exactly use TypeDecimal.
+ */
+class TypeFloat extends AbstractFieldType
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
+    public function getTypeName(): string
     {
-        if(mb_strlen($value??'') == 0){
+        return 'float';
+    }
+
+    protected function convert(mixed $value): mixed
+    {
+        if (is_float($value)) {
+            if (!is_finite($value)) {
+                throw $this->invalid($value, 'not a finite number');
+            }
+            return $value;
+        }
+        if (is_int($value)) {
+            return (float)$value;
+        }
+        if (is_bool($value)) {
+            return $value ? 1.0 : 0.0;
+        }
+        $canonical = Locale::parseNumber($this->toStringOrFail($value));
+        if ($canonical === null) {
+            throw $this->invalid($value, 'not a number');
+        }
+        return (float)$canonical;
+    }
+
+    protected function compareCanonical(mixed $a, mixed $b): bool
+    {
+        $a = (float)$a;
+        $b = (float)$b;
+        if ($a === $b) {
             return true;
         }
-        if (is_null($value))
-            return true;
-        return filter_var($value, FILTER_VALIDATE_FLOAT) !== false;
+        $scale = max(abs($a), abs($b), 1.0);
+        return abs($a - $b) <= 1e-9 * $scale;
     }
 
-    /**
-     * @param $value
-     * @return float
-     */
-    public function getValueDbSanitized($value)
-    {
-        if (is_null($value))
-            return null;
-        return (float)$value;
-    }
-
-    /**
-     * @return int
-     */
     public function getPdoType()
     {
         return \PDO::PARAM_STR;
     }
 
-    /**
-     * @param Field $field
-     * @return Text
-     */
-    public function getFormElement(Field $field)
+    public function toDb(mixed $value): array
+    {
+        if ($value === null) {
+            return [null, \PDO::PARAM_NULL];
+        }
+        // bind as a locale-independent string so neither PHP's precision ini nor
+        // the driver decides how many digits travel to the server
+        return [rtrim(rtrim(sprintf('%.15G', (float)$value), '0'), '.'), \PDO::PARAM_STR];
+    }
+
+    public function validate(mixed $value, ?Field $field = null): array
+    {
+        if ($value === null || $field === null) {
+            return [];
+        }
+        $label = $field->getLabel() ?: $field->getName();
+        $messages = [];
+        if ($field->getMinValue() !== null && (float)$value < (float)$field->getMinValue()) {
+            $messages[] = sprintf('%s must be at least %s', $label, $field->getMinValue());
+        }
+        if ($field->getMaxValue() !== null && (float)$value > (float)$field->getMaxValue()) {
+            $messages[] = sprintf('%s must be at most %s', $label, $field->getMaxValue());
+        }
+        return $messages;
+    }
+
+    public function getInputAttributes(?Field $field = null): array
+    {
+        return ['inputmode' => 'decimal', 'step' => 'any'];
+    }
+
+    protected function createFormElement(Field $field)
     {
         $formElement = new Text();
         $formElement->setField($field);
         return $formElement;
-    }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        if (is_null($value))
-            return null;
-        return floatval($value);
     }
 }

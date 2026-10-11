@@ -111,7 +111,7 @@ class Text implements FormElementInterface, ComponentInterface
 
         $params = '';
         foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
 
         $this->addCssClass('bg-light')
@@ -137,7 +137,7 @@ class Text implements FormElementInterface, ComponentInterface
         if ($this->getField()->allowHtml()) {
             return nl2br($this->getAttribute('value') ?? '');
         } else {
-            return nl2br(htmlentities($this->getAttribute('value') ?? ''));
+            return nl2br(\Laf\Util\Util::e($this->getAttribute('value') ?? ''));
         }
     }
 
@@ -183,7 +183,7 @@ class Text implements FormElementInterface, ComponentInterface
 
         $params = '';
         foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
         $html = "
         <div id='{$this->getId()}_container' style='{$this->getWrapperCssStyleForHtml()}' class='mb-3 {$this->getFormRowDisplayMode()} {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
@@ -252,6 +252,19 @@ class Text implements FormElementInterface, ComponentInterface
         $this->setPlaceholder($field->getPlaceholder());
         $this->setHint($field->getHint());
         $this->setInvalidValueErrorMessage($field->getInvalidValueErrorMessage());
+
+        /**
+         * type-specific HTML attributes (step, min, max, pattern, inputmode…);
+         * anything already set explicitly on the field wins
+         */
+        if ($field->getType() !== null) {
+            foreach ($field->getType()->getInputAttributes($field) as $key => $value) {
+                $current = $this->getAttribute($key);
+                if ($current === null || $current === '') {
+                    $this->addAttribute($key, (string)$value);
+                }
+            }
+        }
         return $this;
     }
 

@@ -6,9 +6,32 @@ use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\Database\Db;
 use Laf\Util\Settings;
+use Laf\Util\Util;
 
 class Select extends Text implements FormElementInterface, ComponentInterface
 {
+    /**
+     * @var array|null static option list (value => label); when set, the
+     * foreign-key lookup is skipped. Used for ENUM columns and hand-built selects.
+     */
+    private ?array $options = null;
+
+    /**
+     * Provide the options directly instead of reading them from the FK table
+     * @param array $options value => label
+     * @return $this
+     */
+    public function setOptions(array $options): self
+    {
+        $this->options = $options;
+        return $this;
+    }
+
+    public function hasStaticOptions(): bool
+    {
+        return $this->options !== null;
+    }
+
     public function drawViewMode()
     {
         $this->addCssClass('form-control-plaintext');
@@ -18,11 +41,15 @@ class Select extends Text implements FormElementInterface, ComponentInterface
     }
 
     /**
-     * Returns the label from the FB table
+     * Returns the label from the FK table, or from the static option list
      * @return string
      */
     protected function getSelectedLabel()
     {
+        if ($this->options !== null) {
+            $value = $this->getField()->getValue();
+            return $this->options[(string)$value] ?? (string)$value;
+        }
         return $this->getField()->getReferencedValue();
     }
 
@@ -38,11 +65,11 @@ class Select extends Text implements FormElementInterface, ComponentInterface
         }
 
         if ($this->getHeight()) {
-            $this->addStyle('height', $this->getHeight() . 'px');
+            $this->addCssStyleItem('height', $this->getHeight() . 'px');
             unset($attributes['height']);
         }
         if ($this->getWidth()) {
-            $this->addStyle('width', $this->getWidth() . 'px');
+            $this->addCssStyleItem('width', $this->getWidth() . 'px');
             unset($attributes['width']);
         }
 
@@ -56,15 +83,17 @@ class Select extends Text implements FormElementInterface, ComponentInterface
 
         $params = '';
         foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
         $options = "<option value=''>&nbsp;</option>";
 
         foreach ($this->getOptions() as $ok => $ov) {
+            $okHtml = Util::e($ok);
+            $ovHtml = Util::e($ov);
             if ($ok == $this->getValue() && mb_strlen($ok??'') == mb_strlen($this->getValue()??'')) {
-                $options .= "\n\t\t\t\t<option value='{$ok}' selected='selected'>{$ov}</option>";
+                $options .= "\n\t\t\t\t<option value='{$okHtml}' selected='selected'>{$ovHtml}</option>";
             } else {
-                $options .= "\n\t\t\t\t<option value='{$ok}'>{$ov}</option>";
+                $options .= "\n\t\t\t\t<option value='{$okHtml}'>{$ovHtml}</option>";
             }
         }
 
@@ -93,28 +122,44 @@ class Select extends Text implements FormElementInterface, ComponentInterface
      */
     protected function getOptions()
     {
-        $fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-        $settings = Settings::getInstance();
-        $fkClass = $settings->getProperty('project.package_name') . '\\' . Db::convertTableNameToClassName($fkTable);
-        $record = new $fkClass($this->getField()->getValue());
-        $field = $record->getTable()->getDisplayField()->getName();
-        $pkFieldName = $record->getTable()->getPrimaryKey()->getFirstField()->getName();
+        if ($this->options !== null) {
+            return $this->options;
+        }
 
-        # @TODO optimize and add values as prepared statement parameters
+        $fk = $this->getField()->getTable()->getForeignKey($this->getField()->getName());
+        $fkTable = $fk->getReferencingTable();
+        $meta = $fk->getReferencedTableMeta();
+        if ($meta === null) {
+            return [];
+        }
+        $field = $meta->getDisplayField()->getName();
+        $pkFieldName = $fk->resolveReferencedFieldName();
+
         $where = '';
+        $params = [];
         if ($this->getField()->hasDbSelectionCriteria()) {
+            $i = 0;
             foreach ($this->getField()->getDbSelectionCriteria() as $key => $value) {
-                $where .= " AND {$key}='{$value}'";
+                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+                    continue;
+                }
+                $placeholder = ':crit' . $i++;
+                $where .= " AND {$key} = {$placeholder}";
+                $params[$placeholder] = $value;
             }
         }
 
-        $sql = "SELECT {$pkFieldName}, {$field} FROM {$fkTable} WHERE 1=1 {$where} ORDER BY {$field} ASC";
-        if(Settings::get('database.engine') == 'mysql'){
-            $sql = "SELECT `{$pkFieldName}`, `{$field}` FROM `{$fkTable}` WHERE 1=1 {$where} ORDER BY {$field} ASC";
+        $isMysql = false;
+        try {
+            $isMysql = strtolower((string)Settings::get('database.engine')) === 'mysql';
+        } catch (\Throwable $ex) {
         }
+        $q = $isMysql ? '`' : '';
+        $sql = "SELECT {$q}{$pkFieldName}{$q}, {$q}{$field}{$q} FROM {$q}{$fkTable}{$q} WHERE 1=1 {$where} ORDER BY {$q}{$field}{$q} ASC";
+
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute($params);
         $options = [];
         while ($res = $stmt->fetchObject()) {
             $options[$res->$pkFieldName] = $res->$field;

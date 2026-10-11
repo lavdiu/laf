@@ -5,25 +5,29 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
+use Laf\Util\Locale;
 
 class Time extends Text implements FormElementInterface, ComponentInterface
 {
+    /**
+     * Re-render the canonical 'H:i:s[.u]' value in the locale display format.
+     * A value that does not parse is left untouched so the user sees what is stored.
+     */
+    private function applyDisplayFormat(): void
+    {
+        $value = $this->getValue();
+        if ($value === null || trim($value) === '') {
+            return;
+        }
+        $time = Locale::parseDate($value, [Locale::ISO_TIME, 'H:i:s.u', 'H:i', Locale::timeFormat()]);
+        if ($time !== null) {
+            $this->setValue($time->format(Locale::timeFormat()));
+        }
+    }
+
     public function drawViewMode()
     {
-        if (trim($this->getValue()??'') == '') {
-            return parent::drawViewMode();
-        }
-        $date = \Datetime::createFromFormat('H:i:s', $this->getValue());
-        if ($date === false) {
-            $date = new \DateTime();
-        }
-        $format = 'H:i A';
-        try {
-            $format = \Laf\Util\Settings::get('locale.time.format');
-        } catch (\Exception $ex) {
-        }
-
-        $this->setValue($date->format($format));
+        $this->applyDisplayFormat();
         return parent::drawViewMode();
     }
 
@@ -31,20 +35,7 @@ class Time extends Text implements FormElementInterface, ComponentInterface
     {
         $this->setType(InputType::Text);
         $this->addCssClass('time-picker');
-        if ($this->getValue() == '') {
-            return parent::drawUpdateMode();
-        }
-        $date = \Datetime::createFromFormat('H:i:s', $this->getValue());
-        if ($date === false) {
-            $date = new \DateTime();
-        }
-        $format = 'H:i A';
-        try {
-            $format = \Laf\Util\Settings::get('locale.time.format');
-        } catch (\Exception $ex) {
-        }
-
-        $this->setValue($date->format($format));
+        $this->applyDisplayFormat();
         return parent::drawUpdateMode();
     }
 

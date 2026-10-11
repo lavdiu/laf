@@ -125,25 +125,39 @@ class FieldTypeTest extends TestCase
 	}
 
 	/** @test */
-	public function varchar_sanitize_strips_tags()
+	public function varchar_keeps_tags_verbatim()
 	{
+		// escaping belongs to the output layer; storing encoded text corrupts exports, APIs and searches
 		$type = new TypeVarchar();
-		$this->assertSame('hello', $type->getValueDbSanitized('<b>hello</b>'));
+		$this->assertSame('<b>hello</b>', $type->getValueDbSanitized('<b>hello</b>'));
 	}
 
 	/** @test */
-	public function varchar_sanitize_encodes_special_chars()
+	public function varchar_keeps_special_chars_verbatim()
 	{
 		$type = new TypeVarchar();
-		$result = $type->getValueDbSanitized('a & b < c');
-		$this->assertSame('a &amp; b &lt; c', $result);
+		$this->assertSame('a & b < c', $type->getValueDbSanitized('a & b < c'));
+		$this->assertSame('Bolt M8 <10mm', $type->getValueDbSanitized('Bolt M8 <10mm'));
+		$this->assertSame("O'Reilly & Sons", $type->getValueDbSanitized("O'Reilly & Sons"));
 	}
 
 	/** @test */
-	public function varchar_sanitize_null_returns_empty()
+	public function varchar_sanitize_null_returns_null()
 	{
 		$type = new TypeVarchar();
-		$this->assertSame('', $type->getValueDbSanitized(null));
+		$this->assertNull($type->getValueDbSanitized(null));
+		$this->assertNull($type->getValueDbSanitized(''));
+		$this->assertNull($type->getValueDbSanitized('   '));
+	}
+
+	/** @test */
+	public function varchar_validate_checks_max_length()
+	{
+		$type = new TypeVarchar();
+		$field = (new \Laf\Database\Field\Field('name'))->setType($type)->setMaxLength(5)->setLabel('Name');
+		$this->assertSame([], $type->validate('abcde', $field));
+		$this->assertCount(1, $type->validate('abcdef', $field));
+		$this->assertSame([], $type->validate(null, $field));
 	}
 
 	/** @test */
@@ -167,10 +181,10 @@ class FieldTypeTest extends TestCase
 	}
 
 	/** @test */
-	public function text_sanitize_strips_tags()
+	public function text_keeps_tags_verbatim()
 	{
 		$type = new TypeText();
-		$this->assertSame('hello', $type->getValueDbSanitized('<script>hello</script>'));
+		$this->assertSame('<script>hello</script>', $type->getValueDbSanitized('<script>hello</script>'));
 	}
 
 	/** @test */
@@ -195,10 +209,11 @@ class FieldTypeTest extends TestCase
 	}
 
 	/** @test */
-	public function char_sanitize_strips_tags()
+	public function char_keeps_value_verbatim()
 	{
 		$type = new TypeChar();
-		$this->assertSame('a', $type->getValueDbSanitized('<b>a</b>'));
+		$this->assertSame('<b>a</b>', $type->getValueDbSanitized('<b>a</b>'));
+		$this->assertSame('KS', $type->getValueDbSanitized(' KS '));
 	}
 
 	/** @test */
@@ -271,8 +286,15 @@ class FieldTypeTest extends TestCase
 	{
 		$type = new TypeDateTime();
 		$this->assertFalse($type->isValid('not-a-datetime'));
-		$this->assertFalse($type->isValid('2024-01-15'));
+		$this->assertFalse($type->isValid('2024-13-15 10:00:00'));
 		$this->assertFalse($type->isValid('2024-01-15 25:00:00'));
+	}
+
+	/** @test */
+	public function datetime_accepts_date_only_as_midnight()
+	{
+		$type = new TypeDateTime();
+		$this->assertSame('2024-01-15 00:00:00', $type->normalize('2024-01-15'));
 	}
 
 	/** @test */
@@ -299,22 +321,31 @@ class FieldTypeTest extends TestCase
 	{
 		$type = new TypeTime();
 		$this->assertTrue($type->isValid(null));
-		// TypeTime::isValid has a PHP 8.4 compatibility bug:
-		// DateTime::getLastErrors() returns false (not array) when no errors.
-		// These assertions verify the bug exists — fix TypeTime to match TypeDate's pattern.
-		$this->assertTrue(@$type->isValid('14:30:00'));
-		$this->assertTrue(@$type->isValid('00:00:00'));
-		$this->assertTrue(@$type->isValid('23:59:59'));
+		$this->assertTrue($type->isValid(''));
+		$this->assertTrue($type->isValid('14:30:00'));
+		$this->assertTrue($type->isValid('00:00:00'));
+		$this->assertTrue($type->isValid('23:59:59'));
+		$this->assertTrue($type->isValid('14:30'));
+		$this->assertTrue($type->isValid('2:30 PM'));
 	}
 
 	/** @test */
 	public function time_invalid_values()
 	{
 		$type = new TypeTime();
-		// Note: TypeTime::isValid has a bug on PHP 8.4+ where DateTime::getLastErrors()
-		// returns false instead of an array when format fails, causing an array offset error.
-		// Testing only null passthrough until the bug is fixed in TypeTime.
-		$this->assertFalse(@$type->isValid('25:00:00'));
+		$this->assertFalse($type->isValid('25:00:00'));
+		$this->assertFalse($type->isValid('14:61'));
+		$this->assertFalse($type->isValid('noon'));
+	}
+
+	/** @test */
+	public function time_normalises_short_and_12_hour_forms()
+	{
+		$type = new TypeTime();
+		$this->assertSame('14:30:00', $type->normalize('14:30'));
+		$this->assertSame('14:30:00', $type->normalize('2:30 PM'));
+		$this->assertSame('09:05:07', $type->normalize('9:05:07 am'));
+		$this->assertNull($type->normalize(''));
 	}
 
 	/** @test */
@@ -350,15 +381,59 @@ class FieldTypeTest extends TestCase
 	}
 
 	/** @test */
-	public function bool_falsy_string_values()
+	public function bool_falsy_string_values_are_valid_and_false()
 	{
-		// FILTER_VALIDATE_BOOL returns false for "false", "0", "no", "off"
-		// which is indistinguishable from invalid — this is a known quirk
 		$type = new TypeBool();
-		$this->assertFalse($type->isValid('0'));
-		$this->assertFalse($type->isValid('false'));
-		$this->assertFalse($type->isValid('no'));
-		$this->assertFalse($type->isValid('off'));
+		foreach (['0', 'false', 'no', 'off', 'n', 'f', 0, false] as $falsy) {
+			$this->assertTrue($type->isValid($falsy), var_export($falsy, true) . ' should be valid');
+			$this->assertFalse($type->normalize($falsy), var_export($falsy, true) . ' should normalise to false');
+		}
+		$this->assertFalse($type->isValid('maybe'));
+		$this->assertFalse($type->isValid('2x'));
+	}
+
+	/** @test */
+	public function bool_empty_string_means_unchecked_and_null_stays_null()
+	{
+		$type = new TypeBool();
+		$this->assertFalse($type->normalize(''));
+		$this->assertFalse($type->fromInput(''));
+		$this->assertNull($type->normalize(null));
+		$this->assertNull($type->fromInput(null));
+	}
+
+	/** @test */
+	public function bool_to_db_binds_false_as_int_zero_not_null()
+	{
+		$type = new TypeBool();
+		$this->assertSame([0, \PDO::PARAM_INT], $type->toDb(false));
+		$this->assertSame([1, \PDO::PARAM_INT], $type->toDb(true));
+		$this->assertSame([0, \PDO::PARAM_INT], $type->toDb('0'));
+		$this->assertSame([null, \PDO::PARAM_NULL], $type->toDb(null));
+	}
+
+	/** @test */
+	public function bool_from_db_accepts_every_driver_spelling()
+	{
+		$type = new TypeBool();
+		$this->assertTrue($type->fromDb('1'));
+		$this->assertFalse($type->fromDb('0'));
+		$this->assertTrue($type->fromDb(1));
+		$this->assertFalse($type->fromDb(0));
+		$this->assertTrue($type->fromDb(true));
+		$this->assertTrue($type->fromDb('t'));
+		$this->assertFalse($type->fromDb('f'));
+		$this->assertNull($type->fromDb(null));
+	}
+
+	/** @test */
+	public function bool_equals_distinguishes_null_from_false()
+	{
+		$type = new TypeBool();
+		$this->assertFalse($type->equals(null, false));
+		$this->assertTrue($type->equals('1', true));
+		$this->assertTrue($type->equals('0', false));
+		$this->assertFalse($type->equals('0', true));
 	}
 
 	/** @test */

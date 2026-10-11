@@ -326,7 +326,6 @@ class FormTest extends TestCase
         $form = $this->makeForm();
 
         $ref = new \ReflectionProperty(Form::class, 'csrfProtection');
-        $ref->setAccessible(true);
         $this->assertTrue($ref->getValue($form));
     }
 
@@ -337,7 +336,6 @@ class FormTest extends TestCase
         $form->setCsrfProtection(false);
 
         $ref = new \ReflectionProperty(Form::class, 'csrfProtection');
-        $ref->setAccessible(true);
         $this->assertFalse($ref->getValue($form));
     }
 
@@ -385,8 +383,6 @@ class FormTest extends TestCase
 
         // No CSRF token in $_POST — validation should fail
         $method = new \ReflectionMethod(Form::class, 'validateCsrfToken');
-        $method->setAccessible(true);
-
         $this->assertFalse($method->invoke($form));
     }
 
@@ -402,8 +398,6 @@ class FormTest extends TestCase
         $_POST[$sessionKey] = 'wrong_token_value';
 
         $method = new \ReflectionMethod(Form::class, 'validateCsrfToken');
-        $method->setAccessible(true);
-
         $this->assertFalse($method->invoke($form));
     }
 
@@ -422,8 +416,6 @@ class FormTest extends TestCase
         $_POST[$sessionKey] = $submittedToken;
 
         $method = new \ReflectionMethod(Form::class, 'validateCsrfToken');
-        $method->setAccessible(true);
-
         $this->assertFalse($method->invoke($form));
     }
 
@@ -439,8 +431,6 @@ class FormTest extends TestCase
         $_POST[$sessionKey] = $_SESSION[$sessionKey];
 
         $method = new \ReflectionMethod(Form::class, 'validateCsrfToken');
-        $method->setAccessible(true);
-
         $this->assertTrue($method->invoke($form));
         // Token should be consumed after validation
         $this->assertArrayNotHasKey($sessionKey, $_SESSION);
@@ -455,7 +445,6 @@ class FormTest extends TestCase
         $form->setCsrfProtection(false);
 
         $ref = new \ReflectionProperty(Form::class, 'csrfProtection');
-        $ref->setAccessible(true);
         $this->assertFalse($ref->getValue($form));
     }
 
@@ -636,7 +625,6 @@ class FormTest extends TestCase
         $this->assertSame($form, $result);
 
         $ref = new \ReflectionProperty(Form::class, 'fieldGroups');
-        $ref->setAccessible(true);
         $groups = $ref->getValue($form);
 
         $this->assertArrayHasKey('Personal Info', $groups);

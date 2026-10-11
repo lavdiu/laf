@@ -3,71 +3,101 @@
 namespace Laf\Database\Field;
 
 use Laf\UI\Form\Input\DateTime;
-use Laf\Util\Settings;
+use Laf\Util\Locale;
 
-
-class TypeDateTime implements FieldType
+/**
+ * DATETIME / TIMESTAMP / TIMESTAMP [WITH|WITHOUT] TIME ZONE.
+ *
+ * Canonical value is 'Y-m-d H:i:s', extended with '.u' when the value carries
+ * non-zero microseconds and with a 'P' offset when the column is time-zone
+ * aware and the value carried one. Nothing is ever converted between zones:
+ * what the DB gives is what the object holds and sends back.
+ *
+ * Accepted input: ISO with ' ' or 'T', with or without seconds, fractional
+ * seconds, offset; a bare date (midnight); any DateTimeInterface; and the
+ * locale display format (Settings 'locale.datetime.format').
+ */
+class TypeDateTime extends AbstractFieldType
 {
-    /**
-     * @param $value
-     * @return bool
-     */
-    public function isValid($value)
-    {
-        if (is_null($value) || $value == '')
-            return true;
+    private bool $withTimezone;
 
-        $format = 'Y-m-d H:i:s';
-        $f = \DateTime::createFromFormat($format, $value);
-        $valid = \DateTime::getLastErrors();
-        return $valid === false || ($valid['warning_count'] == 0 and $valid['error_count'] == 0);
+    public function __construct(bool $withTimezone = false)
+    {
+        $this->withTimezone = $withTimezone;
     }
 
-    /**
-     * @param $value
-     * @return null|string
-     */
-    public function getValueDbSanitized($value)
+    public function getTypeName(): string
     {
-        $format = 'Y-m-d H:i:s';
-        $dt = \DateTime::createFromFormat($format, $value??'');
-        if ($dt === false) return null;
-        return $dt->format('Y-m-d H:i:s');
+        return 'datetime';
     }
 
-    /**
-     * @return int
-     */
+    public function isWithTimezone(): bool
+    {
+        return $this->withTimezone;
+    }
+
+    /** @return string[] */
+    protected function acceptedFormats(): array
+    {
+        return array_unique([
+            Locale::ISO_DATETIME,
+            'Y-m-d H:i:s.u',
+            'Y-m-d H:i:sP',
+            'Y-m-d H:i:s.uP',
+            'Y-m-d H:i:sO',
+            'Y-m-d H:i:s.uO',
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i:s.u',
+            'Y-m-d\TH:i:sP',
+            'Y-m-d\TH:i:s.uP',
+            'Y-m-d\TH:i:sO',
+            'Y-m-d H:i',
+            'Y-m-d\TH:i',
+            Locale::ISO_DATE,
+            Locale::dateTimeFormat(),
+        ]);
+    }
+
+    protected function convert(mixed $value): mixed
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $this->format($value, true);
+        }
+        $raw = $this->toStringOrFail($value);
+        $dt = Locale::parseDate($raw, $this->acceptedFormats());
+        if ($dt === null) {
+            throw $this->invalid($value, 'not a date and time');
+        }
+        $hadOffset = (bool)preg_match('/(Z|[+-]\d{2}(:?\d{2})?)$/', trim($raw));
+        return $this->format($dt, $hadOffset);
+    }
+
+    private function format(\DateTimeInterface $dt, bool $hadOffset): string
+    {
+        $out = $dt->format(Locale::ISO_DATETIME);
+        if ((int)$dt->format('u') !== 0) {
+            $out .= '.' . rtrim($dt->format('u'), '0');
+        }
+        if ($this->withTimezone && $hadOffset) {
+            $out .= $dt->format('P');
+        }
+        return $out;
+    }
+
+    protected function compareCanonical(mixed $a, mixed $b): bool
+    {
+        return $a === $b || new \DateTimeImmutable($a) == new \DateTimeImmutable($b);
+    }
+
     public function getPdoType()
     {
         return \PDO::PARAM_STR;
     }
 
-    /**
-     * @param Field $field
-     * @return DateTime
-     */
-    public function getFormElement(Field $field)
+    protected function createFormElement(Field $field)
     {
         $formElement = new DateTime();
         $formElement->setField($field);
         return $formElement;
-    }
-
-    /**
-     * Return the field value formatted for the db store
-     * @param string $value
-     * @return null|string
-     */
-    public function formatForDb(?string $value)
-    {
-        $format = 'Y-m-d H:i:s';
-        try {
-            $format = Settings::get('locale.datetime.format');
-        } catch (\Exception $ex) {
-        }
-        $dt = \DateTime::createFromFormat($format, $value??'');
-        if ($dt === false) return null;
-        return $dt->format('Y-m-d H:i:s');
     }
 }

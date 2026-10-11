@@ -32,10 +32,11 @@ class FieldTypeFactoryTest extends TestCase
 	}
 
 	/** @test */
-	public function factory_returns_type_time_for_time_and_datetime()
+	public function factory_returns_type_time_for_time_and_datetime_for_datetime()
 	{
 		$this->assertInstanceOf(TypeTime::class, FieldTypeFactory::getClass(FieldType::TYPE_TIME));
-		$this->assertInstanceOf(TypeTime::class, FieldTypeFactory::getClass(FieldType::TYPE_DATETIME));
+		$this->assertInstanceOf(TypeDateTime::class, FieldTypeFactory::getClass(FieldType::TYPE_DATETIME));
+		$this->assertInstanceOf(TypeDateTime::class, FieldTypeFactory::getClass(FieldType::TYPE_TIMESTAMP));
 	}
 
 	/** @test */
@@ -44,7 +45,8 @@ class FieldTypeFactoryTest extends TestCase
 		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass(FieldType::TYPE_INTEGER));
 		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass(FieldType::TYPE_BIG_INTEGER));
 		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass(FieldType::TYPE_SMALL_INTEGER));
-		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass(FieldType::TYPE_TINY_INTEGER));
+		// bare tinyint follows the MySQL convention and is a boolean; see factory_getclass_and_literal_agree_on_tinyint
+		$this->assertInstanceOf(TypeBool::class, FieldTypeFactory::getClass(FieldType::TYPE_TINY_INTEGER));
 	}
 
 	/** @test */
@@ -62,7 +64,8 @@ class FieldTypeFactoryTest extends TestCase
 	/** @test */
 	public function factory_returns_type_float_for_numeric_variants()
 	{
-		$this->assertInstanceOf(TypeFloat::class, FieldTypeFactory::getClass(FieldType::TYPE_NUMERIC));
+		// exact types get TypeDecimal so money never passes through a PHP float
+		$this->assertInstanceOf(\Laf\Database\Field\TypeDecimal::class, FieldTypeFactory::getClass(FieldType::TYPE_NUMERIC));
 		$this->assertInstanceOf(TypeFloat::class, FieldTypeFactory::getClass(FieldType::TYPE_DOUBLE));
 		$this->assertInstanceOf(TypeFloat::class, FieldTypeFactory::getClass(FieldType::TYPE_FLOAT));
 		$this->assertInstanceOf(TypeFloat::class, FieldTypeFactory::getClass(FieldType::TYPE_REAL));
@@ -102,8 +105,8 @@ class FieldTypeFactoryTest extends TestCase
 		$this->assertStringContainsString('TypeJson', FieldTypeFactory::getClassLiteral(FieldType::TYPE_JSON));
 		$this->assertStringContainsString('TypeVarchar', FieldTypeFactory::getClassLiteral(FieldType::TYPE_VARCHAR));
 		$this->assertStringContainsString('TypeVarchar', FieldTypeFactory::getClassLiteral(FieldType::TYPE_VARCHAR2));
-		$this->assertStringContainsString('TypeFloat', FieldTypeFactory::getClassLiteral(FieldType::TYPE_NUMERIC));
-		$this->assertStringContainsString('TypeFloat', FieldTypeFactory::getClassLiteral(FieldType::TYPE_NUMERIC2));
+		$this->assertStringContainsString('TypeDecimal', FieldTypeFactory::getClassLiteral(FieldType::TYPE_NUMERIC));
+		$this->assertStringContainsString('TypeDecimal', FieldTypeFactory::getClassLiteral(FieldType::TYPE_NUMERIC2));
 		$this->assertStringContainsString('TypeFloat', FieldTypeFactory::getClassLiteral(FieldType::TYPE_FLOAT));
 		$this->assertStringContainsString('TypeFloat', FieldTypeFactory::getClassLiteral(FieldType::TYPE_DOUBLE));
 		$this->assertStringContainsString('TypeFloat', FieldTypeFactory::getClassLiteral(FieldType::TYPE_REAL));
@@ -119,12 +122,31 @@ class FieldTypeFactoryTest extends TestCase
 	// ── getClass vs getClassLiteral discrepancy ──
 
 	/** @test */
-	public function factory_getclass_maps_tinyint_to_integer_not_bool()
+	public function factory_getclass_and_literal_agree_on_tinyint()
 	{
-		// Note: getClass maps tinyint -> TypeInteger
-		// but getClassLiteral maps tinyint -> TypeBool
-		// This is an inconsistency in the factory
-		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass(FieldType::TYPE_TINY_INTEGER));
+		// bare "tinyint" (no width known) follows the MySQL convention: boolean
+		$this->assertInstanceOf(TypeBool::class, FieldTypeFactory::getClass(FieldType::TYPE_TINY_INTEGER));
 		$this->assertStringContainsString('TypeBool', FieldTypeFactory::getClassLiteral(FieldType::TYPE_TINY_INTEGER));
+
+		// tinyint(1) is boolean, any other width is a small integer
+		$this->assertInstanceOf(TypeBool::class, FieldTypeFactory::getClass('tinyint', ['COLUMN_TYPE' => 'tinyint(1)']));
+		$this->assertInstanceOf(TypeInteger::class, FieldTypeFactory::getClass('tinyint', ['COLUMN_TYPE' => 'tinyint(3) unsigned']));
+		$this->assertStringContainsString("TypeInteger('tinyint', true)", FieldTypeFactory::getClassLiteral('tinyint', ['COLUMN_TYPE' => 'tinyint(3) unsigned']));
+	}
+
+	/** @test */
+	public function factory_getclass_and_literal_agree_for_every_known_type()
+	{
+		$ref = new \ReflectionClass(FieldType::class);
+		foreach ($ref->getConstants() as $name => $dbType) {
+			if (!str_starts_with($name, 'TYPE_')) {
+				continue;
+			}
+			$instance = FieldTypeFactory::getClass($dbType);
+			$literal = FieldTypeFactory::getClassLiteral($dbType);
+			$short = substr(get_class($instance), strrpos(get_class($instance), '\\') + 1);
+			$this->assertStringContainsString($short, $literal, "literal for {$name} ({$dbType})");
+			$this->assertMatchesRegularExpression('/^new Database\\\\Field\\\\Type\w+\(.*\)$/', $literal);
+		}
 	}
 }

@@ -95,7 +95,7 @@ class BaseDummyTable extends Database\BaseObject
 			->setMaxLength(255)
 			->setAutoIncrement(false)
 			->setUnique(false)
-			->setType(new Database\Field\TypeFloat());
+			->setType(new Database\Field\TypeDecimal(8, 2));
 		$this->getTable()->addField($field);
 		$field = null;
 
@@ -155,7 +155,7 @@ class BaseDummyTable extends Database\BaseObject
 			->setMaxLength(4294967295)
 			->setAutoIncrement(false)
 			->setUnique(false)
-			->setType(new Database\Field\TypeText());
+			->setType(new Database\Field\TypeJson());
 		$this->getTable()->addField($field);
 		$field = null;
 
@@ -232,6 +232,30 @@ class BaseDummyTable extends Database\BaseObject
 		$this->getTable()->addField($field);
 		$field = null;
 
+		$field = (new Field())
+			->setName("required_field")
+			->setLabel("Required Field")
+			->setPlaceHolder("Required Field")
+			->setRequired(true)
+			->setMaxLength(10)
+			->setAutoIncrement(false)
+			->setUnique(false)
+			->setType(new Database\Field\TypeVarchar());
+		$this->getTable()->addField($field);
+		$field = null;
+
+		$field = (new Field())
+			->setName("updated_on")
+			->setLabel("Updated On")
+			->setPlaceHolder("Updated On")
+			->setRequired(false)
+			->setMaxLength(255)
+			->setAutoIncrement(false)
+			->setUnique(false)
+			->setType(new Database\Field\TypeDateTime());
+		$this->getTable()->addField($field);
+		$field = null;
+
 		$this->getTable()->setPrimaryKey($pk);
 
 		$this->getTable()->addForeignKey(
@@ -275,4 +299,40 @@ class BaseDummyTable extends Database\BaseObject
 	public function getParentIdVal() { return $this->getFieldValue("parent_id"); }
 	public function setDeletedVal($value = null) { $this->setFieldValue("deleted", $value); return static::returnLeafClass(); }
 	public function getDeletedVal() { return $this->getFieldValue("deleted"); }
+	public function setRequiredFieldVal($value = null) { $this->setFieldValue("required_field", $value); return static::returnLeafClass(); }
+	public function getRequiredFieldVal() { return $this->getFieldValue("required_field"); }
+	public function setUpdatedOnVal($value = null) { $this->setFieldValue("updated_on", $value); return static::returnLeafClass(); }
+	public function getUpdatedOnVal() { return $this->getFieldValue("updated_on"); }
+
+	public function getParentIdObj()
+	{
+		if (is_numeric($this->getParentIdVal())) {
+			return new \LafShell\DummyTable($this->getParentIdVal());
+		} else {
+			return new \LafShell\DummyTable();
+		}
+	}
+
+	public function listAllArray(): array
+	{
+		$db = Database\Db::getInstance();
+		$sql = "SELECT * FROM {$this->getTable()->getName()} ORDER BY {$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC";
+		$res = $db->query($sql);
+		return $res->fetchAll(\PDO::FETCH_ASSOC);
+	}
+
+	public function listAllObjects(): array
+	{
+		$db = Database\Db::getInstance();
+		$pk = $this->getTable()->getPrimaryKey();
+		$keyColumns = join(', ', $pk->getFieldNames());
+		$sql = "SELECT {$keyColumns} FROM {$this->getTable()->getName()} ORDER BY {$keyColumns} ASC";
+		$res = $db->query($sql);
+
+		$objects = [];
+		foreach ($res->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+			$objects[] = new static($pk->isComposite() ? $row : reset($row));
+		}
+		return $objects;
+	}
 }

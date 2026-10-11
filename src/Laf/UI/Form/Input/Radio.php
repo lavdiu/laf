@@ -27,11 +27,12 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
      */
     protected function getSelectedLabel()
     {
-        $fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-        $settings = Settings::getInstance();
-        $fkClass = "\\" . $settings->getProperty('project.package_name') . "\\" . Db::convertTableNameToClassName($fkTable);
-        $record = new $fkClass($this->getField()->getValue());
-        $field = 'get' . Db::convertTableNameToClassName($record->getTable()->getDisplayField()->getName()) . 'Val';
+        $fk = $this->getField()->getTable()->getForeignKey($this->getField()->getName());
+        $record = $fk->getReferencedObject($this->getField()->getValue());
+        if ($record === null) {
+            return $this->getValue();
+        }
+        $field = 'get' . \Laf\Util\Util::tableFieldNameToMethodName($record->getTable()->getDisplayField()->getName()) . 'Val';
         if (method_exists($record, $field))
             return $record->$field();
         else
@@ -61,19 +62,21 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
 
         $params = '';
         foreach ($attributes as $key => $value)
-            $params .= "\n\t\t\t\t" . $key . '="' . $value . '" ';
+            $params .= "\n\t\t\t\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
         $html = "
         <div id='{$this->getId()}_container'  style='{$this->getWrapperCssStyleForHtml()}'  class='form-group row  mb-2 {$this->getWrapperCssClassesForHtml()}" . ($this->isHidden() || $this->hasCssClass('d-none') ? " d-none" : "") . "'>
             <div>";
         foreach ($this->getOptions() as $ok => $ov) {
+            $okHtml = \Laf\Util\Util::e($ok);
+            $ovHtml = \Laf\Util\Util::e($ov);
             $html .= "
             <div class='custom-control custom-radio'>
               <input {$params} 
               style='{$this->getCssStyleForHtml()}' 
 			  class='{$this->getCssClassesForHtml()}'
-              type='radio' id='{$this->getId()}_{$ok}' value='{$ok}' name='{$this->getName()}' class='custom-control-input'>
-              <label class='custom-control-label' for='{$this->getId()}_{$ok}'>{$ov}</label>
+              type='radio' id='{$this->getId()}_{$okHtml}' value='{$okHtml}' name='{$this->getName()}' class='custom-control-input'>
+              <label class='custom-control-label' for='{$this->getId()}_{$okHtml}'>{$ovHtml}</label>
             </div>
             ";
         }
@@ -92,30 +95,37 @@ class Radio extends Text implements FormElementInterface, ComponentInterface
      */
     protected function getOptions()
     {
-        $fkTable = $this->getField()->getTable()->getForeignKey($this->getField()->getName())->getReferencingTable();
-        $settings = Settings::getInstance();
-        $fkClass = "\\" . $settings->getProperty('project.package_name') . "\\" . Db::convertTableNameToClassName($fkTable);
-        /**
-         * @var $record BaseObject
-         */
-        $record = new $fkClass($this->getField()->getValue());
-        $field = $record->getTable()->getDisplayField()->getName();
+        $fk = $this->getField()->getTable()->getForeignKey($this->getField()->getName());
+        $fkTable = $fk->getReferencingTable();
+        $meta = $fk->getReferencedTableMeta();
+        if ($meta === null) {
+            return [];
+        }
+        $field = $meta->getDisplayField()->getName();
+        $keyField = $fk->resolveReferencedFieldName();
 
-        #@TODO optimize and add values as prepared statement parameters
         $where = '';
+        $params = [];
         if ($this->getField()->hasDbSelectionCriteria()) {
+            $i = 0;
             foreach ($this->getField()->getDbSelectionCriteria() as $key => $value) {
-                $where .= " AND {$key}='{$value}'";
+                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+                    continue;
+                }
+                $placeholder = ':crit' . $i++;
+                $where .= " AND {$key} = {$placeholder}";
+                $params[$placeholder] = $value;
             }
         }
 
-        $sql = "SELECT id, {$field} FROM $fkTable WHERE 1=1 {$where} ORDER BY {$field} ASC";
+        $q = '\Laf\Database\Identifier';
+        $sql = "SELECT " . $q::quote($keyField) . ", " . $q::quote($field) . " FROM " . $q::quote($fkTable) . " WHERE 1=1 {$where} ORDER BY " . $q::quote($field) . " ASC";
         $db = Db::getInstance();
         $stmt = $db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute($params);
         $options = [];
         while ($res = $stmt->fetchObject()) {
-            $options[$res->id] = $res->$field;
+            $options[$res->$keyField] = $res->$field;
         }
         return $options;
     }

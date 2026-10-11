@@ -186,7 +186,7 @@ class Link implements FormElementInterface, ComponentInterface
         $params = '';
         foreach ($this->getAttributes() as $key => $value)
             if (mb_strlen($value) > 0 && $key != 'value')
-                $params .= "\n\t" . $key . '="' . $value . '" ';
+                $params .= "\n\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
 
         $value = $this->getValue();
         if ($this->getIcon() != '') {

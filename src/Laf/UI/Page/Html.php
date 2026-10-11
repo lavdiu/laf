@@ -123,7 +123,7 @@ class Html
         foreach ($this->getHeaderComponents() as $hc) {
             $html .= "<" . $hc->getTagName();
             foreach ($hc->getAttributes() as $ak => $av) {
-                $html .= " " . $ak . '="' . $av . '"';
+                $html .= " " . $ak . '="' . \Laf\Util\Util::attr($av) . '"';
             }
             if ($hc->isSelfClosingTag()) {
                 $html .= " />\n";

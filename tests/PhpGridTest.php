@@ -849,7 +849,6 @@ class PhpGridTest extends TestCase
     private function getGridData(PhpGrid $grid): array
     {
         $ref = new \ReflectionProperty(PhpGrid::class, 'data');
-        $ref->setAccessible(true);
         return $ref->getValue($grid);
     }
 }
