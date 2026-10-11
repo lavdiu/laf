@@ -811,11 +811,15 @@ class PhpGrid
                     if ($useIlike) {
                         $operator = 'ILIKE';
                     } else {
-                        // Apply LOWER() only for textual comparisons or when column forces case-insensitive
+                        // Apply LOWER() only to textual columns (PostgreSQL has no lower(integer)) or when the column forces case-insensitive;
+                        // LIKE on a non-textual column needs the value cast to text first
                         $forceInsensitive = ($colCfg && ($colCfg->caseInsensitive === true || $colCfg->caseInsensitive === 1));
-                        if (in_array($operator, ['LIKE', '=', '!='], true) || $forceInsensitive) {
+                        $textual = $this->isTextualColumn($property);
+                        if ((in_array($operator, ['LIKE', '=', '!='], true) && $textual) || $forceInsensitive) {
                             $propertyExpr = "LOWER(" . $property . ")";
                             $shouldLowercaseValue = true;
+                        } else if ($operator === 'LIKE') {
+                            $propertyExpr = "CAST(" . $property . " AS TEXT)";
                         }
                     }
                 }

@@ -720,7 +720,11 @@ class AuditLog extends BaseObject
         self::$lastError = $message;
         try {
             $logger = Db::getInstance()->getLogger();
-            $logger->error($message);
+            if ($logger === null) {
+                error_log($message);
+            } else {
+                $logger->error($message);
+            }
         } catch (\Throwable $ignored) {
             error_log($message);
         }

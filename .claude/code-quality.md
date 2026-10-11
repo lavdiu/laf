@@ -21,6 +21,10 @@
 - Transactions: `Db::transaction()` / `BaseObject::transaction()` (nest-aware); audit rows are still a separate statement
 - Quoting through `Identifier` on both engines
 
+## Db (reworked 2026-10-11)
+- Fixed: half-built singleton cached after a failed connect, `?? 'mysql'` engine fallback that never applied, engine spellings other than mysql/postgres silently leaving no connection, `getLogger()` TypeError (never initialised), `getErrorMessage()/getErrorTrace*()` TypeErrors, `has_error` never set, trace stored as array in the string field, MySQL-only `SHOW TABLES` in the SQL error logger (which also replaced the original exception when its table was missing), execution errors never reaching the SQL error logger (only prepare was wrapped), `execute()` returning false under `: int`, `getRowObject()` returning an empty stdClass, `PhpGrid::isPostgres()` always false (`Db::getAttribute()` did not exist; the PostgreSQL branch then applied LOWER() to integer columns)
+- Still outside: `SimpleTable::setSql()` raw SQL, `TableInspector` MySQL-only metadata queries (PostgresTableInspector handles its own)
+
 ## Documentation Gaps
 - README.md is just `# LAF` — needs content
 - No CONTRIBUTING.md, CHANGELOG, or installation guide

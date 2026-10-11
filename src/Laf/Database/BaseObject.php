@@ -1005,16 +1005,7 @@ class BaseObject implements \JsonSerializable
         $this->lastSql = $sql;
         $this->log('debug', $operation . ' SQL', [$sql, self::bindingValues($bindings)]);
         try {
-            $db = Db::getInstance();
-            $stmt = $db->prepare($sql);
-            if (!$stmt instanceof \PDOStatement) {
-                throw new DatabaseException('No database connection', $sql, $bindings);
-            }
-            foreach ($bindings as $placeholder => [$value, $type]) {
-                $stmt->bindValue($placeholder, $value, $type);
-            }
-            $stmt->execute();
-            return $stmt;
+            return Db::getInstance()->statement($sql, $bindings);
         } catch (\PDOException $ex) {
             $this->log('error', $operation . ' SQL failed', [$sql, self::bindingValues($bindings), $ex->getMessage()]);
             throw DatabaseException::fromPdo($ex, $sql, $bindings);
@@ -1518,11 +1509,8 @@ class BaseObject implements \JsonSerializable
         }
 
         $existingTables = [];
-        $existingStmt = $db->query("SELECT table_name FROM object_list");
-        if ($existingStmt instanceof \PDOStatement) {
-            foreach ($existingStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-                $existingTables[] = (string)$row['table_name'];
-            }
+        foreach ($db->query("SELECT table_name FROM object_list")->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $existingTables[] = (string)$row['table_name'];
         }
 
         if ($postgres) {

@@ -478,18 +478,7 @@ final class Query
     private function run(string $sql): \PDOStatement
     {
         try {
-            $statement = Db::getInstance()->prepare($sql);
-            if (!$statement instanceof \PDOStatement) {
-                throw new DatabaseException('No database connection', $sql, $this->bindings);
-            }
-            foreach ($this->bindings as $placeholder => [$value, $type]) {
-                if ($type === \PDO::PARAM_INT && is_bool($value)) {
-                    $value = $value ? 1 : 0;
-                }
-                $statement->bindValue($placeholder, $value, $type);
-            }
-            $statement->execute();
-            return $statement;
+            return Db::getInstance()->statement($sql, $this->bindings);
         } catch (\PDOException $ex) {
             throw DatabaseException::fromPdo($ex, $sql, $this->bindings);
         }

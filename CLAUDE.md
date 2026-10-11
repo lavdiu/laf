@@ -221,6 +221,12 @@ echo $customer->getNameVal();
 The `Settings` singleton stores all configuration. Common keys:
 
 - `database.*`: Connection parameters (hostname, database_name, username, password, port, engine)
+  Optional: `database.charset` (MySQL, default utf8mb4), `database.socket` (MySQL unix socket), `database.persistent`,
+  `database.connect_timeout`, `database.options` (PDO attribute => value), `database.dsn` (full override), `database.dsn_extra`
+  (e.g. `sslmode=require`), `database.timezone` (session time zone), `database.schema` (PostgreSQL search_path),
+  `database.init_commands` (SQL run after connecting), `database.empty_string_as_null` (default true). `port` and `engine`
+  default to 3306/mysql; engine accepts mysql, mariadb, postgres, postgresql, pgsql. A second connection reads
+  `database.<name>.*` and is reached with `Db::getInstance('<name>')`.
 - `project.package_name`: Root namespace for generated classes
 - `settings.use_pretty_url`: Enable/disable pretty URLs (default: true)
 - `settings.label.translations`: UI label translations
@@ -244,7 +250,13 @@ Requires `audit_log` table: `migrations/create_audit_logs_table.sql` (MySQL) or 
 - **MySQL/MariaDB**: Primary support
 - **PostgreSQL**: Full support via `PostgresTableInspector`
 
-Connection managed through `Db` singleton using PDO with UTF-8 charset.
+Connection managed through `Db` (one instance per name, `Db::getInstance()` connects on first use and caches only a
+successful connection). `Db::getAllAssoc/getRowAssoc/getOne/getColumn/getPairs($sql, $params)` bind values by PHP type
+(`int` → PARAM_INT, `bool` → 0/1, `null` → PARAM_NULL, or an explicit `[value, PDO::PARAM_*]` pair); `$db->statement()` is
+the typed prepare+execute every helper uses; `$db->transaction(fn)` is nest-aware. Statement failures are the driver's
+`PDOException` (recorded in `hasError()/getErrorMessage()` and written to the `SqlErrorLoggerInterface` table when one is
+set); a failed connection is `DbConnectException` (a `PDOException`). `setLogger()` takes a PSR-3 logger (statements at
+debug, failures at error); `enableQueryLog()` keeps every statement with its time.
 
 ## File Structure Conventions
 
