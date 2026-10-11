@@ -51,5 +51,6 @@
 - Added `autoload-dev` to composer.json for test fixtures namespace
 - Deleted `QueryBuilder.php` from codebase; replaced 2026-10-11 by `Laf\Database\Query` (single-table finder behind `BaseObject::query()`, `bOfind*`, `findAsArray`)
 - BaseObject reworked 2026-10-11: hooks, `Query`, `DatabaseException`, `Db::transaction()`, unique check, PostgreSQL `RETURNING`, DB defaults on insert (see `agent/2026-10-11-baseobject-notes.md`)
+- Db reworked 2026-10-11: named instances (`getInstance($name)`, `fromSettings($prefix)`), typed `statement()`, `getColumn/getPairs`, engine-aware SQL error logging that never hides the error, PSR-3 logging, query log, `DbConnectException extends PDOException`, optional settings (charset, socket, persistent, options, dsn, timezone, schema, init_commands) (see `agent/2026-10-11-db-notes.md`)
 - PageGenerator: fixed 7 bugs, added flash messages, record checks, lazy tabs, M2M detection (see pagegenerator.md)
 - PhpGrid: added `deferInitialize` property for lazy-loading support

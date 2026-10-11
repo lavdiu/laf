@@ -9,8 +9,10 @@
             <directory>tests</directory>
             <exclude>tests/BaseObjectTest.php</exclude>
             <exclude>tests/PhpGridTest.php</exclude>
+            <exclude>tests/DbTest.php</exclude>
         </testsuite>
         <testsuite name="Integration">
+            <file>tests/DbTest.php</file>
             <file>tests/BaseObjectTest.php</file>
             <file>tests/PhpGridTest.php</file>
         </testsuite>

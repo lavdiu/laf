@@ -5,7 +5,7 @@
 src/Laf/
 ├── Database/           # ORM layer (~3,700 lines)
 │   ├── BaseObject.php  # Active Record base (~1,500 lines) — load, CRUD, finders, hooks, audit, forms
-│   ├── Db.php          # Singleton PDO wrapper (transactions: beginTransaction/commit/rollBack/transaction())
+│   ├── Db.php          # PDO wrapper: named instances from Settings, typed statement(), fetch helpers, transactions, error capture + SqlErrorLogger, PSR-3 logging, query log
 │   ├── Query.php       # Single-table finder: where/orderBy/limit → get/first/arrays/count/exists/delete
 │   ├── Identifier.php  # Engine-aware identifier quoting
 │   ├── Table.php       # Table metadata (332 lines)
