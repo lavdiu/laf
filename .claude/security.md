@@ -15,12 +15,10 @@
 - ~~**No CSRF tokens**~~ fixed: `Form::processForm()` validates `_csrf_token_{form}` against a per-session token (`CsrfTokenException`); `setCsrfProtection(false)` opts out
 - **ROT13 "security"** — used for field name encoding (`Util::scrambleFieldOrTableName()`) and form table name obfuscation — not real security
 
-### QueryBuilder (no input validation on identifiers)
-- `where()` / `orWhere()` — `$field` and `$operator` interpolated directly into SQL
-- `orderBy()` — `$field` and `$direction` not validated
-- `join()` / `leftJoin()` — all params unvalidated
-- Values ARE properly bound via prepared statements — only identifiers are at risk
-- Risk is MEDIUM: only dangerous if developer passes user input as field/operator names
+### Query (replaced QueryBuilder, 2026-10-11)
+- Column names are checked against `Table::hasField()` and quoted by `Identifier`; operators and sort directions are whitelisted
+- Values are bound through the column's `FieldType::toDb()` (never interpolated); `whereRaw()` is the only trusted-SQL entry point
+- `BaseObject::bOfind/bOfindOne/findAsArray` refuse unknown column names (return empty) instead of interpolating them
 
 ### SimpleTable
 - `getSqlOrderBySection()` — column name from `getSortColumns()` not validated

@@ -7,6 +7,14 @@ use Laf\Database\ForeignKey;
 use Laf\Exception\InvalidForeignKeyValue;
 use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
+use Laf\Exception\DatabaseException;
+use Laf\Exception\UniqueFieldDuplicateValueException;
+use Laf\Database\Field\Field;
+use Laf\Database\Field\TypeDateTime;
+use Laf\Database\Field\TypeInteger;
+use Laf\Database\Field\TypeVarchar;
+use Laf\Database\PrimaryKey;
+use Laf\Database\Table;
 use Laf\Util\Settings;
 use LafShell\CodeTable;
 use LafShell\DummyTable;
@@ -66,6 +74,7 @@ class BaseObjectTest extends TestCase
 			  deleted INTEGER DEFAULT NULL,
 			  required_field VARCHAR(10) NOT NULL,
 			  updated_on TIMESTAMP DEFAULT NULL,
+			  status VARCHAR(10) DEFAULT 'new',
 			  CONSTRAINT dummy_table_unique_field_unique UNIQUE (unique_field),
 			  CONSTRAINT dummy_table_parent_id_fk FOREIGN KEY (parent_id) REFERENCES dummy_table (id)
 			);
@@ -80,6 +89,16 @@ class BaseObjectTest extends TestCase
 			  PRIMARY KEY (left_id, code),
 			  CONSTRAINT link_table_left_fk FOREIGN KEY (left_id) REFERENCES dummy_table (id) ON DELETE CASCADE,
 			  CONSTRAINT link_table_code_fk FOREIGN KEY (code) REFERENCES code_table (code)
+			);
+			DROP TABLE IF EXISTS status_table;
+			CREATE TABLE status_table (
+			  id SERIAL PRIMARY KEY,
+			  name VARCHAR(50) DEFAULT NULL,
+			  record_status_id INTEGER DEFAULT 1,
+			  created_on TIMESTAMP DEFAULT NULL,
+			  created_by INTEGER DEFAULT NULL,
+			  updated_on TIMESTAMP DEFAULT NULL,
+			  updated_by INTEGER DEFAULT NULL
 			);
 			DROP TABLE IF EXISTS audit_log;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table_postgres.sql');
@@ -107,6 +126,7 @@ class BaseObjectTest extends TestCase
 			  `deleted` int(11) DEFAULT NULL,
 			  `required_field` varchar(10) NOT NULL,
 			  `updated_on` datetime DEFAULT NULL,
+			  `status` varchar(10) DEFAULT 'new',
 			  PRIMARY KEY (`id`),
 			  UNIQUE KEY `dummy_table_unique_field_unique` (`unique_field`(255)),
 			  KEY `dummy_table_parent_id_fk` (`parent_id`),
@@ -126,6 +146,17 @@ class BaseObjectTest extends TestCase
 			  CONSTRAINT `link_table_left_fk` FOREIGN KEY (`left_id`) REFERENCES `dummy_table` (`id`) ON DELETE CASCADE,
 			  CONSTRAINT `link_table_code_fk` FOREIGN KEY (`code`) REFERENCES `code_table` (`code`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+			DROP TABLE IF EXISTS `status_table`;
+			CREATE TABLE `status_table` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `name` varchar(50) DEFAULT NULL,
+			  `record_status_id` int(11) DEFAULT 1,
+			  `created_on` datetime DEFAULT NULL,
+			  `created_by` int(11) DEFAULT NULL,
+			  `updated_on` datetime DEFAULT NULL,
+			  `updated_by` int(11) DEFAULT NULL,
+			  PRIMARY KEY (`id`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 			DROP TABLE IF EXISTS `audit_log`;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table.sql');
 		}
@@ -141,6 +172,7 @@ class BaseObjectTest extends TestCase
 		$db->execute("UPDATE dummy_table SET parent_id = NULL WHERE parent_id IS NOT NULL");
 		$db->execute("DELETE FROM dummy_table");
 		$db->execute("DELETE FROM audit_log");
+		$db->execute("DELETE FROM status_table");
 		AuditLog::setEnabled(true);
 		AuditLog::setStrict(false);
 		AuditLog::setTableName('audit_log');
@@ -967,5 +999,321 @@ class BaseObjectTest extends TestCase
 		}
 		$_POST = [];
 		$this->assertCount(1, DummyTable::find());
+	}
+
+	// ── loading and state ──
+
+	/** @test */
+	public function select_miss_unloads_the_previously_loaded_row()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$this->assertSame('varchar', $row->getVarcharField45Val());
+
+		$this->assertFalse($row->select(999999999));
+		$this->assertFalse($row->isRecordSelected());
+		$this->assertNull($row->getVarcharField45Val(), 'nothing stale is left to store');
+		$this->assertFalse($row->update(), 'no row loaded, nothing to update');
+		$this->assertCount(1, DummyTable::find(), 'the original row is untouched');
+	}
+
+	/** @test */
+	public function select_miss_on_a_fresh_object_keeps_its_unsaved_values()
+	{
+		$row = new DummyTable();
+		$row->setVarcharField45Val('kept');
+		$this->assertFalse($row->select(999999999));
+		$this->assertSame('kept', $row->getVarcharField45Val());
+		$this->assertTrue($row->isNew());
+	}
+
+	/** @test */
+	public function noop_store_writes_nothing_and_leaves_updated_on_alone()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$this->assertFalse($row->isDirty());
+		$this->assertTrue($row->store());
+		$this->assertStringStartsWith('SELECT', (string)$row->getLastSql(), 'no UPDATE statement was built after the load');
+		$row->reload();
+		$this->assertNull($row->getUpdatedOnVal());
+		$this->assertCount(0, $this->auditRows());
+	}
+
+	/** @test */
+	public function hard_delete_unloads_the_object()
+	{
+		$id = $this->object->getIdVal();
+		$this->assertTrue($this->object->hardDelete());
+		$this->assertSame(1, $this->object->getAffectedRows());
+		$this->assertFalse($this->object->isRecordSelected());
+		$this->assertSame($id, $this->object->getRecordId(), 'the id stays for messages');
+		$this->assertFalse($this->object->update());
+	}
+
+	// ── insert defaults, uniqueness, errors ──
+
+	/** @test */
+	public function insert_omits_unset_nullable_columns_so_the_database_default_applies()
+	{
+		$row = $this->newDummy('defaults');
+		$row->store();
+		$this->assertNull($row->getStatusVal(), 'the object does not know the default until reloaded');
+		$row->reload();
+		$this->assertSame('new', $row->getStatusVal());
+
+		$explicit = $this->newDummy('explicit')->setStatusVal('set');
+		$explicit->store();
+		$explicit->reload();
+		$this->assertSame('set', $explicit->getStatusVal());
+		$this->assertNull($explicit->getTextFieldVal(), 'a nullable column without default is still null');
+	}
+
+	/** @test */
+	public function duplicate_unique_value_is_caught_before_the_database()
+	{
+		$this->object->setVarcharField45Val('still the same unique')->store();
+		$this->assertTrue($this->object->getField('unique_field')->getValue() === 'unique');
+
+		$other = $this->newDummy('other');
+		$other->store();
+		try {
+			$other->setUniqueFieldVal('unique')->store();
+			$this->fail('expected UniqueFieldDuplicateValueException');
+		} catch (UniqueFieldDuplicateValueException $ex) {
+			$this->assertStringContainsString('unique_field', $ex->getMessage());
+		}
+		$this->assertCount(2, DummyTable::find());
+
+		$this->expectException(UniqueFieldDuplicateValueException::class);
+		$this->newDummy('unique')->store();
+	}
+
+	/** @test */
+	public function validate_reports_a_duplicate_unique_value()
+	{
+		$row = $this->newDummy('unique');
+		$this->assertArrayHasKey('unique_field', $row->validate());
+		$row->setUniqueFieldVal('free');
+		$this->assertSame([], $row->validate());
+	}
+
+	/** @test */
+	public function database_errors_carry_the_statement_and_the_sqlstate()
+	{
+		$child = $this->newDummy('child');
+		$child->setParentIdVal($this->object->getIdVal());
+		$child->store();
+
+		try {
+			$this->object->hardDelete();
+			$this->fail('deleting a referenced parent must fail');
+		} catch (DatabaseException $ex) {
+			$this->assertTrue($ex->isForeignKeyViolation(), $ex->getSqlState() . ' ' . $ex->getMessage());
+			$this->assertStringContainsString('DELETE FROM', $ex->getSql());
+			$this->assertInstanceOf(\PDOException::class, $ex->getPrevious());
+		}
+
+		try {
+			Db::getInstance()->execute("INSERT INTO dummy_table (required_field, unique_field) VALUES ('req', 'unique')");
+			$this->fail('the unique index must fire');
+		} catch (\PDOException $pdo) {
+			$this->assertTrue(DatabaseException::fromPdo($pdo)->isUniqueViolation());
+		}
+	}
+
+	// ── finders and Query ──
+
+	/** @test */
+	public function find_criteria_accept_null_and_arrays()
+	{
+		$this->newDummy('a')->setIntegerFieldVal(7)->store();
+		$this->newDummy('b')->setIntegerFieldVal(8)->store();
+
+		$this->assertCount(3, DummyTable::find(['null_field' => null]), 'null means IS NULL');
+		$this->assertCount(2, DummyTable::find(['integer_field' => [7, 8]]), 'an array means IN');
+		$this->assertCount(2, DummyTable::findAsArray(['integer_field' => [7, 8]]));
+		$this->assertSame([], DummyTable::find(['integer_field' => []]));
+		$ordered = DummyTable::bOfind([], ['integer_field' => 'DESC'], 2);
+		$this->assertCount(2, $ordered);
+		$this->assertSame(8, $ordered[0]->getIntegerFieldVal());
+		$this->assertSame('b', DummyTable::findOne(['integer_field' => 8])->getUniqueFieldVal());
+	}
+
+	/** @test */
+	public function find_results_are_loaded_from_one_select()
+	{
+		$rows = DummyTable::find();
+		$this->assertCount(1, $rows);
+		$this->assertTrue($rows[0]->isRecordSelected());
+		$this->assertFalse($rows[0]->isDirty());
+		$this->assertSame($this->object->getIdVal(), $rows[0]->getRecordId());
+		$rows[0]->setVarcharField45Val('from find')->store();
+		$this->assertSame('from find', (new DummyTable($this->object->getIdVal()))->getVarcharField45Val());
+	}
+
+	/** @test */
+	public function query_runs_on_the_engine()
+	{
+		$this->newDummy('a')->setIntegerFieldVal(7)->setBoolFieldVal(true)->setTextFieldVal('alpha')->store();
+		$this->newDummy('b')->setIntegerFieldVal(7)->setBoolFieldVal(false)->setTextFieldVal('beta')->store();
+		$this->newDummy('c')->setIntegerFieldVal(8)->setTextFieldVal('gamma')->store();
+
+		$top = DummyTable::query()->where('integer_field', '>', 6)->orderBy('integer_field', 'DESC')->orderBy('id')->limit(2)->get();
+		$this->assertCount(2, $top);
+		$this->assertInstanceOf(DummyTable::class, $top[0]);
+		$this->assertSame(8, $top[0]->getIntegerFieldVal());
+
+		$this->assertSame(3, DummyTable::query()->where('integer_field', '>', 6)->count());
+		$this->assertSame(4, DummyTable::query()->count());
+		$this->assertTrue(DummyTable::query()->where('unique_field', 'c')->exists());
+		$this->assertFalse(DummyTable::query()->where('unique_field', 'zzz')->exists());
+		$this->assertSame(1, DummyTable::query()->where('bool_field', true)->count(), 'boolean comparison works on both engines');
+		$this->assertSame(1, DummyTable::query()->where('bool_field', false)->count());
+		$this->assertSame(2, DummyTable::query()->whereNull('bool_field')->count());
+		$this->assertSame(2, DummyTable::query()->where('text_field', 'LIKE', '%a')->where('integer_field', 7)->count());
+		$this->assertSame('alpha', DummyTable::query()->where('integer_field', 7)->orderBy('text_field')->first()->getTextFieldVal());
+		$this->assertNull(DummyTable::query()->where('integer_field', 99)->first());
+		$this->assertEquals([7, 7, 8], DummyTable::query()->whereNotNull('integer_field')->where('integer_field', '>', 6)->orderBy('integer_field')->column('integer_field'));
+		$arrays = DummyTable::query()->select(['id', 'unique_field'])->orderBy('id')->arrays();
+		$this->assertCount(4, $arrays);
+		$this->assertSame(['id', 'unique_field'], array_keys($arrays[0]));
+		$this->assertCount(2, DummyTable::query()->whereIn('unique_field', ['a', 'c'])->whereBetween('integer_field', 7, 8)->get());
+
+		$this->assertSame(1, DummyTable::query()->where('integer_field', 8)->delete());
+		$this->assertSame(3, DummyTable::query()->count());
+	}
+
+	// ── soft delete with record_status_id, timestamps, active user ──
+
+	/** @test */
+	public function record_status_table_gets_user_columns_defaults_and_a_soft_delete()
+	{
+		BaseObject::setActiveUserId(42);
+		$row = new StatusTableFixture();
+		$row->setFieldValue('name', 'first');
+		$this->assertTrue($row->canSoftDelete());
+		$this->assertTrue($row->store());
+		$this->assertNotNull($row->getRecordId());
+		$row->reload();
+		$this->assertSame(42, $row->getFieldValue('created_by'));
+		$this->assertNotNull($row->getFieldValue('created_on'));
+		$this->assertSame(1, $row->getFieldValue('record_status_id'), 'the database default applied');
+		$this->assertNull($row->getFieldValue('updated_by'));
+
+		$this->assertTrue($row->softDelete());
+		$fresh = new StatusTableFixture($row->getRecordId());
+		$this->assertSame(0, $fresh->getFieldValue('record_status_id'));
+		$this->assertSame(42, $fresh->getFieldValue('updated_by'));
+		$this->assertNotNull($fresh->getFieldValue('updated_on'));
+
+		$entries = AuditLog::findForRecord('status_table', $row->getRecordId());
+		$this->assertSame(['DELETE', 'INSERT'], [$entries[0]->getActionVal(), $entries[1]->getActionVal()]);
+		$this->assertSame(['record_status_id'], $entries[0]->getChangedFieldNames());
+	}
+
+	/** @test */
+	public function soft_delete_of_a_missing_row_returns_false_and_inserts_nothing()
+	{
+		$missing = new DummyTable(999999999);
+		$this->assertFalse($missing->softDelete());
+		$this->assertCount(1, DummyTable::find());
+	}
+
+	/** @test */
+	public function insert_id_is_the_row_key_even_when_another_sequence_was_advanced()
+	{
+		Db::getInstance()->execute("INSERT INTO status_table (name) VALUES ('x')");
+		Db::getInstance()->execute("INSERT INTO status_table (name) VALUES ('y')");
+		$row = $this->newDummy('seq');
+		$row->store();
+		$this->assertIsInt($row->getIdVal());
+		$this->assertSame($row->getIdVal(), $row->getRecordId());
+		$this->assertSame('seq', (new DummyTable($row->getIdVal()))->getUniqueFieldVal());
+	}
+
+	// ── transactions and hooks ──
+
+	/** @test */
+	public function transaction_rolls_back_on_exception_and_nests()
+	{
+		try {
+			BaseObject::transaction(function () {
+				$this->newDummy('t1')->store();
+				BaseObject::transaction(function () {
+					$this->newDummy('t2')->store();
+				});
+				throw new \RuntimeException('abort');
+			});
+			$this->fail('the exception must propagate');
+		} catch (\RuntimeException $ex) {
+			$this->assertSame('abort', $ex->getMessage());
+		}
+		$this->assertFalse(Db::getInstance()->inTransaction());
+		$this->assertCount(1, DummyTable::find(), 'both inserts were rolled back');
+
+		$result = BaseObject::transaction(function () {
+			$this->newDummy('t3')->store();
+			return 'done';
+		});
+		$this->assertSame('done', $result);
+		$this->assertCount(2, DummyTable::find());
+	}
+
+	/** @test */
+	public function hooks_run_around_every_write_and_load()
+	{
+		$row = new class extends DummyTable {
+			public array $calls = [];
+
+			protected function beforeInsert(): void { $this->calls[] = 'beforeInsert'; }
+			protected function afterInsert(): void { $this->calls[] = 'afterInsert:' . $this->getRecordId(); }
+			protected function beforeUpdate(): void { $this->calls[] = 'beforeUpdate'; }
+			protected function afterUpdate(): void { $this->calls[] = 'afterUpdate'; }
+			protected function beforeDelete(string $mode): void { $this->calls[] = 'beforeDelete:' . $mode; }
+			protected function afterDelete(string $mode): void { $this->calls[] = 'afterDelete:' . $mode; }
+			protected function afterLoad(): void { $this->calls[] = 'afterLoad'; }
+		};
+		$row->auditLogDisable()->setRequiredFieldVal('req')->setUniqueFieldVal('hooks');
+		$row->store();
+		$id = $row->getRecordId();
+		$row->store();
+		$row->setVarcharField45Val('changed')->store();
+		$row->reload();
+		$row->softDelete();
+		$row->hardDelete();
+
+		$this->assertSame([
+			'beforeInsert', 'afterInsert:' . $id,
+			'beforeUpdate',
+			'beforeUpdate', 'afterUpdate',
+			'afterLoad',
+			'afterLoad', 'beforeDelete:soft', 'beforeUpdate', 'afterUpdate', 'afterDelete:soft',
+			'beforeDelete:hard', 'afterDelete:hard',
+		], $row->calls);
+	}
+}
+
+/**
+ * A model built by hand (no generated Base class): status_table with
+ * record_status_id and the four user/timestamp columns.
+ */
+class StatusTableFixture extends BaseObject
+{
+	public function __construct($id = null)
+	{
+		parent::__construct($id);
+		$table = new Table('status_table');
+		$key = (new Field())->setName('id')->setLabel('Id')->setRequired(true)->setAutoIncrement(true)->setType(new TypeInteger());
+		$table->addField($key)
+			->addField((new Field())->setName('name')->setLabel('Name')->setMaxLength(50)->setType(new TypeVarchar()))
+			->addField((new Field())->setName('record_status_id')->setLabel('Status')->setType(new TypeInteger()))
+			->addField((new Field())->setName('created_on')->setLabel('Created On')->setType(new TypeDateTime()))
+			->addField((new Field())->setName('created_by')->setLabel('Created By')->setType(new TypeInteger()))
+			->addField((new Field())->setName('updated_on')->setLabel('Updated On')->setType(new TypeDateTime()))
+			->addField((new Field())->setName('updated_by')->setLabel('Updated By')->setType(new TypeInteger()));
+		$table->setPrimaryKey(new PrimaryKey([$key], $table));
+		$this->setTable($table);
+		if ($id != '') {
+			$this->select($id);
+		}
 	}
 }

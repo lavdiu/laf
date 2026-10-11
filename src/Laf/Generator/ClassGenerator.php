@@ -107,9 +107,7 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 		parent::__construct(\$id);
 		\$this->buildClass();
 		\$this->setRecordId(\$id);
-		if (is_numeric(\$id) && in_array(\$this->getTable()->getPrimaryKey()->getFirstField()->getType(), [Database\Field\FieldType::TYPE_BIG_INTEGER, Database\Field\FieldType::TYPE_INTEGER])) {
-			self::select(\$id);
-		} else if (\$id != '') {
+		if (\$id != '') {
 			self::select(\$id);
 		}
 	}
@@ -206,32 +204,27 @@ class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
 \t */
 \tpublic function listAllArray(): array
 \t{
-\t\t\$db = Database\Db::getInstance();
-\t\t\$sql = \"SELECT * FROM {\$this->getTable()->getName()} ORDER BY {\$this->getTable()->getPrimaryKey()->getFirstField()->getName()} ASC\";
-\t\t\$res = \$db->query(\$sql);
-\t\treturn \$res->fetchAll(\PDO::FETCH_ASSOC);
+\t\t\$query = static::query();
+\t\tforeach (\$this->getTable()->getPrimaryKey()->getFieldNames() as \$keyColumn) {
+\t\t\t\$query->orderBy(\$keyColumn);
+\t\t}
+\t\treturn \$query->arrays();
 \t}
 
 \t/**
 \t * Gets all rows and instantiates the object for all
 \t * Then returns an array of all objects
-\t * Please be careful, this can be bad for large tables
+\t * One SELECT, hydrated without a query per row; still every row of the table
 \t * @return {$this->getTable()->getNameAsClassname()}[]
 \t * @throws \Exception
 \t */
 \tpublic function listAllObjects(): array
 \t{
-\t\t\$db = Database\Db::getInstance();
-\t\t\$pk = \$this->getTable()->getPrimaryKey();
-\t\t\$keyColumns = join(', ', \$pk->getFieldNames());
-\t\t\$sql = \"SELECT {\$keyColumns} FROM {\$this->getTable()->getName()} ORDER BY {\$keyColumns} ASC\";
-\t\t\$res = \$db->query(\$sql);
-
-\t\t\$objects = [];
-\t\tforeach (\$res->fetchAll(\PDO::FETCH_ASSOC) as \$row) {
-\t\t\t\$objects[] = new static(\$pk->isComposite() ? \$row : reset(\$row));
+\t\t\$query = static::query();
+\t\tforeach (\$this->getTable()->getPrimaryKey()->getFieldNames() as \$keyColumn) {
+\t\t\t\$query->orderBy(\$keyColumn);
 \t\t}
-\t\treturn \$objects;
+\t\treturn \$query->get();
 \t}
 
 	/**

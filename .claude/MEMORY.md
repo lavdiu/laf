@@ -26,8 +26,8 @@
 ## Testing Status
 - 11 test files + bootstrap, ~2,811 lines total across `tests/`
 - **Unit tests**: Settings, UrlParser, Table, Field, FieldType, FieldTypeFactory, UIComponent, FormInput, Container, Util
-- **Integration tests**: BaseObjectTest (requires DB)
-- phpunit.xml: two testsuites — `Unit` (all except BaseObjectTest) and `Integration` (BaseObjectTest only)
+- **Integration tests**: BaseObjectTest, PhpGridTest (require DB)
+- phpunit.xml: two testsuites — `Unit` (all except BaseObjectTest/PhpGridTest) and `Integration` (those two)
 - Bootstrap: `tests/bootstrap.php`, fixtures in `tests/Fixtures/LafShell/`
 - CI/CD: `.github/workflows/ci.yml` — unit tests on PHP 8.1–8.4, integration on MariaDB + PostgreSQL
 - PHPStan and Rector installed but NOT configured (no config files)
@@ -49,6 +49,7 @@
 - Added CI/CD pipeline (`.github/workflows/ci.yml`) — unit + integration (MariaDB, PostgreSQL)
 - Split phpunit.xml into Unit and Integration testsuites
 - Added `autoload-dev` to composer.json for test fixtures namespace
-- Deleted `QueryBuilder.php` from codebase
+- Deleted `QueryBuilder.php` from codebase; replaced 2026-10-11 by `Laf\Database\Query` (single-table finder behind `BaseObject::query()`, `bOfind*`, `findAsArray`)
+- BaseObject reworked 2026-10-11: hooks, `Query`, `DatabaseException`, `Db::transaction()`, unique check, PostgreSQL `RETURNING`, DB defaults on insert (see `agent/2026-10-11-baseobject-notes.md`)
 - PageGenerator: fixed 7 bugs, added flash messages, record checks, lazy tabs, M2M detection (see pagegenerator.md)
 - PhpGrid: added `deferInitialize` property for lazy-loading support
