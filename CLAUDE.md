@@ -204,13 +204,15 @@ The `Settings` singleton stores all configuration. Common keys:
 
 LAF includes automatic audit logging for all data changes:
 
-1. Set active user once: `BaseObject::setActiveUserId($userId)`
-2. All INSERT/UPDATE/DELETE operations are automatically logged
-3. Only changed fields are recorded for updates
-4. Changes stored as JSON with old/new values
-5. Disable per-object: `$object->auditLogDisable()`
+1. Set active user once: `BaseObject::setActiveUserId($userId)` (falls back to `<package>\Person::getLoggedUserId()`)
+2. All INSERT/UPDATE/DELETE operations are automatically logged (soft delete = one DELETE entry with the status change)
+3. Only changed fields are recorded for updates; a clean object logs nothing
+4. Changes stored as JSON with old/new values (`[{field, old_value, new_value}]`)
+5. Disable per-object: `$object->auditLogDisable()`; process-wide: `AuditLog::disable()`
+6. A failed audit write never breaks the data write (`AuditLog::getLastError()`); `AuditLog::setStrict(true)` makes it throw
+7. Read history: `AuditLog::findForObject($obj)`, `findForRecord($table, $id)`, `$entry->getChanges()`, `new AuditLog($id)`
 
-Requires `audit_log` table (see `migrations/` or `examples/audit_logging_example.php`).
+Requires `audit_log` table: `migrations/create_audit_logs_table.sql` (MySQL) or `migrations/create_audit_logs_table_postgres.sql`. See `examples/audit_logging_example.php`.
 
 ## Database Support
 

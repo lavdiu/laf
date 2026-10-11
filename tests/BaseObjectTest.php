@@ -1,5 +1,7 @@
 <?php
 
+use Laf\Database\AuditLog;
+use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Database\ForeignKey;
 use Laf\Exception\InvalidForeignKeyValue;
@@ -79,7 +81,8 @@ class BaseObjectTest extends TestCase
 			  CONSTRAINT link_table_left_fk FOREIGN KEY (left_id) REFERENCES dummy_table (id) ON DELETE CASCADE,
 			  CONSTRAINT link_table_code_fk FOREIGN KEY (code) REFERENCES code_table (code)
 			);
-			";
+			DROP TABLE IF EXISTS audit_log;
+			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table_postgres.sql');
 		} else {
 			$sql = "
 			DROP TABLE IF EXISTS `link_table`;
@@ -123,7 +126,8 @@ class BaseObjectTest extends TestCase
 			  CONSTRAINT `link_table_left_fk` FOREIGN KEY (`left_id`) REFERENCES `dummy_table` (`id`) ON DELETE CASCADE,
 			  CONSTRAINT `link_table_code_fk` FOREIGN KEY (`code`) REFERENCES `code_table` (`code`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-			";
+			DROP TABLE IF EXISTS `audit_log`;
+			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table.sql');
 		}
 		Db::run($sql);
 	}
@@ -136,6 +140,11 @@ class BaseObjectTest extends TestCase
 		// MySQL checks the self-referencing FK row by row, so detach children before deleting
 		$db->execute("UPDATE dummy_table SET parent_id = NULL WHERE parent_id IS NOT NULL");
 		$db->execute("DELETE FROM dummy_table");
+		$db->execute("DELETE FROM audit_log");
+		AuditLog::setEnabled(true);
+		AuditLog::setStrict(false);
+		AuditLog::setTableName('audit_log');
+		BaseObject::setActiveUserId(null);
 	}
 
 	public function setUp(): void
@@ -667,5 +676,203 @@ class BaseObjectTest extends TestCase
 		$rowId = $this->object->getIdVal();
 		$this->object->hardDelete();
 		$this->assertNull(DummyTable::findOne(['id' => $rowId]));
+	}
+
+	// ── audit log ──
+
+	/** @return AuditLog[] oldest first */
+	private function auditRows(string $table = 'dummy_table'): array
+	{
+		return array_reverse(AuditLog::findBy(['table_name' => $table], 0));
+	}
+
+	/** @test */
+	public function audit_insert_records_user_table_record_and_non_null_values()
+	{
+		BaseObject::setActiveUserId(42);
+		$row = new DummyTable();
+		$row->setRequiredFieldVal('req')->setUniqueFieldVal('audited')->setIntegerFieldVal(7)->setBoolFieldVal(true)->setDecimalFieldVal('3.50');
+		$row->store();
+
+		$rows = $this->auditRows();
+		$this->assertCount(1, $rows);
+		$entry = $rows[0];
+		$this->assertTrue($entry->isInsert());
+		$this->assertSame(42, (int)$entry->getUserIdVal());
+		$this->assertSame('dummy_table', $entry->getTableNameVal());
+		$this->assertSame((string)$row->getIdVal(), (string)$entry->getRecordIdVal());
+		$this->assertNotEmpty($entry->getCreatedOnVal());
+
+		$fields = $entry->getChangedFieldNames();
+		$this->assertContains('required_field', $fields);
+		$this->assertContains('integer_field', $fields);
+		$this->assertNotContains('id', $fields, 'the key is in record_id, not in the payload');
+		$this->assertNotContains('null_field', $fields, 'columns left null are not recorded on insert');
+		$this->assertSame(['field' => 'integer_field', 'old_value' => null, 'new_value' => 7], $entry->getChangeFor('integer_field'));
+		$this->assertSame(true, $entry->getChangeFor('bool_field')['new_value'], 'booleans stay booleans in the payload');
+		$this->assertSame('3.50', $entry->getChangeFor('decimal_field')['new_value'], 'decimals keep their canonical string');
+	}
+
+	/** @test */
+	public function audit_update_records_only_changed_fields_with_old_and_new_values()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$row->setIntegerFieldVal(99)->setVarcharField45Val('varchar');
+		$row->store();
+
+		$rows = $this->auditRows();
+		$this->assertCount(1, $rows);
+		$this->assertTrue($rows[0]->isUpdate());
+		$this->assertSame([['field' => 'integer_field', 'old_value' => 1, 'new_value' => 99]], $rows[0]->getChanges());
+	}
+
+	/** @test */
+	public function audit_second_store_after_update_logs_nothing_and_fields_are_clean()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$row->setIntegerFieldVal(5);
+		$row->store();
+		$this->assertFalse($row->getField('integer_field')->hasChanged(), 'old value is aligned after a successful update');
+		$row->store();
+		$this->assertCount(1, $this->auditRows(), 'the unchanged second store() must not log the same change again');
+
+		$fresh = new DummyTable();
+		$fresh->setRequiredFieldVal('req')->setUniqueFieldVal('clean-after-insert');
+		$fresh->store();
+		$this->assertFalse($fresh->getField('unique_field')->hasChanged(), 'old values are aligned after insert too');
+		$fresh->store();
+		$this->assertCount(2, $this->auditRows(), 'insert then an unchanged store() gives one INSERT entry only');
+	}
+
+	/** @test */
+	public function audit_hard_delete_logs_snapshot_after_the_row_is_gone()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$row->hardDelete();
+
+		$rows = $this->auditRows();
+		$this->assertCount(1, $rows);
+		$this->assertTrue($rows[0]->isDelete());
+		$this->assertSame('varchar', $rows[0]->getChangeFor('varchar_field45')['old_value']);
+		$this->assertNull($rows[0]->getChangeFor('varchar_field45')['new_value']);
+		$this->assertContains('id', $rows[0]->getChangedFieldNames(), 'the delete snapshot holds every column');
+	}
+
+	/** @test */
+	public function audit_failed_hard_delete_logs_nothing()
+	{
+		$child = $this->newDummy('child');
+		$child->setParentIdVal($this->object->getIdVal());
+		$child->store();
+
+		$parent = new DummyTable($this->object->getIdVal());
+		try {
+			$parent->hardDelete();
+			$this->fail('deleting a referenced parent must fail');
+		} catch (\Throwable $e) {
+		}
+		$this->assertCount(0, $this->auditRows(), 'no DELETE entry for a row that is still there');
+	}
+
+	/** @test */
+	public function audit_soft_delete_writes_one_delete_entry_with_the_status_change()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$row->softDelete();
+
+		$rows = $this->auditRows();
+		$this->assertCount(1, $rows, 'soft delete used to write an UPDATE and a DELETE entry');
+		$this->assertTrue($rows[0]->isDelete());
+		$this->assertSame([['field' => 'deleted', 'old_value' => null, 'new_value' => 1]], $rows[0]->getChanges());
+	}
+
+	/** @test */
+	public function audit_composite_and_string_keys_are_stored_as_record_id()
+	{
+		$code = new CodeTable();
+		$code->setCodeVal('AUD')->setNameVal('audited code');
+		$code->store();
+		$link = new LinkTable();
+		$link->setLeftIdVal($this->object->getIdVal())->setCodeVal('AUD')->setNoteVal('n');
+		$link->store();
+
+		$codeRows = AuditLog::findForRecord('code_table', 'AUD');
+		$this->assertCount(1, $codeRows);
+		$this->assertSame('AUD', $codeRows[0]->getRecordIdVal());
+
+		$linkRows = AuditLog::findForObject($link);
+		$this->assertCount(1, $linkRows);
+		$this->assertSame($this->object->getIdVal() . ',AUD', $linkRows[0]->getRecordIdVal());
+		$this->assertSame(1, AuditLog::countForRecord('link_table', ['left_id' => $this->object->getIdVal(), 'code' => 'AUD']));
+	}
+
+	/** @test */
+	public function audit_can_be_switched_off_per_object_and_process_wide()
+	{
+		$quiet = $this->newDummy('quiet');
+		$quiet->store();
+		$this->assertCount(0, $this->auditRows());
+
+		AuditLog::disable();
+		$loud = new DummyTable();
+		$loud->setRequiredFieldVal('req')->setUniqueFieldVal('loud');
+		$loud->store();
+		$this->assertCount(0, $this->auditRows());
+		AuditLog::enable();
+
+		$loud->setIntegerFieldVal(3);
+		$loud->store();
+		$this->assertCount(1, $this->auditRows());
+	}
+
+	/** @test */
+	public function audit_history_is_newest_first_and_entries_load_by_id()
+	{
+		$row = new DummyTable($this->object->getIdVal());
+		$row->setIntegerFieldVal(2)->store();
+		$row->setIntegerFieldVal(3)->store();
+		$row->setIntegerFieldVal(4)->store();
+
+		$history = AuditLog::findForObject($row);
+		$this->assertCount(3, $history);
+		$this->assertSame(4, $history[0]->getChangeFor('integer_field')['new_value']);
+		$this->assertSame(2, $history[2]->getChangeFor('integer_field')['new_value']);
+
+		$page = AuditLog::findForObject($row, 1, 1);
+		$this->assertCount(1, $page);
+		$this->assertSame(3, $page[0]->getChangeFor('integer_field')['new_value']);
+
+		$loaded = new AuditLog($history[0]->getIdVal());
+		$this->assertTrue($loaded->isRecordSelected());
+		$this->assertSame('UPDATE', $loaded->getActionVal());
+		$this->assertSame($history[0]->getChanges(), $loaded->getChanges());
+	}
+
+	/** @test */
+	public function audit_failure_is_swallowed_unless_strict()
+	{
+		AuditLog::setTableName('audit_log_missing');
+		$row = $this->newDummy('strictness');
+		$row->auditLogEnable();
+		$row->setIntegerFieldVal(1);
+		$this->assertTrue($row->store(), 'the business write succeeds even when the audit write fails');
+		$this->assertNotNull(AuditLog::getLastError());
+		$this->assertStringContainsString('audit_log_missing', AuditLog::getLastError());
+
+		AuditLog::setStrict(true);
+		$row->setIntegerFieldVal(2);
+		try {
+			$row->store();
+			$this->fail('strict mode must surface the failed audit write');
+		} catch (\RuntimeException $e) {
+			$this->assertStringContainsString('audit_log_missing', $e->getMessage());
+		}
+		AuditLog::setStrict(false);
+		AuditLog::setTableName('audit_log');
+
+		$row->setIntegerFieldVal(3);
+		$row->store();
+		$this->assertCount(1, $this->auditRows(), 'writes resume once the table is right again');
+		$this->assertNull(AuditLog::getLastError());
 	}
 }
