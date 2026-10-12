@@ -12,6 +12,7 @@ use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Form\Form;
 use Laf\UI\Form\FormElementInterface;
+use Laf\UI\Form\FormLayout;
 use Laf\UI\Grid\SimpleTable;
 use Laf\Util\Settings;
 use Laf\Util\UrlParser;
@@ -1379,9 +1380,11 @@ class BaseObject implements \JsonSerializable
     /* ------------------------------------------------------------------ */
 
     /**
-     * A form bound to this object with every field as an element
+     * A form bound to this object. Without a draw mode every field is a flat element
+     * (lay it out yourself); with one, the form is laid out for that mode by $layout,
+     * else getFormLayout(), else FormLayout::auto(). configureForm() runs last.
      */
-    public function getForm(): Form
+    public function getForm(?string $drawMode = null, ?FormLayout $layout = null): Form
     {
         $form = new Form($this);
         $form->setComponents($this->getAllFieldsAsFormElements());
@@ -1390,7 +1393,31 @@ class BaseObject implements \JsonSerializable
                 $form->setHasFiles(true);
             }
         }
+        if ($drawMode !== null) {
+            $form->applyLayout($drawMode, $layout);
+        }
+        $this->configureForm($form);
         return $form;
+    }
+
+    /**
+     * The layout of this object's forms (columns, sections, tabs, excluded / read-only /
+     * hidden fields per draw mode); null = FormLayout::auto() from the table and the fields'
+     * form options. Override in the model class:
+     *
+     *   return FormLayout::auto($this->getTable())->readOnly(['code'], [DrawMode::UPDATE]);
+     */
+    public function getFormLayout(): ?FormLayout
+    {
+        return null;
+    }
+
+    /**
+     * Hook run at the end of getForm(): the place for element options, buttons or
+     * visibility conditions that every form of this model needs
+     */
+    protected function configureForm(Form $form): void
+    {
     }
 
     /**

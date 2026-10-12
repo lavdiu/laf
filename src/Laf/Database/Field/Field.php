@@ -115,6 +115,16 @@ class Field
 	protected $formElement = null;
 
 	/**
+	 * Form-layout hints read by FormLayout::auto(): exclude / readonly / hidden (draw-mode
+	 * lists), group, tab, order, element (see Laf\Generator\ColumnComment)
+	 * @var array<string, mixed>
+	 */
+	private array $formOptions = [];
+
+	/** Explicit input class, wins over the type's choice and the foreign-key / hidden-key rules */
+	private ?string $formElementClass = null;
+
+	/**
 	 * @var string
 	 */
 	private $invalidValueErrorMessage = null;
@@ -861,11 +871,75 @@ class Field
 			return $this->formElement;
 		}
 
-		$this->formElement = $this->getType()->getFormElement($this);
+		$class = $this->getFormElementClass();
+		$this->formElement = $class !== null ? new $class() : $this->getType()->getFormElement($this);
 		if ($this->formElement instanceof FormElementInterface && $this->formElement->getField() === null) {
 			$this->formElement->setField($this);
 		}
 		return $this->formElement;
+	}
+
+	/**
+	 * Form-layout hints for FormLayout::auto() (exclude, readonly, hidden, group, tab, order, element)
+	 * @param array<string, mixed> $options
+	 */
+	public function setFormOptions(array $options): Field
+	{
+		$this->formOptions = $options;
+		if (array_key_exists('element', $options)) {
+			$this->setFormElementClass($options['element'] === null ? null : (string)$options['element']);
+		}
+		return $this;
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	public function getFormOptions(): array
+	{
+		return $this->formOptions;
+	}
+
+	/**
+	 * One form-layout hint
+	 * @param mixed $default
+	 * @return mixed
+	 */
+	public function getFormOption(string $key, $default = null)
+	{
+		return array_key_exists($key, $this->formOptions) ? $this->formOptions[$key] : $default;
+	}
+
+	/**
+	 * The input class getFormElement() instantiates instead of the type's choice; null restores
+	 * the default. A foreign key keeps its options only with a Select (Select, Radio,
+	 * CheckboxCollection), so another class is refused for it. A cached element of another
+	 * class is dropped so the next getFormElement() returns the new class.
+	 * @param string|null $class a FormElementInterface implementation (short name under Laf\UI\Form\Input or fully qualified)
+	 * @throws \InvalidArgumentException
+	 */
+	public function setFormElementClass(?string $class): Field
+	{
+		if ($class !== null) {
+			$class = \Laf\UI\Form\FormLayout::resolveElementClass($class);
+			if ($this->hasTable() && $this->isForeignKey() && !is_a($class, \Laf\UI\Form\Input\Select::class, true)) {
+				throw new \InvalidArgumentException(sprintf('Field %s is a foreign key: its element must be a Select, "%s" given', $this->getName(), $class));
+			}
+		}
+		$this->formElementClass = $class;
+		$this->formOptions['element'] = $class;
+		if ($class === null) {
+			unset($this->formOptions['element']);
+		}
+		if ($this->formElement !== null && $class !== null && !($this->formElement instanceof $class)) {
+			$this->formElement = null;
+		}
+		return $this;
+	}
+
+	public function getFormElementClass(): ?string
+	{
+		return $this->formElementClass;
 	}
 
 	/**

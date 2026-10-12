@@ -3,186 +3,66 @@
 namespace Laf\Generator;
 
 use Laf\Database\Db;
-use Laf\Exception\MissingConfigParamException;
-use Laf\Util\Settings;
 
-class PostgresTableInspector implements TableInspectorInterface
+/**
+ * PostgreSQL table inspector for the current schema (search_path): the rows are
+ * shaped like MySQL's information_schema so the generators need no engine branch.
+ * COLUMN_KEY is 'PRI' for primary key columns and 'UNI' for a single-column
+ * unique index (a column of a composite unique index is not 'UNI', as on MySQL);
+ * EXTRA is 'auto_increment' for serial and identity columns; COLUMN_COMMENT is
+ * the column's comment (COMMENT ON COLUMN).
+ */
+class PostgresTableInspector extends AbstractTableInspector
 {
-    /**
-     * @var string
-     */
-    private $table = null;
-
-    /**
-     * @var array[]
-     */
-    private $columns = [];
-
-    /**
-     * @var null
-     */
-    private $primaryColumnName = null;
-
-    /**
-     * @var bool
-     */
-    private $hasForeignKeys = false;
-
-    /**
-     * @var array
-     */
-    private $referencingTables = [];
-
-
-    public function __construct(string $table)
+    protected function populateColumnsData(): void
     {
-        $this->table = $table;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasForeignKeys(): bool
-    {
-        return $this->hasForeignKeys;
-    }
-
-    /**
-     * @return bool
-     */
-    public function hasReferencingTables(): bool
-    {
-        return count($this->referencingTables) > 0;
-    }
-
-    /**
-     * @return array
-     */
-    public function getReferencingTables(): array
-    {
-        return $this->referencingTables;
-    }
-
-
-    /**
-     * @return null
-     */
-    public function getPrimaryColumnName()
-    {
-        return $this->primaryColumnName;
-    }
-
-    /**
-     * @param null $primaryColumnName
-     * @return TableInspectorInterface
-     */
-    public function setPrimaryColumnName($primaryColumnName)
-    {
-        $this->primaryColumnName = $primaryColumnName;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getTable(): string
-    {
-        return $this->table;
-    }
-
-    /**
-     * @param string $table
-     * @return TableInspectorInterface
-     */
-    public function setTable(string $table): TableInspectorInterface
-    {
-        $this->table = $table;
-        return $this;
-    }
-
-    /**
-     * @return array[]
-     */
-    public function getColumns(): array
-    {
-        return $this->columns;
-    }
-
-    /**
-     * @param array[] $columns
-     * @return TableInspectorInterface
-     */
-    public function setColumns(array $columns): TableInspectorInterface
-    {
-        $this->columns = $columns;
-        return $this;
-    }
-
-    public function inspect(): void
-    {
-        $this->populateColumnsData();
-        $this->populateForeignKeyData();
-        $this->populateReferencingTables();
-    }
-
-    /**
-     * @throws MissingConfigParamException
-     */
-    private function populateColumnsData()
-    {
-        $db = Db::getInstance();
-        $settings = Settings::getInstance();
         $sql = "
         SELECT
-            *
-            , CASE WHEN is_primary=1 THEN 'PRI' WHEN is_unique='UNI' THEN 'UNI' ELSE '' END AS COLUMN_KEY
-            , CASE WHEN column_default LIKE 'nextval(%' THEN 'auto_increment' ELSE null end AS EXTRA
-        FROM (
-        SELECT
             c.*,
-            null as column_comment,
-            (
-                SELECT 1
-                FROM information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                    ON tc.constraint_name = kcu.constraint_name AND tc.constraint_schema = kcu.constraint_schema
-                WHERE
-                    tc.constraint_type = 'PRIMARY KEY'
-                    AND tc.table_name = c.table_name
-                    AND tc.table_schema = c.table_schema
-                    AND kcu.column_name = c.column_name
-            ) AS is_primary,
-            (
-                SELECT 'UNI'
-                FROM information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                    ON tc.constraint_name = kcu.constraint_name AND tc.constraint_schema = kcu.constraint_schema
-                WHERE
-                    tc.constraint_type = 'UNIQUE'
-                    AND tc.table_name = c.table_name
-                    AND tc.table_schema = c.table_schema
-                    AND kcu.column_name = c.column_name
-            ) AS is_unique
-        FROM
-            information_schema.columns AS c
-        WHERE
-            c.table_schema = 'public'
-            AND c.table_name = '{$this->getTable()}'
-        ORDER BY
-            c.ordinal_position
-        )f
+            pg_catalog.col_description(format('%I.%I', c.table_schema, c.table_name)::regclass, c.ordinal_position) AS column_comment,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_index i
+                    JOIN pg_catalog.pg_class cl ON cl.oid = i.indrelid
+                    JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+                    JOIN pg_catalog.pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
+                    WHERE i.indisprimary
+                        AND n.nspname = c.table_schema
+                        AND cl.relname = c.table_name
+                        AND a.attname = c.column_name
+                ) THEN 'PRI'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_index i
+                    JOIN pg_catalog.pg_class cl ON cl.oid = i.indrelid
+                    JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+                    JOIN pg_catalog.pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+                    WHERE i.indisunique
+                        AND NOT i.indisprimary
+                        AND i.indnkeyatts = 1
+                        AND i.indpred IS NULL
+                        AND n.nspname = c.table_schema
+                        AND cl.relname = c.table_name
+                        AND a.attname = c.column_name
+                ) THEN 'UNI'
+                ELSE ''
+            END AS column_key,
+            CASE
+                WHEN c.is_identity = 'YES' OR c.column_default LIKE 'nextval(%' THEN 'auto_increment'
+                ELSE NULL
+            END AS extra
+        FROM information_schema.columns AS c
+        WHERE c.table_schema = current_schema()
+            AND c.table_name = :t
+        ORDER BY c.ordinal_position
         ";
-
-        $q = $db->query($sql);
-        while ($col = $q->fetch(\PDO::FETCH_ASSOC)) {
-            $col = array_change_key_case($col, CASE_UPPER);
-            if (($col['DATA_TYPE'] ?? '') === 'USER-DEFINED' && !empty($col['UDT_NAME'])) {
-                $col['ENUM_OPTIONS'] = $this->fetchEnumLabels($col['UDT_NAME']);
+        foreach (Db::getAllAssoc($sql, [':t' => $this->getTable()]) as $column) {
+            $column = array_change_key_case($column, CASE_UPPER);
+            if (($column['DATA_TYPE'] ?? '') === 'USER-DEFINED' && !empty($column['UDT_NAME'])) {
+                $column['ENUM_OPTIONS'] = $this->fetchEnumLabels((string)$column['UDT_NAME']);
             }
-            $this->columns[$col['COLUMN_NAME']] = $col;
-            if ($col['COLUMN_KEY'] == 'PRI') {
-                $this->setPrimaryColumnName($col['COLUMN_NAME']);
-            }
+            $this->storeColumn($column);
         }
     }
 
@@ -195,101 +75,78 @@ class PostgresTableInspector implements TableInspectorInterface
     {
         $sql = "
         SELECT e.enumlabel
-        FROM pg_enum e
-        JOIN pg_type t ON e.enumtypid = t.oid
+        FROM pg_catalog.pg_enum e
+        JOIN pg_catalog.pg_type t ON e.enumtypid = t.oid
         WHERE t.typname = :udt
         ORDER BY e.enumsortorder
         ";
-        $stmt = Db::getInstance()->prepare($sql);
-        $stmt->execute([':udt' => $udtName]);
         $labels = [];
-        while (($label = $stmt->fetchColumn()) !== false) {
-            $labels[] = (string)$label;
+        foreach (Db::getAllAssoc($sql, [':udt' => $udtName]) as $row) {
+            $labels[] = (string)reset($row);
         }
         return $labels;
     }
 
     /**
-     * @throws MissingConfigParamException
+     * Foreign keys from pg_constraint: one row per column, composite keys
+     * matched position by position (information_schema would cross-join them)
      */
-    private function populateForeignKeyData()
+    protected function populateForeignKeyData(): void
     {
-        $db = DB::getInstance();
-        $settings = Settings::getInstance();
-
         $sql = "
         SELECT
-            kcu.column_name,
-            ccu.table_name AS referenced_table_name,
-            ccu.column_name AS referenced_column_name,
-            kcu.constraint_name,
-            rc.delete_rule,
-            rc.update_rule
-        FROM information_schema.table_constraints AS tc
-        JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-        JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name AND tc.constraint_schema = ccu.constraint_schema
-        LEFT JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name AND tc.constraint_schema = rc.constraint_schema
-        WHERE
-            tc.constraint_type = 'FOREIGN KEY'
-            AND tc.table_schema = 'public'
-            AND tc.table_name = '{$this->getTable()}';
-		";
-        $res = $db->query($sql);
-        while ($r = $res->fetchObject()) {
-
-            $this->hasForeignKeys = true;
-
-            $this->columns[$r->column_name]['FOREIGN_KEY'] = [
-                'column_name' => $r->column_name,
-                'constraint_name' => $r->constraint_name,
-                'referenced_table_name' => $r->referenced_table_name,
-                'referenced_column_name' => $r->referenced_column_name,
-                'delete_rule' => $r->delete_rule ?? null,
-                'update_rule' => $r->update_rule ?? null,
-            ];
+            a.attname AS column_name,
+            ref.relname AS referenced_table_name,
+            ra.attname AS referenced_column_name,
+            k.conname AS constraint_name,
+            CASE k.confdeltype WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END AS delete_rule,
+            CASE k.confupdtype WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END AS update_rule
+        FROM pg_catalog.pg_constraint k
+        JOIN pg_catalog.pg_class cl ON cl.oid = k.conrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+        JOIN pg_catalog.pg_class ref ON ref.oid = k.confrelid
+        JOIN LATERAL unnest(k.conkey, k.confkey) WITH ORDINALITY AS cols(attnum, refattnum, ord) ON true
+        JOIN pg_catalog.pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = cols.attnum
+        JOIN pg_catalog.pg_attribute ra ON ra.attrelid = k.confrelid AND ra.attnum = cols.refattnum
+        WHERE k.contype = 'f'
+            AND n.nspname = current_schema()
+            AND cl.relname = :t
+        ORDER BY k.conname, cols.ord
+        ";
+        foreach (Db::getAllAssoc($sql, [':t' => $this->getTable()]) as $row) {
+            $this->storeForeignKey($row);
         }
     }
 
-    /**
-     * @return string
-     */
-    public function getDisplayColumnName(): string
-    {
-        if (array_key_exists('label', $this->getColumns())) {
-            return 'label';
-        }
-        if (array_key_exists('name', $this->getColumns())) {
-            return 'name';
-        }
-
-        $cols = $this->getColumns();
-        $first = array_shift($cols);//discard
-        $second = array_shift($cols);
-        return $second['COLUMN_NAME'];
-    }
-
-    /**
-     * @throws MissingConfigParamException
-     */
     public function populateReferencingTables(): void
     {
-        $db = DB::getInstance();
-        $settings = Settings::getInstance();
-
+        $this->referencingTables = [];
+        $primary = $this->getPrimaryColumnName();
+        if ($primary === null) {
+            return;
+        }
         $sql = "
-        
         SELECT
-            DISTINCT tc.table_name
-        FROM information_schema.table_constraints AS tc
-        JOIN information_schema.constraint_column_usage AS ccu  ON tc.constraint_name = ccu.constraint_name AND tc.constraint_schema = ccu.constraint_schema
-        WHERE
-            tc.constraint_type = 'FOREIGN KEY'
-            AND tc.table_schema = 'public' -- Or your specific schema
-            AND ccu.table_name = '{$this->getTable()}'
-            AND ccu.column_name = '{$this->primaryColumnName}';
-
-		";
-        $this->referencingTables = Db::getAllAssoc($sql);
+            cl.relname AS table_name,
+            a.attname AS column_name,
+            k.conname AS constraint_name
+        FROM pg_catalog.pg_constraint k
+        JOIN pg_catalog.pg_class cl ON cl.oid = k.conrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+        JOIN pg_catalog.pg_class ref ON ref.oid = k.confrelid
+        JOIN pg_catalog.pg_namespace rn ON rn.oid = ref.relnamespace
+        JOIN LATERAL unnest(k.conkey, k.confkey) WITH ORDINALITY AS cols(attnum, refattnum, ord) ON true
+        JOIN pg_catalog.pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = cols.attnum
+        JOIN pg_catalog.pg_attribute ra ON ra.attrelid = k.confrelid AND ra.attnum = cols.refattnum
+        WHERE k.contype = 'f'
+            AND n.nspname = current_schema()
+            AND rn.nspname = current_schema()
+            AND ref.relname = :t
+            AND ra.attname = :pk
+        ORDER BY cl.relname, a.attname
+        ";
+        foreach (Db::getAllAssoc($sql, [':t' => $this->getTable(), ':pk' => $primary]) as $row) {
+            $this->storeReferencingTable($row);
+        }
     }
-
 }

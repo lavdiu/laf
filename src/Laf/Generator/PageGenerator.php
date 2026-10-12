@@ -2,608 +2,485 @@
 
 namespace Laf\Generator;
 
-use JetBrains\PhpStorm\ArrayShape;
-use JetBrains\PhpStorm\Pure;
+use Laf\Database\Identifier;
 use Laf\Database\Table;
-use Laf\Util\Settings;
-use Laf\Util\UrlParser;
 use Laf\Util\Util;
 
+/**
+ * Generates the CRUD page (.page file) of a table: list grid, view with
+ * related-record tabs, insert/update forms laid out by the model's FormLayout,
+ * delete protected by the form's CSRF token.
+ *
+ * Config: namespace, page_dir, live_page_dir, optional page_factory (class with
+ * the method that returns the page shell, default "{namespace}\Factory") and
+ * page_factory_method (default "GeneralPage"). Labels: see LABEL_DEFAULTS.
+ */
 class PageGenerator
 {
+    /** Label keys the generated page uses and their English defaults */
+    public const LABEL_DEFAULTS = [
+        'view' => 'View',
+        'cancel' => 'Cancel',
+        'options' => 'Options',
+        'add-new' => 'Add new',
+        'update' => 'Update',
+        'delete' => 'Delete',
+        'list' => 'List',
+        'delete-confirmation' => 'Are you sure you want to delete this?',
+        'record-saved' => 'Record saved successfully',
+        'record-deleted' => 'Record deleted successfully',
+        'record-not-found' => 'Record not found',
+        'record-not-saved' => 'The record was not saved, please correct the fields marked below',
+        'record-not-deleted' => 'The record was not deleted: the link is not valid, open the record and try again',
+        'related-information' => 'Related information',
+    ];
+
+    private const INTEGER_TYPES = ['int', 'integer', 'tinyint', 'smallint', 'mediumint', 'bigint', 'serial', 'bigserial', 'smallserial', 'int2', 'int4', 'int8', 'year'];
+
+    private Table $table;
+
+    /** @var array<string, mixed> */
+    private array $config;
+
+    /** @var array<string, string> */
+    private array $labelTranslations;
+
+    private bool $writeOnLiveDirectory = false;
+
+    private ?string $pageFile = null;
+
+    /** @var array<string, TableInspectorInterface> inspectors by table name (the page's own table included) */
+    private array $inspectors = [];
+
+    private ?string $engine = null;
+
+    /** @var string[] */
+    private array $warnings = [];
 
     /**
-     * @var Table $table
+     * @param array<string, mixed> $config
+     * @param array<string, string> $labelTranslations label key => text (see LABEL_DEFAULTS)
+     * @param TableInspectorInterface|null $tableInspector inspector of the page's table; null = TableInspectorFactory::create()
      */
-    private $table;
-
-    /**
-     * @var string
-     */
-    private $pageFile = null;
-
-    /**
-     * @var string[]
-     */
-    private $config = [];
-
-    /**
-     * @var array
-     */
-    private $labelTranslations = [];
-
-    /**
-     * @var bool
-     */
-    private $writeOnLiveDirectory = false;
-
-    /**
-     * @var TableInspectorInterface
-     */
-    private $tableInspector = null;
-
-    /**
-     * Table constructor.
-     * @param Table $table
-     * @param string[] $config
-     * @param string $labelTranslations
-     */
-    public function __construct(Table $table, array $config, array $labelTranslations = [])
+    public function __construct(Table $table, array $config, array $labelTranslations = [], ?TableInspectorInterface $tableInspector = null)
     {
-        $this->setTable($table);
+        $this->table = $table;
         $this->config = $config;
         $this->labelTranslations = $labelTranslations;
-    }
-
-    private function getLabels(): array
-    {
-        $labels['view'] = $this->labelTranslations['view'] ?? 'View';
-        $labels['cancel'] = $this->labelTranslations['cancel'] ?? 'Cancel';
-        $labels['options'] = $this->labelTranslations['options'] ?? 'Options';
-        $labels['add-new'] = $this->labelTranslations['add-new'] ?? 'Add new';
-        $labels['update'] = $this->labelTranslations['update'] ?? 'Update';
-        $labels['delete'] = $this->labelTranslations['delete'] ?? 'Delete';
-        $labels['list'] = $this->labelTranslations['list'] ?? 'List';
-        $labels['delete-confirmation'] = $this->labelTranslations['delete-confirmation'] ?? 'Are you sure you want to delete this?';
-        $labels['record-saved'] = $this->labelTranslations['record-saved'] ?? 'Record saved successfully';
-        $labels['record-deleted'] = $this->labelTranslations['record-deleted'] ?? 'Record deleted successfully';
-        $labels['record-not-found'] = $this->labelTranslations['record-not-found'] ?? 'Record not found';
-        $labels['record-not-saved'] = $this->labelTranslations['record-not-saved'] ?? 'The record was not saved, please correct the fields marked below';
-        return $labels;
-    }
-
-    private function getAllFieldsCommentedOut(string $instanceName, bool $skip_row_metadata = false) : string
-    {
-        $html = "\n/**\n\t\$form->setComponents([])";
-
-        foreach($this->getTableInspector()->getColumns() as $column){
-            if($skip_row_metadata && in_array($column['COLUMN_NAME'], ['created_on', 'created_by', 'updated_on', 'updated_by'])){
-                continue;
-            }else {
-                $html .= "\n\t\t->addComponent(\${$instanceName}->get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "FormElement())";
-            }
+        if ($tableInspector !== null) {
+            $this->addTableInspector($tableInspector);
         }
-
-        $html .= ";\n*/";
-
-        return $html;
     }
+
+    /* ───────────── generation ───────────── */
 
     /**
-     *
+     * Build the page source (getPageFile())
      */
     public function generatePageFile(): void
     {
-        $this->tableInspector = self::createTableInspector($this->getTable()->getName());
-        $this->getTableInspector()->inspect();
+        $this->warnings = [];
 
-
-        $namespace = $this->getConfig()['namespace'];
+        $namespace = $this->getNamespace();
         $className = $this->getTable()->getNameAsClassname();
         $tableName = $this->getTable()->getName();
         $instanceName = strtolower($className);
         $labels = $this->getLabels();
+        $factoryClass = trim((string)($this->getConfig()['page_factory'] ?? ($namespace . '\\Factory')), '\\');
+        $factoryShort = substr($factoryClass, strrpos('\\' . $factoryClass, '\\'));
+        $factoryMethod = (string)($this->getConfig()['page_factory_method'] ?? 'GeneralPage');
 
-        $file = "<?php
+        $inspector = $this->inspector($tableName);
+        if ($inspector->getPrimaryColumnName() === null) {
+            $this->warnings[] = sprintf('table %s has no primary key: the generated page cannot view, update or delete rows', $tableName);
+        }
 
-use {$namespace}\\{$className};
+        $viewBody = $this->renderRelatedTabs($tableName, $labels);
+        $listGrid = $this->buildGrid($tableName);
+
+        $template = <<<'PHP'
+<?php
+
+use {ns}\{class};
 use Laf\Exception\FormValidationException;
 use Laf\UI\Component\Alert;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Container\ContainerType;
-use Laf\UI\Form\DrawMode;
-use Laf\UI\Form\Form;
-use Laf\UI\Form\FormRowDisplayMode;
-use Laf\UI\Page\AdminPage;
-use Laf\Util\UrlParser;
-use Laf\UI\Container\HtmlContainer;
-use Laf\UI\Grid\PhpGrid\PhpGrid;
-use Laf\UI\Grid\PhpGrid\Column;
-use Laf\UI\Grid\PhpGrid\ActionButton;
-use {$namespace}\\Factory;
 use Laf\UI\Container\Div;
+use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
+use Laf\UI\Form\DrawMode;
+use Laf\UI\Form\Form;
+use Laf\UI\Form\FormLayout;
+use Laf\UI\Grid\PhpGrid\ActionButton;
+use Laf\UI\Grid\PhpGrid\Column;
+use Laf\UI\Grid\PhpGrid\PhpGrid;
+use Laf\UI\Page\AdminPage;
+use Laf\Util\UrlParser;
+{dbImport}use {factoryClass};
 
-\$id = UrlParser::getId();
-\${$instanceName} = new {$className}(\$id);
-\$form = \${$instanceName}->getForm();
-{$this->getAllFieldsCommentedOut($instanceName)}
-\$html = Factory::GeneralPage();
-\$page = new AdminPage();
+$id = UrlParser::getId();
+$action = UrlParser::getAction();
+${instance} = new {class}($id);
+$form = ${instance}->getForm($action === 'new' ? DrawMode::INSERT : ($action === 'update' ? DrawMode::UPDATE : DrawMode::VIEW));
+{handLayout}
+$html = {factoryShort}::{factoryMethod}();
+$page = new AdminPage();
 
-\$page->setTitle(\"<a href='\" . UrlParser::getListLink() . \"' class='text-black text-decoration-none'>" . ucfirst($className) . "</a>\");
-\$page->setTitleIcon('far fa-list-alt');
+$page->setTitle("<a href='" . UrlParser::getListLink() . "' class='text-black text-decoration-none'>{title}</a>");
+$page->setTitleIcon('far fa-list-alt');
 
 // Flash message support
-if (isset(\$_SESSION['flash_message'])) {
-	\$page->addComponent(new Alert('', \$_SESSION['flash_message'], \$_SESSION['flash_type'] ?? Alert::Type_Success));
-	unset(\$_SESSION['flash_message'], \$_SESSION['flash_type']);
+if (isset($_SESSION['flash_message'])) {
+	$page->addComponent(new Alert('', $_SESSION['flash_message'], $_SESSION['flash_type'] ?? Alert::Type_Success));
+	unset($_SESSION['flash_message'], $_SESSION['flash_type']);
 }
 
-if (\$form->isSubmitted()) {
-{$this->buildRecordStatusDefault()}	try {
-		\$id = \$form->processForm();
-		\$_SESSION['flash_message'] = '{$labels['record-saved']}';
-		\$_SESSION['flash_type'] = Alert::Type_Success;
-		UrlParser::redirectToViewPage(\$id);
+if ($form->isSubmitted()) {
+{recordStatusDefault}	try {
+		$id = $form->processForm();
+		$_SESSION['flash_message'] = {L:record-saved};
+		$_SESSION['flash_type'] = Alert::Type_Success;
+		UrlParser::redirectToViewPage($id);
 		exit;
-	} catch (FormValidationException \$ex) {
+	} catch (FormValidationException $ex) {
 		// the form is drawn again below with the submitted values and the messages
-		\$page->addComponent(new Alert('', '{$labels['record-not-saved']}', Alert::Type_Danger));
+		$page->addComponent(new Alert('', {L:record-not-saved}, Alert::Type_Danger));
 	}
 }
 
-switch (UrlParser::getAction()) {
+switch ($action) {
 	case 'update':
-		if (!\${$instanceName}->recordExists()) {
-			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
-			\$_SESSION['flash_type'] = Alert::Type_Danger;
+		if (!${instance}->recordExists()) {
+			$_SESSION['flash_message'] = {L:record-not-found};
+			$_SESSION['flash_type'] = Alert::Type_Danger;
 			UrlParser::redirectToListPage();
 			exit;
 		}
-        \$page->setContainerType(ContainerType::TYPE_FLUID);
-		\$form->setDrawMode(DrawMode::UPDATE);
-{$this->buildEditFormLayout($instanceName)}
-		\$page->addComponent(\$form);
-
-		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
-		\$html->addComponent(\$page);
-		echo \$html->draw();
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link({L:cancel}, UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$html->addComponent($page);
+		echo $html->draw();
 		break;
 	case 'new':
-	    \$page->setContainerType(ContainerType::TYPE_FLUID);
-{$this->buildEditFormLayout($instanceName)}
-		\$form->setDrawMode(DrawMode::INSERT);
-		\$page->addComponent(\$form);
-		\$page->addLink(new Link('{$labels['cancel']}', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
-		\$html->addComponent(\$page);
-		echo \$html->draw();
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link({L:cancel}, UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$html->addComponent($page);
+		echo $html->draw();
 		break;
 	case 'delete':
-		if (\${$instanceName}->recordExists()) {
-			if (\${$instanceName}->canSoftDelete()) {
-				\${$instanceName}->softDelete();
-			} else {
-				\${$instanceName}->hardDelete();
-			}
-			\$_SESSION['flash_message'] = '{$labels['record-deleted']}';
-			\$_SESSION['flash_type'] = Alert::Type_Success;
-		} else {
-			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
-			\$_SESSION['flash_type'] = Alert::Type_Danger;
-		}
-		UrlParser::redirectToListPage();
-		break;
-	case 'view':
-		if (!\${$instanceName}->recordExists()) {
-			\$_SESSION['flash_message'] = '{$labels['record-not-found']}';
-			\$_SESSION['flash_type'] = Alert::Type_Danger;
+		// the delete links carry the form's CSRF token: a crafted link cannot delete
+		if (!$form->isValidCsrfToken($_GET[$form->getCsrfSessionKey()] ?? null)) {
+			$_SESSION['flash_message'] = {L:record-not-deleted};
+			$_SESSION['flash_type'] = Alert::Type_Danger;
 			UrlParser::redirectToListPage();
 			exit;
 		}
-	    \$page->setContainerType(ContainerType::TYPE_FLUID);
-		\$form->setDrawMode(DrawMode::VIEW);
-{$this->buildViewFormLayout($instanceName)}
-		\$page->addComponent(\$form);
-		\$page->addLink(new Link('{$labels['list']}', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		if (${instance}->recordExists()) {
+			if (${instance}->canSoftDelete()) {
+				${instance}->softDelete();
+			} else {
+				${instance}->hardDelete();
+			}
+			$_SESSION['flash_message'] = {L:record-deleted};
+			$_SESSION['flash_type'] = Alert::Type_Success;
+		} else {
+			$_SESSION['flash_message'] = {L:record-not-found};
+			$_SESSION['flash_type'] = Alert::Type_Danger;
+		}
+		UrlParser::redirectToListPage();
+		exit;
+	case 'view':
+		if (!${instance}->recordExists()) {
+			$_SESSION['flash_message'] = {L:record-not-found};
+			$_SESSION['flash_type'] = Alert::Type_Danger;
+			UrlParser::redirectToListPage();
+			exit;
+		}
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link({L:list}, UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
 
-		\$dd = new Dropdown('{$labels['options']}', '', 'fa fa-cogs', true);
-		\$dd->addCssClass('btn-outline-success')
+		$dd = new Dropdown({L:options}, '', 'fa fa-cogs', true);
+		$dd->addCssClass('btn-outline-success')
 			->addCssClass('btn-sm');
-		\$newLink = new Link('{$labels['update']}', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
-		\$deleteLink = new Link('{$labels['delete']}', UrlParser::getDeleteLink(), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
-		\$deleteLink->setConfirmationMessage('{$labels['delete-confirmation']}');
+		$updateLink = new Link({L:update}, UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
+		$deleteLink = new Link({L:delete}, $form->withCsrfToken(UrlParser::getDeleteLink()), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
+		$deleteLink->setConfirmationMessage({L:delete-confirmation});
 
-		\$dd->addLink(\$newLink)
-			->addLink(\$deleteLink);
-		\$page->addLink(\$dd);
-		
-		
-		\$html->addComponent(\$page);\n";
+		$dd->addLink($updateLink)
+			->addLink($deleteLink);
+		$page->addLink($dd);
 
-        if ($this->getTableInspector()->hasReferencingTables()) {
-            $tabContainerId = $this->getTable()->getName() . '_related_tabs';
-            $file .= "
-        \$tabContainer = new TabContainer('{$tabContainerId}');\n\n";
-
-            foreach ($this->getTableInspector()->getReferencingTables() as $table) {
-                $table = array_change_key_case($table, CASE_UPPER);
-                $refTableName = $table['TABLE_NAME'];
-                $junction = self::detectJunctionTable($refTableName, $tableName);
-
-                if ($junction !== null) {
-                    // Many-to-many: show the "other" table, filtered via the junction
-                    $gridVarName = $junction['other_table'];
-                    $tabLabel = Util::tableNameToClassName($junction['other_table']);
-                    $gridDraw = $this->buildManyToManyGrid(
-                        $junction['other_table'],
-                        $gridVarName,
-                        $junction['junction_table'],
-                        $junction['fk_to_current'],
-                        $junction['fk_to_other'],
-                        $tableName,
-                        $this->getTableInspector()->getPrimaryColumnName()
-                    );
-                } else {
-                    // One-to-many: show the referencing table directly
-                    $gridVarName = $refTableName;
-                    $tabLabel = Util::tableNameToClassName($refTableName);
-                    $gridDraw = $this->buildGrid($gridVarName, $gridVarName, ['table_name' => $tableName, 'column_name' => $this->getTableInspector()->getPrimaryColumnName()]);
-                }
-
-                $file .= "
-        {$gridDraw}
-        \${$gridVarName}->setDeferInitialize(true);
-
-        \$tabItem = new TabItem('{$tabLabel}');
-        \$tabItem->addComponent(new HtmlContainer(\${$gridVarName}->draw()));
-        \$tabContainer->addComponent(\$tabItem);\n";
-            }
-            $file .= "
-
-        \$page2 = new AdminPage();
-        \$page2->setTitle('Related information')
-            ->addComponent(new HtmlContainer(\$tabContainer->draw()));
-        \$html->addComponent(\$page2);";
-
-        }
-
-        $file .= "
-		echo \$html->draw();
+		$html->addComponent($page);
+{viewBody}
+		echo $html->draw();
 		break;
 	case 'list':
-	default:";
-        $file .= $this->buildGrid($this->getTable()->getName());
-        $file .= "
-        \$page->addComponent(new HtmlContainer(\$grid->draw()));
-        \$page->addLink(new Link('{$labels['add-new']}', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['class' => 'btn btn-sm btn-outline-success']));
-		\$page->setContainerType(ContainerType::TYPE_FLUID);
-		\$html->addComponent(\$page);
-		echo \$html->draw();
+	default:
+{listGrid}
+		$page->addComponent(new HtmlContainer($grid->draw()));
+		$page->addLink(new Link({L:add-new}, UrlParser::getNewLink(), 'fa fa-plus-square', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$html->addComponent($page);
+		echo $html->draw();
 		break;
 }
-";
-        $this->setPageFile($file);
-    }
 
-    /**
-     * Return the path where the page file will be stored
-     * @return string
-     */
-    #[Pure] public function getPageFilePath(): string
-    {
-        if ($this->isWriteOnLiveDirectory()) {
-            return $this->getConfig()['live_page_dir'] . '/' . $this->getTable()->getName() . '.page';
-        } else {
-            return $this->getConfig()['page_dir'] . '/' . $this->getTable()->getName() . '.page';
+PHP;
+        $replacements = [
+            '{ns}' => $namespace,
+            '{class}' => $className,
+            '{instance}' => $instanceName,
+            '{title}' => ucfirst($className),
+            '{factoryClass}' => $factoryClass,
+            '{factoryShort}' => $factoryShort,
+            '{factoryMethod}' => $factoryMethod,
+            '{dbImport}' => str_contains($viewBody . $listGrid, 'Db::getInstance()') ? "use Laf\\Database\\Db;\n" : '',
+            '{handLayout}' => $this->getAllFieldsCommentedOut($instanceName),
+            '{recordStatusDefault}' => $this->buildRecordStatusDefault(),
+            '{viewBody}' => $viewBody,
+            '{listGrid}' => $listGrid,
+        ];
+        foreach ($labels as $key => $text) {
+            $replacements['{L:' . $key . '}'] = self::lit($text);
         }
+        $this->setPageFile(strtr($template, $replacements));
     }
 
     /**
-     * Check if the page file already exists in the filesystem
-     * @return bool
+     * A commented block showing how to replace the model's layout by hand
      */
-    #[Pure] public function pageFileExists(): bool
+    private function getAllFieldsCommentedOut(string $instanceName): string
     {
-        return file_exists($this->getPageFilePath());
+        $html = "/**\n * The form is laid out by {$this->getTable()->getNameAsClassname()}::getFormLayout() (FormLayout::auto() by default).\n"
+            . " * To change it here instead, apply a layout:\n *\n"
+            . " *\t\$form->applyLayout(\$form->getDrawMode(), FormLayout::auto(\${$instanceName}->getTable())\n"
+            . " *\t\t->readOnly(['code'], [DrawMode::UPDATE])\n"
+            . " *\t\t->fieldset('Address', ['street', 'city'], 2));\n *\n"
+            . " * or build the components yourself (Div(['row']) / Div(['col-lg']) for columns):\n *\n"
+            . " *\t\$form->setComponents([])";
+
+        foreach ($this->inspector($this->getTable()->getName())->getColumns() as $column) {
+            $name = (string)$column['COLUMN_NAME'];
+            $html .= "\n *\t\t->addComponent(\${$instanceName}->get" . Util::tableFieldNameToMethodName($name) . "FormElement())";
+        }
+        $html .= ";\n */";
+        return $html;
     }
 
     /**
-     * Generates and saves class to file
-     * @return PageGenerator
+     * If the table has a record_status_id column, generate code to default it to 1 on insert.
      */
-    public function savePageToFile(): static
+    private function buildRecordStatusDefault(): string
     {
-        $this->generatePageFile();
-        $file = $this->getPageFilePath();
-        
-        // Create directory if it doesn't exist
-        $dir = dirname($file);
-        if (!is_dir($dir)) {
-            if (!mkdir($dir, 0755, true)) {
-                throw new \RuntimeException("Cannot create directory: {$dir}");
+        if ($this->inspector($this->getTable()->getName())->getColumns()['record_status_id'] ?? false) {
+            return "\tif (\$action == 'new') {\n\t\t\$form->setSubmittedFieldValue('record_status_id', 1);\n\t}\n";
+        }
+        return '';
+    }
+
+    /**
+     * The "Related information" tab container of the view page: one grid per foreign key
+     * that points at this table (a many-to-many junction shows the table behind it)
+     * @param array<string, string> $labels
+     */
+    private function renderRelatedTabs(string $tableName, array $labels): string
+    {
+        $inspector = $this->inspector($tableName);
+        if (!$inspector->hasReferencingTables()) {
+            return '';
+        }
+        $primary = (string)$inspector->getPrimaryColumnName();
+        $references = $inspector->getReferencingTables();
+        $perTable = [];
+        foreach ($references as $reference) {
+            $perTable[$reference['table_name']] = ($perTable[$reference['table_name']] ?? 0) + 1;
+        }
+
+        $tabContainerId = $tableName . '_related_tabs';
+        $file = "\n\t\t\$tabContainer = new TabContainer(" . self::lit($tabContainerId) . ");\n";
+        $usedNames = [];
+        foreach ($references as $reference) {
+            $refTable = (string)$reference['table_name'];
+            $fkColumn = (string)$reference['column_name'];
+            $duplicated = ($perTable[$refTable] ?? 0) > 1;
+            $junction = $this->detectJunctionTable($refTable, $tableName, $fkColumn);
+
+            if ($junction !== null) {
+                $baseName = $junction['other_table'];
+                $tabLabel = Util::tableNameToClassName($junction['other_table']);
+            } else {
+                $baseName = $refTable;
+                $tabLabel = Util::tableNameToClassName($refTable);
             }
+            if ($duplicated) {
+                $tabLabel .= ' (' . Util::tableFieldNameToLabel($fkColumn) . ')';
+            }
+            $gridVar = self::uniqueName($duplicated ? $baseName . '_' . $fkColumn : $baseName, $usedNames);
+            $gridId = $gridVar . '_list';
+
+            if ($junction !== null) {
+                $gridDraw = $this->buildManyToManyGrid(
+                    $junction['other_table'],
+                    $gridVar,
+                    $junction['junction_table'],
+                    $junction['fk_to_current'],
+                    $junction['fk_to_other'],
+                    $tableName,
+                    $primary,
+                    $gridId
+                );
+            } else {
+                $gridDraw = $this->buildGrid($refTable, $gridVar, ['table_name' => $refTable, 'column_name' => $fkColumn], $gridId);
+            }
+
+            $file .= $gridDraw;
+            $file .= "\t\t\${$gridVar}->setDeferInitialize(true);\n\n";
+            $file .= "\t\t\$tabItem = (new TabItem(" . self::lit($tabLabel) . "))->setIdPrefix(" . self::lit($tabContainerId) . ");\n";
+            $file .= "\t\t\$tabItem->addComponent(new HtmlContainer(\${$gridVar}->draw()));\n";
+            $file .= "\t\t\$tabContainer->addComponent(\$tabItem);\n";
         }
-        
-        // Check write permissions
-        if (file_exists($file) && !is_writable($file)) {
-            throw new \RuntimeException("File is not writable: {$file}");
-        }
-        
-        if (file_put_contents($file, $this->getPageFile()) === false) {
-            throw new \RuntimeException("Failed to write file: {$file}");
-        }
-        
-        return $this;
+        $file .= "\n\t\t\$page2 = new AdminPage();\n"
+            . "\t\t\$page2->setTitle(" . self::lit($labels['related-information']) . ")\n"
+            . "\t\t\t->addComponent(new HtmlContainer(\$tabContainer->draw()));\n"
+            . "\t\t\$html->addComponent(\$page2);\n";
+        return $file;
     }
 
     /**
-     * @return Table
-     */
-    public function getTable(): Table
-    {
-        return $this->table;
-    }
-
-    /**
-     * @return TableInspectorInterface
-     */
-    public function getTableInspector(): TableInspectorInterface
-    {
-        return $this->tableInspector;
-    }
-
-    private static function createTableInspector(string $tableName): TableInspectorInterface
-    {
-        if (Settings::get('database.engine') == 'postgres') {
-            return new PostgresTableInspector($tableName);
-        }
-        return new TableInspector($tableName);
-    }
-
-    /**
-     * Checks if a table is a junction/pivot table for a many-to-many relationship.
-     * A junction table has exactly 2 foreign keys and few additional non-FK,
-     * non-PK, non-metadata columns.
+     * Checks if a table is a junction/pivot table for a many-to-many relationship: exactly
+     * two foreign keys to two different tables and at most two other columns besides keys
+     * and row metadata.
      *
-     * @param string $tableName The referencing table to check
-     * @param string $currentTable The current/parent table name
-     * @return array|null Null if not a junction table, otherwise:
-     *   ['other_table' => string, 'junction_table' => string, 'fk_to_current' => string, 'fk_to_other' => string]
+     * @param string $tableName the referencing table to check
+     * @param string $currentTable the current/parent table name
+     * @param string|null $viaColumn the junction column that must point at the current table
+     * @return array{junction_table: string, other_table: string, fk_to_current: string, fk_to_other: string}|null
      */
-    private static function detectJunctionTable(string $tableName, string $currentTable): ?array
+    private function detectJunctionTable(string $tableName, string $currentTable, ?string $viaColumn = null): ?array
     {
-        $ti = self::createTableInspector($tableName);
-        $ti->inspect();
+        $inspector = $this->inspector($tableName);
+        $metadataColumns = ['id', 'created_on', 'created_by', 'updated_on', 'updated_by', 'is_deleted', 'deleted', 'record_status_id'];
 
         $foreignKeys = [];
-        $metadataColumns = ['id', 'created_on', 'created_by', 'updated_on', 'updated_by', 'is_deleted'];
-
-        foreach ($ti->getColumns() as $column) {
-            if (array_key_exists('FOREIGN_KEY', $column)) {
-                $foreignKeys[] = $column;
-            }
-        }
-
-        if (count($foreignKeys) !== 2) {
-            return null;
-        }
-
-        // Count non-FK, non-PK, non-metadata columns
         $extraColumns = 0;
-        foreach ($ti->getColumns() as $column) {
-            $colName = $column['COLUMN_NAME'];
-            if (in_array($colName, $metadataColumns)) {
+        foreach ($inspector->getColumns() as $column) {
+            if (self::columnIsForeignKey($column)) {
+                $foreignKeys[] = $column;
                 continue;
             }
-            if (array_key_exists('FOREIGN_KEY', $column)) {
-                continue;
-            }
-            if (isset($column['COLUMN_KEY']) && $column['COLUMN_KEY'] === 'PRI') {
+            if (in_array($column['COLUMN_NAME'], $metadataColumns, true) || ($column['COLUMN_KEY'] ?? '') === 'PRI') {
                 continue;
             }
             $extraColumns++;
         }
-
-        if ($extraColumns > 2) {
+        if (count($foreignKeys) !== 2 || $extraColumns > 2) {
             return null;
         }
 
-        // Identify which FK points to current table and which to the other
         $fkToCurrent = null;
         $fkToOther = null;
         foreach ($foreignKeys as $fk) {
-            if ($fk['FOREIGN_KEY']['referenced_table_name'] === $currentTable) {
+            $pointsAtCurrent = $fk['FOREIGN_KEY']['referenced_table_name'] === $currentTable
+                && ($viaColumn === null || $fk['COLUMN_NAME'] === $viaColumn);
+            if ($pointsAtCurrent && $fkToCurrent === null) {
                 $fkToCurrent = $fk;
             } else {
                 $fkToOther = $fk;
             }
         }
-
         if ($fkToCurrent === null || $fkToOther === null) {
             return null;
         }
-
+        if ($fkToOther['FOREIGN_KEY']['referenced_table_name'] === $currentTable) {
+            // both keys point here (from/to on the same parent): a plain child table, one tab per key
+            return null;
+        }
         return [
             'junction_table' => $tableName,
-            'other_table' => $fkToOther['FOREIGN_KEY']['referenced_table_name'],
-            'fk_to_current' => $fkToCurrent['COLUMN_NAME'],
-            'fk_to_other' => $fkToOther['COLUMN_NAME'],
+            'other_table' => (string)$fkToOther['FOREIGN_KEY']['referenced_table_name'],
+            'fk_to_current' => (string)$fkToCurrent['COLUMN_NAME'],
+            'fk_to_other' => (string)$fkToOther['COLUMN_NAME'],
         ];
     }
 
     /**
-     * @param Table $table
-     */
-    public function setTable(Table $table): void
-    {
-        $this->table = $table;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getConfig(): array
-    {
-        return $this->config;
-    }
-
-    /**
-     * @param string[] $config
-     */
-    public function setConfig(array $config): void
-    {
-        $this->config = $config;
-    }
-
-    /**
-     * @return null
-     */
-    public function getPageFile()
-    {
-        return $this->pageFile;
-    }
-
-    /**
-     * @param null $pageFile
-     */
-    public function setPageFile($pageFile): void
-    {
-        $this->pageFile = $pageFile;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isWriteOnLiveDirectory(): bool
-    {
-        return $this->writeOnLiveDirectory;
-    }
-
-    /**
-     * @param bool $writeOnLiveDirectory
-     * @return PageGenerator
-     */
-    public function setWriteOnLiveDirectory(bool $writeOnLiveDirectory): PageGenerator
-    {
-        $this->writeOnLiveDirectory = $writeOnLiveDirectory;
-        return $this;
-    }
-
-    /**
-     * @return array|string
-     */
-    public function getLabelTranslations()
-    {
-        return $this->labelTranslations;
-    }
-
-    /**
-     * @param array|string $labelTranslations
-     * @return PageGenerator
-     */
-    public function setLabelTranslations($labelTranslations)
-    {
-        $this->labelTranslations = $labelTranslations;
-        return $this;
-    }
-
-    /**
-     * Returns the built sql to select the list
-     * and a list of columns
-     * @param string $tableName
-     * @param array $filters
-     * format: [
-     *  sql = "sql statement"
-     *  columns [
-     *      alias => [
-     *          0 => table name
-     *          1 => column name
-     *          2 => label
-     *          3 => visible
-     *      ]
-     *  ]
+     * The list query of a table with its foreign keys joined for display, and the grid columns:
+     * alias => [table alias, column, label base, visible]
      *
-     * ]
-     * @return array
+     * @param array<string, string> $filters table_name + column_name: restrict the rows to
+     *                                       that column = the page's id
+     * @return array{sql: string, columns: array<string, array{0: string, 1: string, 2: string, 3: bool}>, primary: string, primary_alias: string}
      */
-    #[ArrayShape(['sql' => "string", 'columns' => "array"])]
     private function getDbTableDetails(string $tableName, array $filters = []): array
     {
         $columns = [];
         $joins = [];
         $joinedTables = [$tableName];
-        $ti = self::createTableInspector($tableName);
-        $ti->inspect();
+        $inspector = $this->inspector($tableName);
+        $primary = $inspector->getPrimaryColumnName() ?? 'id';
 
-        foreach ($ti->getColumns() as $c) {
-            $columnName = $c['COLUMN_NAME'];
-            $tableAlias = $tableName;
+        foreach ($inspector->getColumns() as $column) {
+            $columnName = (string)$column['COLUMN_NAME'];
+            if (self::columnIsForeignKey($column)) {
+                $fkTableName = (string)$column['FOREIGN_KEY']['referenced_table_name'];
+                $fkTableCol = (string)$column['FOREIGN_KEY']['referenced_column_name'];
+                $fkTableAlias = in_array($fkTableName, $joinedTables, true) ? $fkTableName . '_' . $columnName : $fkTableName;
+                $joinedTables[] = $fkTableName;
+                $displayCol = $this->inspector($fkTableName)->getDisplayColumnName();
 
-            if (array_key_exists('FOREIGN_KEY', $c)) {
-                $fkTableName = $c['FOREIGN_KEY']['referenced_table_name'];
-                $fkTableCol = $c['FOREIGN_KEY']['referenced_column_name'];
-
-                if (in_array($fkTableName, $joinedTables)) {
-                    $fkTableAlias = $fkTableName . '_' . $columnName;
-                } else {
-                    $fkTableAlias = $fkTableName;
-                }
-                array_push($joinedTables, $fkTableName);
-
-                $referencingTable = self::createTableInspector($c['FOREIGN_KEY']['referenced_table_name']);
-                $referencingTable->inspect();
-                $displayCol = $referencingTable->getDisplayColumnName();
-
-                $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName . 'Id', false];
+                $columns[$tableName . '_' . $columnName] = [$tableName, $columnName, $columnName, false];
                 $columns[$fkTableAlias . '_' . $displayCol] = [$fkTableAlias, $displayCol, $columnName, true];
-
-                $joins[] = "LEFT JOIN {$fkTableName} {$fkTableAlias} ON {$tableName}.{$columnName} = {$fkTableAlias}.{$fkTableCol}";
+                $joins[] = 'LEFT JOIN ' . $this->q($fkTableName) . ' ' . $this->q($fkTableAlias)
+                    . ' ON ' . $this->q($tableName) . '.' . $this->q($columnName) . ' = ' . $this->q($fkTableAlias) . '.' . $this->q($fkTableCol);
             } else {
-                $columns[$tableAlias . '_' . $columnName] = [$tableAlias, $columnName, $columnName, true];
+                $columns[$tableName . '_' . $columnName] = [$tableName, $columnName, $columnName, true];
             }
         }
 
         $sql = "\tSELECT";
-        $iterator = 1;
+        $first = true;
         foreach ($columns as $alias => $column) {
-            if ($iterator == 1) {
-                $sql .= "\n\t\t  ";
-            } else {
-                $sql .= "\n\t\t, ";
-            }
-            $sql .= "" . $column[0] . '.' . $column[1] . ' AS ' . $alias;
-            $iterator++;
+            $sql .= $first ? "\n\t\t  " : "\n\t\t, ";
+            $sql .= $this->q($column[0]) . '.' . $this->q($column[1]) . ' AS ' . $this->q((string)$alias);
+            $first = false;
         }
-        $sql .= "\n\tFROM {$tableName}";
-        $sql .= "\n\t" . implode("\n\t", $joins);
+        $sql .= "\n\tFROM " . $this->q($tableName);
+        if ($joins !== []) {
+            $sql .= "\n\t" . implode("\n\t", $joins);
+        }
         $sql .= "\n\tWHERE 1=1 ";
 
-        if (isset($filters['table_name']) && isset($filters['column_name']) && $filters['table_name'] != '' && $filters['column_name'] != '') {
-            $sql .= " AND {$filters['table_name']}.{$filters['column_name']} = ' . ((int)UrlParser::getId()).'\n";
+        if (!empty($filters['table_name']) && !empty($filters['column_name'])) {
+            $sql .= ' AND ' . $this->q((string)$filters['table_name']) . '.' . $this->q((string)$filters['column_name'])
+                . ' = ' . $this->idExpression((string)$filters['table_name'], (string)$filters['column_name']) . "\n";
         }
 
         return [
             'sql' => "SELECT * FROM (\n{$sql}\n) l1 ",
-            'columns' => $columns
+            'columns' => $columns,
+            'primary' => $primary,
+            'primary_alias' => $tableName . '_' . $primary,
         ];
-
     }
 
     /**
      * Build a grid for a many-to-many relationship via a junction table.
-     * Shows columns from the "other" table, filtered by the current record's ID through the junction.
+     * Shows columns from the "other" table, filtered by the current record's id through the junction.
      *
-     * @param string $otherTable The target table to display (e.g., 'tags')
-     * @param string $gridName Variable name for the grid
-     * @param string $junctionTable The junction/pivot table (e.g., 'order_tags')
-     * @param string $fkToCurrent Junction column pointing to current table (e.g., 'order_id')
-     * @param string $fkToOther Junction column pointing to other table (e.g., 'tag_id')
-     * @param string $currentTable The current/parent table (e.g., 'orders')
-     * @param string $currentPk Primary key column of the current table (e.g., 'id')
-     * @return string
+     * @param string $otherTable the target table to display (e.g., 'tags')
+     * @param string $gridName variable name for the grid
+     * @param string $junctionTable the junction/pivot table (e.g., 'order_tags')
+     * @param string $fkToCurrent junction column pointing to the current table (e.g., 'order_id')
+     * @param string $fkToOther junction column pointing to the other table (e.g., 'tag_id')
+     * @param string $currentTable the current/parent table (e.g., 'orders')
+     * @param string $currentPk primary key column of the current table (e.g., 'id')
+     * @param string|null $gridId PhpGrid name; default "{gridName}_list"
      */
     public function buildManyToManyGrid(
         string $otherTable,
@@ -612,262 +489,327 @@ switch (UrlParser::getAction()) {
         string $fkToCurrent,
         string $fkToOther,
         string $currentTable,
-        string $currentPk
+        string $currentPk,
+        ?string $gridId = null
     ): string {
         $otherDetails = $this->getDbTableDetails($otherTable);
         $labels = $this->getLabels();
         $tableLabel = Util::tableFieldNameToLabel($otherTable);
+        $gridId = $gridId ?? $gridName . '_list';
 
-        // Wrap the other table's query and add a JOIN through the junction
         $innerSql = $otherDetails['sql'];
         $sql = "SELECT l1.* FROM (\n{$innerSql}\n) l1 "
-            . "INNER JOIN {$junctionTable} jt ON l1.{$otherTable}_id = jt.{$fkToOther} "
-            . "WHERE jt.{$fkToCurrent} = ' . ((int)UrlParser::getId()) . '";
+            . 'INNER JOIN ' . $this->q($junctionTable) . ' jt ON l1.' . $this->q($otherDetails['primary_alias']) . ' = jt.' . $this->q($fkToOther) . ' '
+            . 'WHERE jt.' . $this->q($fkToCurrent) . ' = ' . $this->idExpression($currentTable, $currentPk);
 
-        $file = "\n\t\t\${$gridName} = new PhpGrid('{$gridName}_list');
-        \${$gridName}->setTitle('{$tableLabel} {$labels['list']}')
-            ->setRowsPerPage(10)
-            ->setSqlQuery('\n{$sql}');\n";
+        $file = "\n\t\t\${$gridName} = new PhpGrid(" . self::lit($gridId) . ");\n"
+            . "\t\t\${$gridName}->setTitle(" . self::lit($tableLabel . ' ' . $labels['list']) . ")\n"
+            . "\t\t\t->setRowsPerPage(10)\n"
+            . "\t\t\t->setSqlQuery(" . self::sqlLiteral($sql) . ");\n";
 
-        foreach ($otherDetails['columns'] as $alias => $column) {
-            if ($column[0] == $otherTable && $column[1] == 'id') {
-                $file .= "\n\t\t\${$gridName}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
-            } else {
-                $file .= "\n\t\t\${$gridName}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
-            }
-        }
-
-        $file .= "\n\n\t\t\${$gridName}->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $otherTable . "_id}', UrlParser::getModule()), 'fa fa-eye'));
-
-        if (\${$gridName}->isReadyToHandleRequests()) {
-            \${$gridName}->bootstrap();
-        }\n";
+        $file .= $this->renderGridColumns($gridName, $otherDetails, $otherTable);
+        $file .= "\n\n\t\t\${$gridName}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", sprintf('?module=%s&action=view&id={" . $otherDetails['primary_alias'] . "}', UrlParser::getModule()), 'fa fa-eye'));\n"
+            . "\n\t\tif (\${$gridName}->isReadyToHandleRequests()) {\n\t\t\t\${$gridName}->bootstrap();\n\t\t}\n";
         return $file;
     }
 
     /**
-     * If the table has a record_status_id column, generate code to default it to 1 on insert.
+     * The list grid of a table with view / update / delete buttons
+     * @param array<string, string> $filters table_name + column_name restrict the rows to that column = the page's id
+     * @param string|null $gridId PhpGrid name; default "{table}_list"
      */
-    private function buildRecordStatusDefault(): string
-    {
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            if ($column['COLUMN_NAME'] === 'record_status_id') {
-                return "\tif (UrlParser::getAction() == 'new') {\n\t\t\$form->setSubmittedFieldValue('record_status_id', 1);\n\t}\n";
-            }
-        }
-        return '';
-    }
-
-    /**
-     * Build the edit (insert/update) form layout with multi-column support.
-     * Metadata fields are excluded entirely.
-     */
-    private function buildEditFormLayout(string $instanceName): string
-    {
-        $excludeFields = ['created_on', 'created_by', 'updated_on', 'updated_by'];
-        $fields = [];
-
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            $colName = $column['COLUMN_NAME'];
-            if (!in_array($colName, $excludeFields)) {
-                $fields[] = Util::tableFieldNameToMethodName($colName);
-            }
-        }
-
-        $fieldCount = count($fields);
-
-        // Determine number of columns based on total field count in the table
-        $totalColumns = count($this->getTableInspector()->getColumns());
-        if ($totalColumns < 10) {
-            $numCols = 1;
-        } elseif ($totalColumns <= 20) {
-            $numCols = 2;
-        } else {
-            $numCols = 3;
-        }
-
-        $file = "\t\t\$form->setComponents([]);\n";
-
-        if ($numCols <= 1) {
-            foreach ($fields as $method) {
-                $file .= "\t\t\$form->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-            }
-            return $file;
-        }
-
-        $file .= "\t\t\$form->setFormRowDisplayMode(FormRowDisplayMode::INLINE);\n";
-        $file .= "\t\t\$row = new Div(['row']);\n";
-        $chunks = array_chunk($fields, (int)ceil($fieldCount / $numCols));
-        foreach ($chunks as $i => $chunk) {
-            $colVar = 'col' . ($i + 1);
-            $file .= "\t\t\${$colVar} = new Div(['col-lg']);\n";
-            foreach ($chunk as $method) {
-                $file .= "\t\t\${$colVar}->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-            }
-            $file .= "\t\t\$row->addComponent(\${$colVar});\n";
-        }
-        $file .= "\t\t\$form->addComponent(\$row);\n";
-
-        return $file;
-    }
-
-    /**
-     * Build the view mode form layout with multi-column support and a metadata tab.
-     * <10 fields: 1 column, <=20: 2 columns, >20: 3 columns.
-     * Metadata fields (created_on, created_by, updated_on, updated_by) go in a separate "Details" tab.
-     */
-    private function buildViewFormLayout(string $instanceName): string
-    {
-        $metadataFieldNames = ['record_status_id', 'created_on', 'created_by', 'updated_on', 'updated_by'];
-        $col1MetadataNames = ['created_by', 'created_on', 'record_status_id'];
-        $col2MetadataNames = ['updated_by', 'updated_on'];
-        $mainFields = [];
-        $metadataFields = [];
-        $metadataCol1 = [];
-        $metadataCol2 = [];
-
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            $colName = $column['COLUMN_NAME'];
-            $methodName = Util::tableFieldNameToMethodName($colName);
-            if (in_array($colName, $metadataFieldNames)) {
-                $metadataFields[] = $methodName;
-                if (in_array($colName, $col1MetadataNames)) {
-                    $metadataCol1[] = $methodName;
-                } elseif (in_array($colName, $col2MetadataNames)) {
-                    $metadataCol2[] = $methodName;
-                }
-            } else {
-                $mainFields[] = $methodName;
-            }
-        }
-
-        $mainCount = count($mainFields);
-        $totalCount = $mainCount + count($metadataFields);
-        $hasMetadata = count($metadataFields) > 0;
-
-        // Determine number of columns based on total field count
-        if ($totalCount < 10) {
-            $numCols = 1;
-        } elseif ($totalCount <= 20) {
-            $numCols = 2;
-        } else {
-            $numCols = 3;
-        }
-
-        $file = "";
-
-        if ($numCols === 1 && !$hasMetadata) {
-            // Simple case: no columns, no tabs needed
-            $file .= "\t\t\$form->setComponents([])";
-            foreach ($mainFields as $method) {
-                $file .= "\n\t\t\t->addComponent(\${$instanceName}->get{$method}FormElement())";
-            }
-            $file .= ";\n";
-            return $file;
-        }
-
-        $file .= "\t\t\$form->setComponents([]);\n";
-
-        if ($numCols > 1) {
-            $file .= "\t\t\$form->setFormRowDisplayMode(FormRowDisplayMode::INLINE);\n";
-        }
-
-        // Build the main fields in columns
-        if ($numCols > 1) {
-            $file .= "\t\t\$row = new Div(['row']);\n";
-            $chunks = array_chunk($mainFields, (int)ceil($mainCount / $numCols));
-            foreach ($chunks as $i => $chunk) {
-                $colVar = 'col' . ($i + 1);
-                $file .= "\t\t\${$colVar} = new Div(['col-lg']);\n";
-                foreach ($chunk as $method) {
-                    $file .= "\t\t\${$colVar}->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-                }
-                $file .= "\t\t\$row->addComponent(\${$colVar});\n";
-            }
-        }
-
-        if ($hasMetadata) {
-            // Wrap in tabs: General + Details
-            $file .= "\t\t\$formTabContainer = new TabContainer('{$this->getTable()->getName()}_form_tabs');\n";
-            $file .= "\t\t\$generalTab = new TabItem('General');\n";
-            if ($numCols > 1) {
-                $file .= "\t\t\$generalTab->addComponent(\$row);\n";
-            } else {
-                // Single column, but still has metadata to separate
-                $file .= "\t\t\$generalDiv = new Div();\n";
-                foreach ($mainFields as $method) {
-                    $file .= "\t\t\$generalDiv->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-                }
-                $file .= "\t\t\$generalTab->addComponent(\$generalDiv);\n";
-            }
-            $file .= "\t\t\$detailsTab = new TabItem('Details');\n";
-            if (count($metadataCol1) > 0 && count($metadataCol2) > 0) {
-                $file .= "\t\t\$metaRow = new Div(['row']);\n";
-                $file .= "\t\t\$metaCol1 = new Div(['col-lg']);\n";
-                foreach ($metadataCol1 as $method) {
-                    $file .= "\t\t\$metaCol1->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-                }
-                $file .= "\t\t\$metaCol2 = new Div(['col-lg']);\n";
-                foreach ($metadataCol2 as $method) {
-                    $file .= "\t\t\$metaCol2->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-                }
-                $file .= "\t\t\$metaRow->addComponent(\$metaCol1);\n";
-                $file .= "\t\t\$metaRow->addComponent(\$metaCol2);\n";
-                $file .= "\t\t\$detailsTab->addComponent(\$metaRow);\n";
-            } else {
-                foreach ($metadataFields as $method) {
-                    $file .= "\t\t\$detailsTab->addComponent(\${$instanceName}->get{$method}FormElement());\n";
-                }
-            }
-            $file .= "\t\t\$formTabContainer->addComponent(\$generalTab);\n";
-            $file .= "\t\t\$formTabContainer->addComponent(\$detailsTab);\n";
-            $file .= "\t\t\$form->addComponent(\$formTabContainer);\n";
-        } else {
-            // No metadata, just add the row directly
-            if ($numCols > 1) {
-                $file .= "\t\t\$form->addComponent(\$row);\n";
-            }
-        }
-
-        return $file;
-    }
-
-    /**
-     * @param string $table_name
-     * @param string $grid_name
-     * @param array|null[] $filters
-     * @return string
-     */
-    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = []): string
+    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = [], ?string $gridId = null): string
     {
         $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
-
-        $tableName = $table_name;
         $tableLabel = Util::tableFieldNameToLabel($table_name);
+        $gridId = $gridId ?? $table_name . '_list';
+        $primaryAlias = $tableDetails['primary_alias'];
+        $confirm = 'return confirm(' . json_encode($labels['delete-confirmation'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) . ')';
 
-        $file = "\n\t\t\${$grid_name} = new PhpGrid('{$table_name}_list');
-        \${$grid_name}->setTitle('{$tableLabel} {$labels['list']}')
-            ->setRowsPerPage(10)
-            ->setSqlQuery('\n" . ($tableDetails['sql']) . "');\n";
+        $file = "\n\t\t\${$grid_name} = new PhpGrid(" . self::lit($gridId) . ");\n"
+            . "\t\t\${$grid_name}->setTitle(" . self::lit($tableLabel . ' ' . $labels['list']) . ")\n"
+            . "\t\t\t->setRowsPerPage(10)\n"
+            . "\t\t\t->setSqlQuery(" . self::sqlLiteral($tableDetails['sql']) . ");\n";
 
-        foreach ($tableDetails['columns'] as $alias => $column) {
-            if ($column[0] == $tableName && $column[1] == 'id') {
-                $file .= "\n\t\t\${$grid_name}->addColumn(((new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
+        $file .= $this->renderGridColumns($grid_name, $tableDetails, $table_name);
+
+        $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", sprintf('?module=%s&action=view&id={{$primaryAlias}}', UrlParser::getModule()), 'fa fa-eye'));\n"
+            . "\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['update']) . ", sprintf('?module=%s&action=update&id={{$primaryAlias}}', UrlParser::getModule()), 'fa fa-edit'));\n"
+            . "\t\t\$deleteLink = new ActionButton(" . self::lit($labels['delete']) . ", \$form->withCsrfToken(sprintf('?module=%s&action=delete&id={{$primaryAlias}}', UrlParser::getModule())), 'fa fa-trash');\n"
+            . "\t\t\$deleteLink->addAttribute('onclick', " . self::lit($confirm) . ");\n"
+            . "\t\t\${$grid_name}->addActionButton(\$deleteLink);\n"
+            . "\n\t\tif (\${$grid_name}->isReadyToHandleRequests()) {\n\t\t\t\${$grid_name}->bootstrap();\n\t\t}\n";
+        return $file;
+    }
+
+    /**
+     * The addColumn() lines of a grid: the primary key as a link to the view page, the rest as given
+     * @param array{columns: array<string, array{0: string, 1: string, 2: string, 3: bool}>, primary: string} $details
+     */
+    private function renderGridColumns(string $gridName, array $details, string $tableName): string
+    {
+        $file = '';
+        foreach ($details['columns'] as $alias => $column) {
+            $label = Util::tableFieldNameToLabel($column[2]);
+            if ($column[0] === $tableName && $column[1] === $details['primary']) {
+                $file .= "\n\t\t\${$gridName}->addColumn(((new Column(" . self::lit((string)$alias) . ", " . self::lit($label) . ", true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
             } else {
-                $file .= "\n\t\t\${$grid_name}->addColumn(new Column('{$alias}', '" . Util::tableFieldNameToLabel($column[2]) . "', " . ($column[3] ? 'true' : 'false') . "));";
+                if (!$column[3]) {
+                    $label .= ' Id';
+                }
+                $file .= "\n\t\t\${$gridName}->addColumn(new Column(" . self::lit((string)$alias) . ", " . self::lit($label) . ", " . ($column[3] ? 'true' : 'false') . "));";
             }
         }
-
-        $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton('{$labels['view']}', sprintf('?module=%s&action=view&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-eye'));
-        \${$grid_name}->addActionButton(new ActionButton('{$labels['update']}', sprintf('?module=%s&action=update&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-edit'));
-        \$deleteLink = new ActionButton('{$labels['delete']}', sprintf('?module=%s&action=delete&id={" . $tableName . "_id}', UrlParser::getModule()), 'fa fa-trash');
-        \$deleteLink->addAttribute('onclick', \"return confirm('{$labels['delete-confirmation']}')\");
-        \${$grid_name}->addActionButton(\$deleteLink);
-
-        if (\${$grid_name}->isReadyToHandleRequests()) {
-            \${$grid_name}->bootstrap();
-        }\n";
         return $file;
+    }
+
+    /**
+     * PHP source, inside the single-quoted SQL string, of the page id as a literal of the
+     * column's type: an int cast for integer keys, a quoted value otherwise
+     */
+    private function idExpression(string $tableName, string $columnName): string
+    {
+        $type = strtolower((string)($this->inspector($tableName)->getColumns()[$columnName]['DATA_TYPE'] ?? 'int'));
+        if (in_array($type, self::INTEGER_TYPES, true)) {
+            return "' . ((int)UrlParser::getId()) . '";
+        }
+        // the page then imports Laf\Database\Db (generatePageFile() looks for this call)
+        return "' . Db::getInstance()->quote((string)UrlParser::getId()) . '";
+    }
+
+    /* ───────────── files ───────────── */
+
+    /**
+     * Return the path where the page file will be stored
+     */
+    public function getPageFilePath(): string
+    {
+        $dir = $this->isWriteOnLiveDirectory() ? ($this->getConfig()['live_page_dir'] ?? '') : ($this->getConfig()['page_dir'] ?? '');
+        return rtrim((string)$dir, '/\\') . '/' . $this->getTable()->getName() . '.page';
+    }
+
+    /**
+     * Check if the page file already exists in the filesystem
+     */
+    public function pageFileExists(): bool
+    {
+        return file_exists($this->getPageFilePath());
+    }
+
+    /**
+     * Generates and saves the page to file
+     * @throws \RuntimeException
+     */
+    public function savePageToFile(): static
+    {
+        $this->generatePageFile();
+        $file = $this->getPageFilePath();
+
+        $dir = dirname($file);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new \RuntimeException("Cannot create directory: {$dir}");
+        }
+        if (file_exists($file) && !is_writable($file)) {
+            throw new \RuntimeException("File is not writable: {$file}");
+        }
+        if (file_put_contents($file, (string)$this->getPageFile()) === false) {
+            throw new \RuntimeException("Failed to write file: {$file}");
+        }
+        return $this;
+    }
+
+    /* ───────────── accessors ───────────── */
+
+    public function getTable(): Table
+    {
+        return $this->table;
+    }
+
+    public function setTable(Table $table): void
+    {
+        $this->table = $table;
+    }
+
+    /**
+     * The inspector of the page's table (created for the engine when none was given)
+     */
+    public function getTableInspector(): TableInspectorInterface
+    {
+        return $this->inspector($this->getTable()->getName());
+    }
+
+    /**
+     * Use this inspector for its table (the page's own or a related one) instead of querying the database
+     */
+    public function addTableInspector(TableInspectorInterface $inspector): static
+    {
+        $this->inspectors[$inspector->getTable()] = $inspector;
+        return $this;
+    }
+
+    /**
+     * The engine the generated SQL is quoted for (mysql|postgres); null = the connection's / Settings
+     */
+    public function setEngine(?string $engine): static
+    {
+        $this->engine = $engine;
+        return $this;
+    }
+
+    public function getEngine(): string
+    {
+        return $this->engine ?? Identifier::engine();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function setConfig(array $config): void
+    {
+        $this->config = $config;
+    }
+
+    public function getPageFile(): ?string
+    {
+        return $this->pageFile;
+    }
+
+    public function setPageFile(?string $pageFile): void
+    {
+        $this->pageFile = $pageFile;
+    }
+
+    public function isWriteOnLiveDirectory(): bool
+    {
+        return $this->writeOnLiveDirectory;
+    }
+
+    public function setWriteOnLiveDirectory(bool $writeOnLiveDirectory): PageGenerator
+    {
+        $this->writeOnLiveDirectory = $writeOnLiveDirectory;
+        return $this;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getLabelTranslations(): array
+    {
+        return $this->labelTranslations;
+    }
+
+    /**
+     * @param array<string, string> $labelTranslations
+     */
+    public function setLabelTranslations(array $labelTranslations): PageGenerator
+    {
+        $this->labelTranslations = $labelTranslations;
+        return $this;
+    }
+
+    /**
+     * Messages about tables the page cannot fully handle (no primary key, ...)
+     * @return string[]
+     */
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+
+    /* ───────────── internals ───────────── */
+
+    /**
+     * The labels with their defaults
+     * @return array<string, string>
+     */
+    private function getLabels(): array
+    {
+        $labels = [];
+        foreach (self::LABEL_DEFAULTS as $key => $default) {
+            $labels[$key] = (string)($this->labelTranslations[$key] ?? $default);
+        }
+        return $labels;
+    }
+
+    private function getNamespace(): string
+    {
+        return trim((string)($this->getConfig()['namespace'] ?? ''), '\\');
+    }
+
+    /**
+     * The inspected metadata of a table, cached per generator
+     */
+    private function inspector(string $tableName): TableInspectorInterface
+    {
+        if (!isset($this->inspectors[$tableName])) {
+            $this->inspectors[$tableName] = TableInspectorFactory::create($tableName, $this->getEngine());
+        }
+        $inspector = $this->inspectors[$tableName];
+        $needsInspection = $inspector instanceof AbstractTableInspector ? !$inspector->isInspected() : $inspector->getColumns() === [];
+        if ($needsInspection) {
+            $inspector->inspect();
+        }
+        return $inspector;
+    }
+
+    /**
+     * @param array<string, mixed> $column
+     */
+    private static function columnIsForeignKey(array $column): bool
+    {
+        return !empty($column['FOREIGN_KEY']) && is_array($column['FOREIGN_KEY']);
+    }
+
+    /**
+     * Quote an identifier for the generated SQL
+     */
+    private function q(string $identifier): string
+    {
+        return Identifier::quote($identifier, $this->getEngine());
+    }
+
+    /**
+     * A single-quoted PHP string literal
+     * @param mixed $value
+     */
+    private static function lit($value): string
+    {
+        return var_export((string)$value, true);
+    }
+
+    /**
+     * The SQL as a single-quoted PHP literal; the id expression's quotes end and restart the string
+     */
+    private static function sqlLiteral(string $sql): string
+    {
+        return "'\n" . str_replace(['\\', "'"], ['\\\\', "\\'"], $sql) . "'";
+    }
+
+    /**
+     * A PHP variable name not used before
+     * @param string[] $used
+     */
+    private static function uniqueName(string $base, array &$used): string
+    {
+        $base = (string)preg_replace('/[^A-Za-z0-9_]/', '_', $base);
+        if (preg_match('/^[0-9]/', $base)) {
+            $base = 't_' . $base;
+        }
+        $name = $base;
+        $n = 2;
+        while (in_array($name, $used, true)) {
+            $name = $base . '_' . $n++;
+        }
+        $used[] = $name;
+        return $name;
     }
 }

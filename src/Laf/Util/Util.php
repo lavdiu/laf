@@ -64,7 +64,8 @@ class Util
      */
     public static function tableFieldNameToLabel($name)
     {
-        $name = str_replace('_id', '', $name);
+        // only a trailing _id is a foreign key marker (user_identity stays "User Identity")
+        $name = preg_replace('/_id$/', '', (string)$name);
         return str_replace('_', ' ', ucwords($name, '_'));
     }
 
