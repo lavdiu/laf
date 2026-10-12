@@ -15,6 +15,7 @@ namespace Laf\Util;
  *   locale.time.format        display/parse format for TIME columns       (default 'H:i A')
  *   locale.decimal_separator  character users type as the decimal point   (default '.')
  *   locale.thousands_separator character users type as a grouping mark    (default ',')
+ *   locale.language           the lang attribute of the HTML document   (default 'en')
  */
 class Locale
 {
@@ -49,6 +50,14 @@ class Locale
     public static function timeFormat(): string
     {
         return self::setting('locale.time.format', self::DEFAULT_TIME_FORMAT);
+    }
+
+    /**
+     * The language of the HTML document (`<html lang>`), e.g. 'en', 'sq', 'de-CH'.
+     */
+    public static function language(): string
+    {
+        return self::setting('locale.language', 'en');
     }
 
     /**
