@@ -163,6 +163,25 @@ Generated pages use switch statements to route actions.
 `getLink($action, $id, $withId)`) accept a number or a UUID and fall back to the route's id; module and submodule are
 URL-encoded. `UrlParser::reset()` re-reads the request (tests, CLI).
 
+#### 5. Stored files (`src/Laf/Filesystem/Document.php`)
+
+`Laf\Filesystem\Document` wraps the application's `<package>\Document` model (columns `file_name`, `file_name_original`,
+`file_extension`, `thumbnail_name`, `file_size`, `mime_type`, optional `encrypt_key`; `Document::setModelClass()`
+overrides the class). `Document::upload('field')` stores the file posted in a form field (or a `$_FILES`-shaped array
+given as second argument) and returns the new id, or null when nothing usable was posted; `Document::storeFile($path,
+$originalName)` stores a file that is already on disk. The MIME type is read from the file (`finfo`), never from the
+request, and checked against `upload.allowed_mime_types` (exact types or `image/*`); images are resized to
+`upload.max_image_size` (1200) with a `upload.thumbnail_size` (300) thumbnail, other files are stored unchanged.
+Storage failures throw `RuntimeException` (files written so far are removed). `new Document($id)` gives
+`getModel()`, `getId()`, `recordExists()`, `fileFullSizeExists()`, `fileThumbnailExists()`, `getFullPathFullSize()`,
+`getFullPathThumbnail()`, `getMimeType()`, `isImage()` (`upload.image_mime_types`), `hardDelete()` (record, then
+files) and `handleRequest('view'|'download'|'thumbnail')`, which streams the file with `Content-Type`,
+`Content-Length`, `Last-Modified`, `ETag` (304 on a conditional request), `Cache-Control: private, max-age=
+upload.cache_max_age` and a `Content-Disposition` named after the original file, then exits (`handleRequest($action,
+false)` returns instead). A missing record, an encrypted record or a missing file redirects to
+`upload.not_found_url` (fallback: the legacy `404` key, `Document::setNotFoundUrl()`), or answers 404 when none is set.
+`upload.documents_directory` must exist and be writable; the path is joined with exactly one slash.
+
 ### Application Bootstrap Pattern
 
 ```php
