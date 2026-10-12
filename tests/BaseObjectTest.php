@@ -420,6 +420,56 @@ class BaseObjectTest extends TestCase
 		$this->assertFalse($row->isLoaded());
 	}
 
+	/** @test */
+	public function orm_load_returns_null_for_a_missing_row_and_load_or_fail_throws()
+	{
+		$row = $this->newDummy('load-me');
+		$row->store();
+		$id = $row->getIdVal();
+
+		$loaded = DummyTable::load($id);
+		$this->assertInstanceOf(DummyTable::class, $loaded);
+		$this->assertSame('load-me', $loaded->getUniqueFieldVal());
+		$this->assertSame($loaded->getIdVal(), DummyTable::loadOrFail((string)$id)->getIdVal(), 'a string id is accepted');
+
+		$this->assertNull(DummyTable::load(999999999));
+		$this->assertNull(DummyTable::load(null));
+		$this->assertNull(DummyTable::load(''));
+
+		try {
+			DummyTable::loadOrFail(999999999);
+			$this->fail('expected RecordNotFoundException');
+		} catch (\Laf\Exception\RecordNotFoundException $ex) {
+			$this->assertSame('dummy_table', $ex->getTableName());
+			$this->assertSame(999999999, $ex->getRecordId());
+			$this->assertSame(404, $ex->getCode());
+			$this->assertStringContainsString('dummy_table', $ex->getMessage());
+		}
+	}
+
+	/** @test */
+	public function orm_query_aggregates_pairs_and_contains_run_on_the_engine()
+	{
+		foreach ([['agg-a', 10], ['agg-b', 25], ['agg-C', 5]] as [$unique, $int]) {
+			$this->newDummy($unique)->setIntegerFieldVal($int)->store();
+		}
+		$q = fn () => DummyTable::query()->whereStartsWith('unique_field', 'agg-');
+
+		$this->assertSame(40, (int)$q()->sum('integer_field'));
+		$this->assertSame(5, (int)$q()->min('integer_field'));
+		$this->assertSame(25, (int)$q()->max('integer_field'));
+		$this->assertEqualsWithDelta(13.33, (float)$q()->avg('integer_field'), 0.01);
+		$this->assertNull(DummyTable::query()->where('unique_field', 'no-such-row')->sum('integer_field'));
+
+		$pairs = $q()->orderBy('integer_field', 'DESC')->pairs('unique_field', 'integer_field');
+		$this->assertSame(['agg-b', 'agg-a', 'agg-C'], array_keys($pairs));
+		$this->assertSame(25, (int)$pairs['agg-b']);
+
+		$this->assertCount(1, $q()->whereContains('unique_field', 'c')->get(), 'case-insensitive on both engines');
+		$this->assertCount(0, $q()->whereContains('unique_field', '%')->get(), 'a literal % matches nothing here');
+		$this->assertCount(1, DummyTable::query()->whereContains('integer_field', '25')->whereStartsWith('unique_field', 'agg')->get(), 'numbers are searchable as text');
+	}
+
 	// ── foreign keys ──
 
 	/** @test */

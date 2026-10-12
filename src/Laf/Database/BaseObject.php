@@ -7,6 +7,7 @@ use Laf\Exception\DatabaseException;
 use Laf\Exception\InvalidForeignKeyValue;
 use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
+use Laf\Exception\RecordNotFoundException;
 use Laf\Exception\UniqueFieldDuplicateValueException;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
@@ -73,6 +74,37 @@ class BaseObject implements \JsonSerializable
     public function __construct($id = null)
     {
         $this->recordId = self::normalizeRecordId($id);
+    }
+
+    /**
+     * The record with this key, or null when there is none: `new X($id)` returns an
+     * empty object for a missing row, this makes the miss explicit.
+     * @param int|string|array|null $id
+     * @return static|null
+     */
+    public static function load($id)
+    {
+        if ($id === null || $id === '' || $id === []) {
+            return null;
+        }
+        $object = new static($id);
+        return $object->isLoaded() ? $object : null;
+    }
+
+    /**
+     * The record with this key, or a RecordNotFoundException (pages answer it with a 404).
+     * @param int|string|array|null $id
+     * @return static
+     * @throws RecordNotFoundException
+     */
+    public static function loadOrFail($id)
+    {
+        $object = static::load($id);
+        if ($object === null) {
+            $probe = new static();
+            throw new RecordNotFoundException($probe->hasTable() ? (string)$probe->getTable()->getName() : static::class, $id);
+        }
+        return $object;
     }
 
     /* ------------------------------------------------------------------ */

@@ -74,6 +74,34 @@ class QueryTest extends TestCase
     }
 
     /** @test */
+    public function contains_starts_with_and_ends_with_escape_the_wildcards_and_are_case_insensitive_on_postgres()
+    {
+        $q = $this->query()->whereContains('varchar_field45', '50%_off\\')->whereStartsWith('varchar_field45', 'a', 'OR')->whereEndsWith('integer_field', '7');
+        $this->assertSame(
+            'SELECT * FROM `dummy_table` WHERE `varchar_field45` LIKE :v0 OR `varchar_field45` LIKE :v1 AND `integer_field` LIKE :v2',
+            $q->getSql()
+        );
+        $this->assertSame([':v0' => '%50\\%\\_off\\\\%', ':v1' => 'a%', ':v2' => '%7'], $q->getBindingValues(), '% _ and \\ match literally');
+
+        $pg = $this->query(Identifier::POSTGRES)->whereContains('integer_field', '12');
+        $this->assertSame('SELECT * FROM "dummy_table" WHERE CAST("integer_field" AS TEXT) ILIKE :v0', $pg->getSql());
+        $this->assertSame('a\\%b\\_c\\\\d', Query::escapeLike('a%b_c\\d'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->query()->whereContains('no_such_column', 'x');
+    }
+
+    /** @test */
+    public function aggregates_build_from_the_conditions_and_reject_unknown_functions()
+    {
+        $q = $this->query(Identifier::POSTGRES)->where('bool_field', true)->orderBy('integer_field')->limit(5);
+        $this->assertSame('SELECT SUM("decimal_field") FROM "dummy_table" WHERE "bool_field" = :v0', $q->getAggregateSql('sum', 'decimal_field'));
+        $this->assertSame('SELECT MAX(`integer_field`) FROM `dummy_table`', $this->query()->getAggregateSql('MAX', 'integer_field'));
+        $this->expectException(\InvalidArgumentException::class);
+        $this->query()->getAggregateSql('GROUP_CONCAT', 'integer_field');
+    }
+
+    /** @test */
     public function when_applies_the_callback_only_for_a_truthy_condition()
     {
         $search = '';

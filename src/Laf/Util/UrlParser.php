@@ -200,10 +200,11 @@ class UrlParser
     /**
      * Redirects to the view page of the current module and submodule, for $id or the route's id.
      * @param int|string|null $id
+     * @param bool $terminate false sends the Location header and returns (tests, embedded runtimes); true exits
      */
-    public static function redirectToViewPage(int|string|null $id = null): void
+    public static function redirectToViewPage(int|string|null $id = null, bool $terminate = true): void
     {
-        self::redirect(static::getViewLink($id));
+        self::redirect(static::getViewLink($id), $terminate);
     }
 
     /** @param int|string|null $id a number or a UUID; anything else means the route's own id */
@@ -215,9 +216,9 @@ class UrlParser
     /**
      * Redirects to the list page of the current module and submodule.
      */
-    public static function redirectToListPage(): void
+    public static function redirectToListPage(bool $terminate = true): void
     {
-        self::redirect(static::getListLink());
+        self::redirect(static::getListLink(), $terminate);
     }
 
     public static function getListLink(): string
@@ -283,9 +284,16 @@ class UrlParser
         return null;
     }
 
-    private static function redirect(string $location): void
+    /**
+     * Location header (plus a 302 status when nothing was sent yet); exits unless $terminate is false
+     */
+    private static function redirect(string $location, bool $terminate = true): void
     {
-        header('Location: ' . $location);
-        exit;
+        if (!headers_sent()) {
+            header('Location: ' . $location, true, 302);
+        }
+        if ($terminate) {
+            exit;
+        }
     }
 }

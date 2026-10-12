@@ -22,6 +22,16 @@ junction grids link to the other table's own page through `PageGenerator::module
 Of the smaller items the pretty-URL boolean, the Locale docblock, the `object_list` base-table filter, the leaf
 `find()` template and `json_validate()` are done; the unique key on `object_list` is open.
 
+Second quick-win pass the same day (D1 stays: the user confirmed that `record_status` id 0 is the deleted status
+by convention, so the applications must carry that row): M5 `Query::whereContains()` / `whereStartsWith()` /
+`whereEndsWith()` with escaping and `ILIKE` on PostgreSQL; the scalar half of F2 (`sum()`, `min()`, `max()`,
+`avg()`, `pairs()`; `paginate()`, `cursor()`, `groupBy()` still open); X4 `load()` / `loadOrFail()` with
+`RecordNotFoundException` (display value and `firstOrCreate()` open); U3 `Locale::formatNumber()` / `formatDate()`
+/ `formatDateTime()` / `formatTime()` (view-mode use behind a flag still open); the redirect terminate flag from the
+fact-check; packaging: composer `scripts`, `branch-alias`, `suggest`, `.gitattributes` export-ignore (changelog,
+tag and the Monolog move still open). U1 (errors in inactive tabs) was looked at and needs draw-time traversal of
+the component tree, so it is not a quick win.
+
 | # | Defect | Evidence | Effect |
 |---|---|---|---|
 | D1 | `softDelete()` writes `record_status_id = 0` unconditionally | `BaseObject.php:923`; asm `RecordStatus::DELETED = 5`, its `record_status` table holds ids 1-7 (migration 2020-01-19), asm calls `softDelete()` in 128 files and has a foreign key on the column in 5 tables; routerarena uses `DELETED = 0` | On asm's FK-constrained tables `setFieldValue()` throws `InvalidForeignKeyValue` (`BaseObject.php:153-157`); on the others a status asm never treats as deleted is written. Same code in asm's vendor copy. |

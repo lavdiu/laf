@@ -199,7 +199,13 @@ Generated pages use switch statements to route actions.
 `UrlParser::getId()` is an int, a lower-cased UUID or null; `getRawId()` is the segment as written. Link builders
 (`getViewLink($id)`, `getUpdateLink($id)`, `getDeleteLink($id)`, `getListLink()`, `getNewLink()`, generic
 `getLink($action, $id, $withId)`) accept a number or a UUID and fall back to the route's id; module and submodule are
-URL-encoded. `UrlParser::reset()` re-reads the request (tests, CLI).
+URL-encoded. `UrlParser::reset()` re-reads the request (tests, CLI). `redirectToViewPage($id)` / `redirectToListPage()`
+send a 302 Location header and exit; pass `false` as the last argument to return instead (tests, embedded runtimes).
+
+`Laf\Util\Locale` reads the `locale.*` settings: `dateFormat()` / `dateTimeFormat()` / `timeFormat()` / `language()`,
+the separators, `parseDate()` / `parseNumber()` for typed input, and for display `formatNumber($value, $decimals = 2,
+$empty = '')` ("1,234,567.50", or with the configured separators), `formatDate()`, `formatDateTime()`, `formatTime()`
+(ISO stored values, DateTime objects or display strings; null, '' and invalid values give `$empty`).
 
 #### 5. Stored files (`src/Laf/Filesystem/Document.php`)
 
@@ -252,7 +258,9 @@ $customer->setEmailVal('john@example.com');
 $customer->store(); // Auto-determines insert vs update
 
 // Read
-$customer = new Customer(123); // Constructor auto-loads record ID 123
+$customer = new Customer(123); // Constructor auto-loads record ID 123 (empty object when the row is missing: isLoaded())
+$customer = Customer::load(123);       // null when the row is missing
+$customer = Customer::loadOrFail(123); // Laf\Exception\RecordNotFoundException (code 404, getTableName(), getRecordId())
 
 // Query
 $customers = Customer::find(['city' => 'New York']);
@@ -271,7 +279,11 @@ $results = Customer::query()
     ->get();                             // Customer[] from one SELECT; also first(), arrays(), column(), count(), exists(), delete()
 ```
 Conditions are joined flat in the order given, so an `orWhere()` outside a `whereGroup()` / `orWhereGroup()` applies
-to everything before it (`a AND b OR c`); group the alternatives.
+to everything before it (`a AND b OR c`); group the alternatives. `whereContains()` / `whereStartsWith()` /
+`whereEndsWith()` escape `%`, `_` and `\` and are case-insensitive on both engines (`CAST(col AS TEXT) ILIKE` on
+PostgreSQL, so numbers are searchable); `where($f, 'LIKE', $pattern)` stays raw. Aggregates `sum()`, `min()`, `max()`,
+`avg()` return the driver's value (a numeric string for DECIMAL, null when nothing matches; `getAggregateSql()` shows
+the statement); `pairs('id', 'name')` gives key => value for select options.
 
 **Write path**: `store()` = `insert()` when `isNew()` else `update()` (only changed fields; nothing changed = nothing written).
 Unset nullable columns are left out of the INSERT so database defaults apply (`reload()` reads them back). `created_on/by`
