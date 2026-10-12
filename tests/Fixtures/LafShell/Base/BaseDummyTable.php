@@ -887,16 +887,14 @@ class BaseDummyTable extends Database\BaseObject
 	}
 
 	/**
-	 * Get DummyTable Object (empty when the key is not set)
+	 * Get DummyTable Object (empty when the key is not set; loaded once per key value, $fresh reloads)
 	 * @return \LafShell\DummyTable
 	 */
-	public function getParentIdObj()
+	public function getParentIdObj(bool $fresh = false)
 	{
-		$value = $this->getParentIdVal();
-		if ($value !== null && $value !== '') {
-			return new \LafShell\DummyTable($value);
-		}
-		return new \LafShell\DummyTable();
+		/** @var \LafShell\DummyTable $object */
+		$object = $this->relatedObject(\LafShell\DummyTable::class, "parent_id", $fresh);
+		return $object;
 	}
 
 	/**

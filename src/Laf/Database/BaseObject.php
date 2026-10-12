@@ -107,6 +107,31 @@ class BaseObject implements \JsonSerializable
         return $object;
     }
 
+    /** @var array<string, array{0: string, 1: BaseObject}> field name => [key value, loaded object] */
+    private array $relatedObjects = [];
+
+    /**
+     * The object behind a foreign-key column, loaded once per key value: the generated
+     * getXxxObj() getters call this, so reading $order->getCustomerIdObj() in a loop
+     * runs one SELECT per order, not one per call. An empty key gives a new empty object
+     * (never cached). $fresh reloads and replaces the cached object.
+     * @param class-string<BaseObject> $class
+     */
+    protected function relatedObject(string $class, string $fieldName, bool $fresh = false): BaseObject
+    {
+        $value = $this->getFieldValue($fieldName);
+        if ($value === null || $value === '') {
+            return new $class();
+        }
+        $key = is_scalar($value) ? (string)$value : (string)json_encode($value);
+        if (!$fresh && isset($this->relatedObjects[$fieldName]) && $this->relatedObjects[$fieldName][0] === $key) {
+            return $this->relatedObjects[$fieldName][1];
+        }
+        $object = new $class($value);
+        $this->relatedObjects[$fieldName] = [$key, $object];
+        return $object;
+    }
+
     /* ------------------------------------------------------------------ */
     /* table and metadata                                                  */
     /* ------------------------------------------------------------------ */
@@ -588,6 +613,7 @@ class BaseObject implements \JsonSerializable
         $this->recordSelected = false;
         $this->affectedRows = 0;
         $this->lastSql = null;
+        $this->relatedObjects = [];
         return $this;
     }
 

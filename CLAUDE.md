@@ -60,7 +60,10 @@ drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","se
 "tab":"Pricing","order":20,"element":"TextArea"}}` (see `Laf\Generator\ColumnComment`; `form` lands in
 `Field::setFormOptions()` and is read by `FormLayout::auto()`). Generated pages get the form from
 `$obj->getForm($drawMode)` (laid out by the model, see Forms), one related-records tab per foreign key column that
-points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, and delete links
+points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, flash messages
+through `Laf\UI\Flash` (`Flash::success()` / `error()` / `warning()` / `info()` / `html()` queue in the session, or for the
+request without one; `Flash::drain()` gives dismissible, escaped `Alert`s once and also consumes the legacy
+`$_SESSION['flash_message']` / `['flash_type']` keys), and delete links
 carrying the form's CSRF token (`Form::withCsrfToken()` / `isValidCsrfToken()`; pretty-URL rewrites must keep the
 query string). A related tab's rows belong to the other table, so its View / Update buttons go to that table's page
 (no Delete there: config `module_for_table` maps table => module, or a callable; default = the table name) while the
@@ -283,7 +286,11 @@ to everything before it (`a AND b OR c`); group the alternatives. `whereContains
 `whereEndsWith()` escape `%`, `_` and `\` and are case-insensitive on both engines (`CAST(col AS TEXT) ILIKE` on
 PostgreSQL, so numbers are searchable); `where($f, 'LIKE', $pattern)` stays raw. Aggregates `sum()`, `min()`, `max()`,
 `avg()` return the driver's value (a numeric string for DECIMAL, null when nothing matches; `getAggregateSql()` shows
-the statement); `pairs('id', 'name')` gives key => value for select options.
+the statement); `pairs('id', 'name')` gives key => value for select options. `paginate($page, 25)` returns a
+`Laf\Database\Pagination` (`items`, `total`, `page`, `perPage`, `lastPage`, `from`, `to`, `hasMore()`, countable,
+iterable, JSON-serialisable; a page past the end is empty), `cursor()` yields one object (or array) at a time,
+`chunk(1000, fn (array $rows, int $batch) => ...)` hands out batches in the query's order (give an ORDER BY on a
+unique column; the callback returns false to stop).
 
 **Write path**: `store()` = `insert()` when `isNew()` else `update()` (only changed fields; nothing changed = nothing written).
 Unset nullable columns are left out of the INSERT so database defaults apply (`reload()` reads them back). `created_on/by`
@@ -323,7 +330,9 @@ lay out themselves are unaffected.
 Forms: every field element comes from `Field::getFormElement()` (`FormElementFactory::create()`); inputs render Bootstrap 5
 markup and never change their own state when drawn; a field value change is mirrored into its element, so a form drawn
 after a submission shows what was submitted. A form reads only the request of its own method (POST by default, so a GET
-submission is ignored) or the arrays given to `setRequest($data, $files)`. `processForm()` = `detectSubmission()` + CSRF
+submission is ignored) or the arrays given to `setRequest($data, $files)`; `buildRequest(['name' => 'ACME'], DrawMode::INSERT)`
+produces such an array with the markers, the CSRF token and the signed field list (tests, imports, APIs that reuse
+`processForm()`). `processForm()` = `detectSubmission()` + CSRF
 (one token per session and form, `CsrfTokenException`) + `applySubmittedValues()` + `validate()` (opt-out
 `setValidateOnSubmit(false)`) + insert/update; a write refused for a missing required or a duplicate unique value is also a
 `FormValidationException` (message on the field, `getPrevious()` = the original exception). The drawn form posts a signed
@@ -348,7 +357,8 @@ optional flags.
 Generated classes include methods to traverse relationships:
 ```php
 $order = new Order(123);
-$customer = $order->getCustomerIdObj(); // Returns Customer object
+$customer = $order->getCustomerIdObj(); // Returns Customer object, loaded once per key value (getCustomerIdObj(true) reloads)
+                                        // through BaseObject::relatedObject(); an empty key gives an empty object
 echo $customer->getNameVal();
 ```
 
@@ -379,6 +389,8 @@ The `Settings` singleton stores all configuration. Common keys:
 - Readers: `Settings::get($key)` throws `MissingConfigParamException`; `has()`, `getBool()`, `getString()`, `getInt()` take a
   default. `Settings::load([...])` / `loadFromFile('config.php'|'.json'|'.ini')` flatten nested arrays to dotted keys
   (lists stay values); `saveToFile('.php'|'.json')` writes the map back; `remove()`, `getProperties()`.
+  `loadFromEnvironment('LAF_')` maps `LAF_DATABASE__HOSTNAME` to `database.hostname` (lower-cased, `__` = dot, values
+  stay strings); `loadEnvFile('.env')` parses KEY=value lines the same way, the real environment winning over the file.
 
 ## Audit Logging
 

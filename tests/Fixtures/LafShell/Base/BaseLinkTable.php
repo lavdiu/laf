@@ -158,16 +158,14 @@ class BaseLinkTable extends Database\BaseObject
 	}
 
 	/**
-	 * Get DummyTable Object (empty when the key is not set)
+	 * Get DummyTable Object (empty when the key is not set; loaded once per key value, $fresh reloads)
 	 * @return \LafShell\DummyTable
 	 */
-	public function getLeftIdObj()
+	public function getLeftIdObj(bool $fresh = false)
 	{
-		$value = $this->getLeftIdVal();
-		if ($value !== null && $value !== '') {
-			return new \LafShell\DummyTable($value);
-		}
-		return new \LafShell\DummyTable();
+		/** @var \LafShell\DummyTable $object */
+		$object = $this->relatedObject(\LafShell\DummyTable::class, "left_id", $fresh);
+		return $object;
 	}
 
 	/**
@@ -211,16 +209,14 @@ class BaseLinkTable extends Database\BaseObject
 	}
 
 	/**
-	 * Get CodeTable Object (empty when the key is not set)
+	 * Get CodeTable Object (empty when the key is not set; loaded once per key value, $fresh reloads)
 	 * @return \LafShell\CodeTable
 	 */
-	public function getCodeObj()
+	public function getCodeObj(bool $fresh = false)
 	{
-		$value = $this->getCodeVal();
-		if ($value !== null && $value !== '') {
-			return new \LafShell\CodeTable($value);
-		}
-		return new \LafShell\CodeTable();
+		/** @var \LafShell\CodeTable $object */
+		$object = $this->relatedObject(\LafShell\CodeTable::class, "code", $fresh);
+		return $object;
 	}
 
 	/**

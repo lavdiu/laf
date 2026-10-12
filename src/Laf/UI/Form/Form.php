@@ -1182,6 +1182,43 @@ class Form implements ComponentInterface
     }
 
     /**
+     * A request array this form accepts as its own submission, for tests, imports and
+     * APIs that reuse processForm(): the markers, the draw mode, the CSRF token of the
+     * session, the signed list of the given fields and the values under their rot13 names.
+     *   $id = $form->setRequest($form->buildRequest(['name' => 'ACME', 'city' => 'Boston']))->processForm();
+     * Unknown field names are kept as given (posted as-is). The list only names the
+     * fields passed, so a boolean left out is left alone, as for an undrawn element.
+     * @param array<string, mixed> $values column name => submitted value
+     * @param string|null $drawMode DrawMode::INSERT / UPDATE; null = the form's current mode
+     * @return array<string, mixed>
+     */
+    public function buildRequest(array $values, ?string $drawMode = null, bool $withCsrfToken = true): array
+    {
+        $table = $this->getObject()->getTable();
+        $request = [
+            'form_submit' => (string)$table->getName(),
+            $table->getNameRot13() => '1',
+            $this->getName() . '_draw_mode' => $drawMode ?? (string)$this->getDrawMode(),
+        ];
+        $keys = [];
+        foreach ($values as $name => $value) {
+            $name = (string)$name;
+            if ($table->hasField($name)) {
+                $key = $table->getField($name)->getNameRot13();
+                $keys[] = $key;
+                $request[$key] = $value;
+            } else {
+                $request[$name] = $value;
+            }
+        }
+        $request[$this->getFieldListInputName()] = $this->signedFieldList($keys);
+        if ($withCsrfToken && $this->csrfProtection) {
+            $request[$this->getCsrfSessionKey()] = $this->getCsrfToken();
+        }
+        return $request;
+    }
+
+    /**
      * The value of the field-list input for the given rot13 field names: "name,name|hmac",
      * signed with a per-session secret the browser never sees, so a list cannot be forged or
      * moved to another form.

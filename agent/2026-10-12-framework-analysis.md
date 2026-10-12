@@ -32,6 +32,13 @@ fact-check; packaging: composer `scripts`, `branch-alias`, `suggest`, `.gitattri
 tag and the Monolog move still open). U1 (errors in inactive tabs) was looked at and needs draw-time traversal of
 the component tree, so it is not a quick win.
 
+Third pass: the rest of F2 (`paginate()` with `Laf\Database\Pagination`, `cursor()`, `chunk()`; `groupBy()` still
+open), the FK getter memoisation from the fact-check (`BaseObject::relatedObject()`, generated `getXxxObj(bool
+$fresh)`), U4 flash messages (`Laf\UI\Flash`, generated pages use it, legacy session keys still read), X8 the
+environment half (`Settings::loadFromEnvironment()` / `loadEnvFile()`; the database provider is open), X5
+`Form::buildRequest()` (the test base class is open). The exception marker interface (X10) was dropped as lowest
+value.
+
 | # | Defect | Evidence | Effect |
 |---|---|---|---|
 | D1 | `softDelete()` writes `record_status_id = 0` unconditionally | `BaseObject.php:923`; asm `RecordStatus::DELETED = 5`, its `record_status` table holds ids 1-7 (migration 2020-01-19), asm calls `softDelete()` in 128 files and has a foreign key on the column in 5 tables; routerarena uses `DELETED = 0` | On asm's FK-constrained tables `setFieldValue()` throws `InvalidForeignKeyValue` (`BaseObject.php:153-157`); on the others a status asm never treats as deleted is written. Same code in asm's vendor copy. |

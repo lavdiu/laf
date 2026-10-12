@@ -216,6 +216,77 @@ class Settings
         self::getInstance()->loadFromArray($values, $prefix);
     }
 
+    /**
+     * Settings from environment variables: every variable starting with $prefix becomes a
+     * dotted key, lower-cased, with "__" as the dot: LAF_DATABASE__HOSTNAME -> database.hostname,
+     * LAF_SETTINGS__USE_PRETTY_URL -> settings.use_pretty_url. Values stay strings ("true", "0"):
+     * read flags with getBool() / getInt(). $env defaults to $_ENV merged with getenv().
+     * @param array<string, mixed>|null $env
+     * @return int variables loaded
+     */
+    public static function loadFromEnvironment(string $prefix = 'LAF_', ?array $env = null): int
+    {
+        if ($env === null) {
+            $env = array_merge(getenv() ?: [], $_ENV);
+        }
+        $loaded = 0;
+        foreach ($env as $name => $value) {
+            $name = (string)$name;
+            if ($prefix !== '' && strncmp($name, $prefix, strlen($prefix)) !== 0) {
+                continue;
+            }
+            $key = strtolower(str_replace('__', '.', substr($name, strlen($prefix))));
+            if ($key === '' || !is_scalar($value)) {
+                continue;
+            }
+            self::set($key, (string)$value);
+            $loaded++;
+        }
+        return $loaded;
+    }
+
+    /**
+     * Settings from a .env style file (KEY=value lines, # comments, optional single or double
+     * quotes around the value, \n inside double quotes), mapped like loadFromEnvironment().
+     * Variables already present in the real environment win over the file.
+     * @return int|false variables loaded, false when the file cannot be read
+     */
+    public static function loadEnvFile(string $file, string $prefix = 'LAF_'): int|false
+    {
+        $content = @file_get_contents($file);
+        if ($content === false) {
+            return false;
+        }
+        $values = [];
+        foreach (preg_split('/\r\n|\r|\n/', $content) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
+                continue;
+            }
+            [$name, $value] = explode('=', $line, 2);
+            $name = trim($name);
+            if (strncmp($name, 'export ', 7) === 0) {
+                $name = trim(substr($name, 7));
+            }
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+                continue;
+            }
+            $value = trim($value);
+            if ($value !== '' && ($value[0] === '"' || $value[0] === "'") && strlen($value) >= 2 && substr($value, -1) === $value[0]) {
+                $quote = $value[0];
+                $value = substr($value, 1, -1);
+                if ($quote === '"') {
+                    $value = str_replace(['\\n', '\\"'], ["\n", '"'], $value);
+                }
+            } else {
+                $value = trim((string)preg_replace('/\s+#.*$/', '', $value));
+            }
+            $real = getenv($name);
+            $values[$name] = $real !== false ? $real : ($_ENV[$name] ?? $value);
+        }
+        return self::loadFromEnvironment($prefix, $values);
+    }
+
     /** @return mixed the file's content: an array for a valid settings file */
     private static function readFile(string $file): mixed
     {
