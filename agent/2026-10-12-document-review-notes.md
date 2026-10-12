@@ -20,6 +20,7 @@ Review of `src/Laf/Filesystem/Document.php` on `improvements1`, 2026-10-12: the 
 | D7 | `handleRequest()` loaded the whole file into memory, sent fixed 2030 `Expires` / `Pragma: cache` / 2016 `Last-Modified` headers, an unquoted `Content-Disposition` named after the random stored name, and redirected to the bare Settings key `404` (an exception when unset) | `readfile()` streaming; `Content-Type` (validated, else octet-stream), `Content-Length`, real `Last-Modified`, `ETag` with 304 on `If-None-Match` / `If-Modified-Since`, `Cache-Control: private, max-age=upload.cache_max_age`, RFC 6266 `Content-Disposition` with the original name (ASCII fallback + `filename*`); not found → `upload.not_found_url`, legacy `404` key, `setNotFoundUrl()`, else a 404 response |
 | D8 | `isImage()` hard-coded five types | `upload.image_mime_types` (default adds webp, bmp, avif, svg) |
 | D9 | `$document_id` write-only; a missing model class was a fatal "class not found" | `getId()`, `getModel()`, `recordExists()`; `LogicException` naming `setModelClass()` |
+| D10 | every stored type was served inline with its own `Content-Type` (old code and the first rewrite), so an allowed SVG or HTML upload would run as a page of the site (stored XSS; flagged by the automated commit review) | only raster images, PDF and plain text are sent inline; every other type goes out as an `application/octet-stream` attachment; every file response carries `Content-Security-Policy: sandbox; default-src 'none'` and `X-Content-Type-Options: nosniff` |
 
 # Modernisation
 

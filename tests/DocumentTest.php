@@ -236,6 +236,18 @@ class DocumentTest extends TestCase
         $this->assertContains('Content-Type: application/octet-stream', $headers);
         $this->assertContains('Content-Disposition: attachment; filename="a_full.txt"', $headers, 'no original name: the stored name');
 
+        // active content is never rendered inline: an SVG (or HTML) is forced to an octet-stream attachment
+        $document = new CapturingDocument();
+        $document->getModel()->setFieldValues(['id' => 1, 'file_name' => 'a_full.txt', 'file_name_original' => 'logo.svg', 'mime_type' => 'image/svg+xml']);
+        ob_start();
+        $document->handleRequest('view', false);
+        ob_end_clean();
+        $headers = array_keys($document->headers);
+        $this->assertContains('Content-Type: application/octet-stream', $headers);
+        $this->assertContains('Content-Disposition: attachment; filename="logo.svg"', $headers);
+        $this->assertContains("Content-Security-Policy: sandbox; default-src 'none'", $headers);
+        $this->assertNotContains('Content-Type: image/svg+xml', $headers);
+
         // thumbnail without a thumbnail file = the file itself
         $document = new CapturingDocument();
         $document->getModel()->setFieldValues(['id' => 1, 'file_name' => 'a_full.txt', 'thumbnail_name' => 'a_thumb.txt', 'mime_type' => 'text/plain']);
