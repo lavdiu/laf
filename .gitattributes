@@ -52,3 +52,22 @@
 *.RTF  diff=astextplain
 # command-line launchers must keep LF for the shebang
 bin/* text eol=lf
+
+# Not part of the Composer dist archive (composer require downloads the archive on GitHub)
+/.agents          export-ignore
+/.agy             export-ignore
+/.claude          export-ignore
+/.github          export-ignore
+/.idea            export-ignore
+/.playwright-mcp  export-ignore
+/agent            export-ignore
+/tests            export-ignore
+/var              export-ignore
+/AGENTS.md        export-ignore
+/CLAUDE.md        export-ignore
+/Dockerfile       export-ignore
+/docker-compose.yml export-ignore
+/phpstan.neon     export-ignore
+/phpunit.xml      export-ignore
+/rector.php       export-ignore
+/run-tests.sh     export-ignore

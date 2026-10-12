@@ -148,6 +148,43 @@ final class Query
     }
 
     /**
+     * Rows whose column contains the text: a LIKE with the user's %, _ and \ escaped
+     * so they match literally, case-insensitive on both engines (ILIKE on PostgreSQL,
+     * where the column is cast to text so numbers can be searched too).
+     * where($f, 'LIKE', $pattern) stays the raw, engine-native form.
+     */
+    public function whereContains(string $field, string $text, string $boolean = 'AND'): self
+    {
+        return $this->whereEscapedLike($field, '%' . self::escapeLike($text) . '%', $boolean);
+    }
+
+    public function whereStartsWith(string $field, string $text, string $boolean = 'AND'): self
+    {
+        return $this->whereEscapedLike($field, self::escapeLike($text) . '%', $boolean);
+    }
+
+    public function whereEndsWith(string $field, string $text, string $boolean = 'AND'): self
+    {
+        return $this->whereEscapedLike($field, '%' . self::escapeLike($text), $boolean);
+    }
+
+    /** The text as a LIKE pattern piece: \, % and _ prefixed with the default escape character of both engines */
+    public static function escapeLike(string $text): string
+    {
+        return addcslashes($text, '\\%_');
+    }
+
+    private function whereEscapedLike(string $field, string $pattern, string $boolean): self
+    {
+        $column = $this->quoteColumn($field);
+        $sql = Identifier::isPostgres($this->engine)
+            ? 'CAST(' . $column . ' AS TEXT) ILIKE ' . $this->bind(null, $pattern)
+            : $column . ' LIKE ' . $this->bind(null, $pattern);
+        $this->wheres[] = [$this->boolean($boolean), $sql];
+        return $this;
+    }
+
+    /**
      * A condition written by the developer (never from user input). Placeholders
      * in $sql are bound from $bindings (':name' => value, or ':name' => [value, PDO type]).
      * @param array<string, mixed> $bindings
@@ -295,6 +332,63 @@ final class Query
     {
         $sql = 'SELECT 1 FROM ' . $this->quoteTable() . $this->whereSql() . ' LIMIT 1';
         return $this->run($sql)->fetchColumn() !== false;
+    }
+
+    /**
+     * SUM of a column over the matching rows, as the driver returns it (a numeric
+     * string for DECIMAL columns: keep it a string for money), null when no row matches.
+     * @return int|float|string|null
+     */
+    public function sum(string $field)
+    {
+        return $this->aggregate('SUM', $field);
+    }
+
+    /** @return int|float|string|null */
+    public function min(string $field)
+    {
+        return $this->aggregate('MIN', $field);
+    }
+
+    /** @return int|float|string|null */
+    public function max(string $field)
+    {
+        return $this->aggregate('MAX', $field);
+    }
+
+    /** @return int|float|string|null */
+    public function avg(string $field)
+    {
+        return $this->aggregate('AVG', $field);
+    }
+
+    /** The SELECT an aggregate would run (ORDER BY / LIMIT ignored) */
+    public function getAggregateSql(string $function, string $field): string
+    {
+        $function = strtoupper(trim($function));
+        if (!in_array($function, ['SUM', 'MIN', 'MAX', 'AVG', 'COUNT'], true)) {
+            throw new \InvalidArgumentException(sprintf('Unsupported aggregate "%s"', $function));
+        }
+        return 'SELECT ' . $function . '(' . $this->quoteColumn($field) . ') FROM ' . $this->quoteTable() . $this->whereSql();
+    }
+
+    /** @return mixed what PDO gives for the aggregate: int, numeric string, float or null */
+    private function aggregate(string $function, string $field)
+    {
+        $value = $this->run($this->getAggregateSql($function, $field))->fetchColumn();
+        return $value === false ? null : $value;
+    }
+
+    /**
+     * key column => value column of every matching row, e.g. for a select's options:
+     *   Country::query()->orderBy('name')->pairs('id', 'name')
+     * @return array<int|string, mixed>
+     */
+    public function pairs(string $keyField, string $valueField): array
+    {
+        $single = clone $this;
+        $single->columns = [$this->quoteColumn($keyField), $this->quoteColumn($valueField)];
+        return $this->run($single->getSql())->fetchAll(\PDO::FETCH_KEY_PAIR);
     }
 
     /**

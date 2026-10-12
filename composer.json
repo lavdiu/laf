@@ -27,6 +27,32 @@
   "bin": [
     "bin/laf-generate"
   ],
+  "extra": {
+    "branch-alias": {
+      "dev-master": "1.x-dev"
+    }
+  },
+  "scripts": {
+    "test": "phpunit --testsuite Unit",
+    "test:integration": "phpunit --testsuite Integration",
+    "stan": "phpstan analyse",
+    "rector": "rector process --dry-run",
+    "check": [
+      "@test",
+      "@stan"
+    ]
+  },
+  "scripts-descriptions": {
+    "test": "Unit suite (no database)",
+    "test:integration": "Integration suite (LAF_DB_* environment, see CLAUDE.md)",
+    "stan": "PHPStan level 5 on src/",
+    "rector": "Advisory Rector dry run",
+    "check": "Unit suite and PHPStan"
+  },
+  "suggest": {
+    "ext-bcmath": "Exact DECIMAL rounding and comparison in TypeDecimal (floats otherwise)",
+    "ext-fileinfo": "MIME detection of uploaded documents"
+  },
   "require": {
     "php": ">=8.0",
     "ext-gd": "*",

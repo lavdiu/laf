@@ -84,6 +84,68 @@ class Locale
     }
 
     /**
+     * A number for display with the locale's separators: "1234567.5" -> "1,234,567.50"
+     * (or "1.234.567,50" with ',' / '.' configured). Accepts a canonical numeric string,
+     * an int/float, or a user-typed string (parsed with parseNumber()); null, '' and
+     * non-numbers give $empty. $decimals null keeps the digits the value has.
+     * @param int|float|string|null $value
+     */
+    public static function formatNumber($value, ?int $decimals = 2, string $empty = ''): string
+    {
+        if ($value === null || $value === '') {
+            return $empty;
+        }
+        $canonical = is_int($value) || is_float($value) ? (string)$value : self::parseNumber((string)$value);
+        if ($canonical === null || !is_numeric($canonical)) {
+            return $empty;
+        }
+        if ($decimals === null) {
+            $dot = strpos($canonical, '.');
+            $decimals = $dot === false ? 0 : strlen(rtrim(substr($canonical, $dot + 1), '0'));
+        }
+        return number_format((float)$canonical, $decimals, self::decimalSeparator(), self::thousandsSeparator());
+    }
+
+    /**
+     * A DATE value for display in locale.date.format: '2026-10-12' -> 'October 12, 2026'.
+     * Accepts a DateTimeInterface, an ISO string, or a string already in the display
+     * format; null, '' and unparsable values give $empty.
+     * @param \DateTimeInterface|string|null $value
+     */
+    public static function formatDate($value, string $empty = ''): string
+    {
+        return self::formatTemporal($value, self::dateFormat(), [self::ISO_DATE, self::ISO_DATETIME], $empty);
+    }
+
+    /** A DATETIME value for display in locale.datetime.format (seconds kept when the value has them and the format shows them) */
+    public static function formatDateTime($value, string $empty = ''): string
+    {
+        return self::formatTemporal($value, self::dateTimeFormat(), [self::ISO_DATETIME, self::ISO_DATE], $empty);
+    }
+
+    /** A TIME value for display in locale.time.format: '14:30:00' -> '2:30 PM' */
+    public static function formatTime($value, string $empty = ''): string
+    {
+        return self::formatTemporal($value, self::timeFormat(), [self::ISO_TIME, 'H:i', self::ISO_DATETIME], $empty);
+    }
+
+    /**
+     * @param \DateTimeInterface|string|null $value
+     * @param string[] $isoFormats formats the stored value may have, tried before the display format itself
+     */
+    private static function formatTemporal($value, string $displayFormat, array $isoFormats, string $empty): string
+    {
+        if ($value === null || $value === '') {
+            return $empty;
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format($displayFormat);
+        }
+        $parsed = self::parseDate((string)$value, array_merge($isoFormats, [$displayFormat, self::formatWithSeconds($displayFormat)]));
+        return $parsed === null ? $empty : $parsed->format($displayFormat);
+    }
+
+    /**
      * Parse a string against a list of formats, strictly.
      * Each format is tried with the '!' modifier so unspecified fields are reset to
      * the epoch instead of being filled from the current time, and any parser

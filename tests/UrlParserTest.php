@@ -137,6 +137,16 @@ class UrlParserTest extends TestCase
 	}
 
 	/** @test */
+	public function redirects_can_return_instead_of_exiting()
+	{
+		$_GET['uriRewrite'] = 'admin/users/view/5';
+		UrlParser::reset();
+		UrlParser::redirectToViewPage(5, false);
+		UrlParser::redirectToListPage(false);
+		$this->assertTrue(true, 'both redirects returned without exiting (the header is a no-op in the CLI)');
+	}
+
+	/** @test */
 	public function non_pretty_url_mode()
 	{
 		Settings::set('settings.use_pretty_url', false);
