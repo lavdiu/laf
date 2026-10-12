@@ -977,7 +977,7 @@ class PhpGrid
      */
     protected function isValid(): bool
     {
-        if (strlen($this->getSqlQuery()) < 10) {
+        if (strlen((string)$this->getSqlQuery()) < 10) {
             $this->errorMessage = "Missing SQL Query";
             return false;
         }

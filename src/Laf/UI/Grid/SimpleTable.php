@@ -288,10 +288,7 @@ class SimpleTable implements ComponentInterface
         $sql .= $this->getSqlOrderBySection();
         if ($this->getRowsPerPage() > 0)
             $sql .= " LIMIT {$this->getRowsPerPage()} OFFSET {$this->getRecordsetOffset()}";
-        $this->stmt = $db->query($sql);
-        if ($this->stmt === false) {
-            throw new \Exception($db->getErrorMessage());
-        }
+        $this->stmt = $db->query($sql); // throws the driver's PDOException on failure
 
         $rows = $this->stmt->fetchAll(\PDO::FETCH_ASSOC);
         $columnsFromDb = [];

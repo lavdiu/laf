@@ -224,7 +224,8 @@ The `Settings` singleton stores all configuration. Common keys:
   Optional: `database.charset` (MySQL, default utf8mb4), `database.socket` (MySQL unix socket), `database.persistent`,
   `database.connect_timeout`, `database.options` (PDO attribute => value), `database.dsn` (full override), `database.dsn_extra`
   (e.g. `sslmode=require`), `database.timezone` (session time zone), `database.schema` (PostgreSQL search_path),
-  `database.init_commands` (SQL run after connecting), `database.empty_string_as_null` (default true). `port` and `engine`
+  `database.init_commands` (SQL run after connecting), `database.empty_string_as_null` (default true),
+  `database.reconnect_on_loss` (default true). `port` and `engine`
   default to 3306/mysql; engine accepts mysql, mariadb, postgres, postgresql, pgsql. A second connection reads
   `database.<name>.*` and is reached with `Db::getInstance('<name>')`.
 - `project.package_name`: Root namespace for generated classes
@@ -253,10 +254,18 @@ Requires `audit_log` table: `migrations/create_audit_logs_table.sql` (MySQL) or 
 Connection managed through `Db` (one instance per name, `Db::getInstance()` connects on first use and caches only a
 successful connection). `Db::getAllAssoc/getRowAssoc/getOne/getColumn/getPairs($sql, $params)` bind values by PHP type
 (`int` → PARAM_INT, `bool` → 0/1, `null` → PARAM_NULL, or an explicit `[value, PDO::PARAM_*]` pair); `$db->statement()` is
-the typed prepare+execute every helper uses; `$db->transaction(fn)` is nest-aware. Statement failures are the driver's
+the typed prepare+execute every helper uses; `$db->transaction(fn)` is nest-aware (an inner call runs in a `SAVEPOINT`,
+also when the application opened the transaction on the raw PDO, so an inner failure the outer code catches undoes only the
+inner work). Plain-table writes without a model: `$db->insert($table, $data)`, `insertGetId($table, $data, 'id')`
+(`RETURNING` on PostgreSQL), `update($table, $data, $where)`, `delete($table, $where)` with `$where` as column => value
+(null → `IS NULL`, list → `IN`, empty where refused); `fetchAllKeyed()/getAllKeyed()` key rows by a column;
+`tableExists()/columnExists()/getTableNames()` read `information_schema` on both engines. Statement failures are the driver's
 `PDOException` (recorded in `hasError()/getErrorMessage()` and written to the `SqlErrorLoggerInterface` table when one is
-set); a failed connection is `DbConnectException` (a `PDOException`). `setLogger()` takes a PSR-3 logger (statements at
-debug, failures at error); `enableQueryLog()` keeps every statement with its time.
+set; inside a transaction the entry waits until the transaction ends so it is neither rolled back nor refused); a failed
+connection is `DbConnectException` (a `PDOException`). A lost connection outside a transaction is reopened and the statement
+retried once (`database.reconnect_on_loss`, default true; `Db::isLostConnection($ex)` is the rule). `Identifier::engine()`
+follows the registered default connection, then Settings. `setLogger()` takes a PSR-3 logger (statements at debug,
+failures at error, reconnects at warning); `enableQueryLog()` keeps every statement with its time.
 
 ## File Structure Conventions
 
