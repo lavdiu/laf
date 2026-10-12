@@ -14,7 +14,7 @@ class TextArea extends Text implements FormElementInterface
     {
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $attributes = $this->controlAttributes(['value', 'type', 'max', 'min', 'step', 'pattern', 'inputmode', 'size', 'accept', 'checked', 'multiple']);
+        $attributes = $this->controlAttributes($this->inputOnlyAttributesExcept('placeholder', 'maxlength', 'minlength', 'autocomplete'));
         if (!is_numeric($attributes['rows'] ?? null)) {
             $attributes['rows'] = '5';
         }

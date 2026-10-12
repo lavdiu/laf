@@ -11,6 +11,7 @@ use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
 use Laf\Exception\UniqueFieldDuplicateValueException;
 use Laf\Filesystem\Document;
+use Laf\UI\Component\Link;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Container\Fieldset;
 use Laf\UI\Container\TabContainer;
@@ -38,6 +39,9 @@ use Laf\Util\Util;
  * validate() + insert()/update(). Invalid input raises FormValidationException
  * with every message; the elements then render their messages when the form is
  * drawn again, and the form draws an error summary above them.
+ *
+ * The footer row holds, in order, the reset button, the extra controls added
+ * with addButton() / setCancelLink(), and the submit button.
  */
 class Form implements ComponentInterface
 {
@@ -65,6 +69,9 @@ class Form implements ComponentInterface
 
     protected ?Button $resetButton = null;
 
+    /** @var ComponentInterface[] extra controls drawn between the reset and the submit button */
+    protected array $buttons = [];
+
     protected ?BaseObject $object = null;
 
     protected ?string $action = null;
@@ -91,9 +98,6 @@ class Form implements ComponentInterface
 
     /** Draw the alert with every message above the fields when there are errors */
     protected bool $showErrorSummary = true;
-
-    /** @var string */
-    protected $formRowDisplayMode = FormRowDisplayMode::ROW;
 
     /** @var array<string, string|null> values set by code that override the request */
     protected array $submittedFieldValues = [];
@@ -124,7 +128,7 @@ class Form implements ComponentInterface
     {
         $this->setObject($tableObject);
         $this->setAction($action);
-        $this->restrictToRenderedFields = self::settingFlag('form.restrict_to_rendered_fields');
+        $this->restrictToRenderedFields = Settings::getBool('form.restrict_to_rendered_fields');
 
         $sb = new SubmitButton();
         $sb->setValue('Submit')
@@ -141,9 +145,9 @@ class Form implements ComponentInterface
 
     /**
      * @param bool $hasFiles
-     * @return Form
+     * @return static
      */
-    public function setHasFiles(bool $hasFiles): Form
+    public function setHasFiles(bool $hasFiles): static
     {
         $this->hasFiles = $hasFiles;
         return $this;
@@ -341,7 +345,7 @@ class Form implements ComponentInterface
      * Records a message for a field; its element (when on the form) shows it in update mode.
      * Use FORM_ERROR_KEY for a message that belongs to the form as a whole.
      */
-    public function addError(string $fieldName, string $message): Form
+    public function addError(string $fieldName, string $message): static
     {
         $this->errors[$fieldName][] = $message;
         $element = $this->getFieldElement($fieldName);
@@ -354,7 +358,7 @@ class Form implements ComponentInterface
     /**
      * @param array<string, string[]> $errors field name => messages
      */
-    public function setErrors(array $errors): Form
+    public function setErrors(array $errors): static
     {
         $this->errors = [];
         foreach ($errors as $fieldName => $messages) {
@@ -366,7 +370,7 @@ class Form implements ComponentInterface
         return $this;
     }
 
-    public function clearErrors(): Form
+    public function clearErrors(): static
     {
         $this->errors = [];
         $this->pushErrorsToElements();
@@ -376,7 +380,7 @@ class Form implements ComponentInterface
     /**
      * Validate the submitted fields with Field::validate() before writing (default true)
      */
-    public function setValidateOnSubmit(bool $validateOnSubmit): Form
+    public function setValidateOnSubmit(bool $validateOnSubmit): static
     {
         $this->validateOnSubmit = $validateOnSubmit;
         return $this;
@@ -424,9 +428,9 @@ class Form implements ComponentInterface
 
     /**
      * @param BaseObject $object
-     * @return Form
+     * @return static
      */
-    public function setObject(BaseObject $object): Form
+    public function setObject(BaseObject $object): static
     {
         $this->object = $object;
         $this->setId($object->getTable()->getNameRot13());
@@ -442,7 +446,7 @@ class Form implements ComponentInterface
     /**
      * GET or POST (default); the form reads the request array of this method only
      */
-    public function setMethod(string $method): Form
+    public function setMethod(string $method): static
     {
         $this->method = strtoupper($method) === self::METHOD_GET ? self::METHOD_GET : self::METHOD_POST;
         return $this;
@@ -453,9 +457,9 @@ class Form implements ComponentInterface
      * @param string $fieldName
      * @return bool
      */
-    public function fieldIsSubmitted($fieldName): bool
+    public function fieldIsSubmitted(string $fieldName): bool
     {
-        return array_key_exists(Util::scrambleFieldOrTableName((string)$fieldName), $this->getRequestData());
+        return array_key_exists(Util::scrambleFieldOrTableName($fieldName), $this->getRequestData());
     }
 
     /**
@@ -474,31 +478,31 @@ class Form implements ComponentInterface
      * @param TabContent $tab
      * @return $this
      */
-    public function addTab(TabContent $tab): Form
+    public function addTab(TabContent $tab): static
     {
         $this->tabs[] = $tab;
         return $this;
     }
 
-    public function showSubmitButton(): Form
+    public function showSubmitButton(): static
     {
         $this->showSubmitButton = true;
         return $this;
     }
 
-    public function hideSubmitButton(): Form
+    public function hideSubmitButton(): static
     {
         $this->showSubmitButton = false;
         return $this;
     }
 
-    public function showNavButtons(): Form
+    public function showNavButtons(): static
     {
         $this->showNavButtons = true;
         return $this;
     }
 
-    public function hideNavButtons(): Form
+    public function hideNavButtons(): static
     {
         $this->showNavButtons = false;
         return $this;
@@ -512,9 +516,63 @@ class Form implements ComponentInterface
     /**
      * A reset button drawn before the submit button
      */
-    public function setResetButton(?Button $resetButton): Form
+    public function setResetButton(?Button $resetButton): static
     {
         $this->resetButton = $resetButton;
+        return $this;
+    }
+
+    /**
+     * An extra control in the footer row, drawn between the reset and the submit button: a
+     * Link styled as a button, a second SubmitButton with its own name ("save and new"), ...
+     * A Button is drawn bare (setWrapInDiv(false)), the footer row is not a form row.
+     */
+    public function addButton(ComponentInterface $button): static
+    {
+        if ($button instanceof Button) {
+            $button->setWrapInDiv(false);
+        }
+        $this->buttons[] = $button;
+        return $this;
+    }
+
+    /**
+     * @return ComponentInterface[]
+     */
+    public function getButtons(): array
+    {
+        return $this->buttons;
+    }
+
+    /**
+     * @param ComponentInterface[] $buttons
+     */
+    public function setButtons(array $buttons): static
+    {
+        $this->buttons = [];
+        foreach ($buttons as $button) {
+            $this->addButton($button);
+        }
+        return $this;
+    }
+
+    /**
+     * A "Cancel" link styled as a button in the footer row (added through addButton())
+     * @param string[] $cssClasses
+     */
+    public function setCancelLink(string $href, string $label = 'Cancel', array $cssClasses = ['btn', 'btn-outline-secondary']): static
+    {
+        return $this->addButton(new Link($label, $href, '', [], $cssClasses));
+    }
+
+    /**
+     * The caption of the submit button (same as getSubmitButton()->setValue())
+     */
+    public function setSubmitButtonLabel(string $label): static
+    {
+        if ($this->submitButton !== null) {
+            $this->submitButton->setValue($label);
+        }
         return $this;
     }
 
@@ -614,6 +672,9 @@ class Form implements ComponentInterface
         if ($this->getResetButton() !== null) {
             $buttons .= $this->getResetButton()->draw();
         }
+        foreach ($this->buttons as $button) {
+            $buttons .= (string)$button->draw();
+        }
         if ($this->isShowSubmitButton() && $this->getSubmitButton() !== null) {
             $this->getSubmitButton()->setName($this->getName() . '_submit');
             $buttons .= $this->getSubmitButton()->draw();
@@ -624,8 +685,8 @@ class Form implements ComponentInterface
                 <div class='col text-end'>
                     {$prevNextBtn}
                     {$buttons}
-                    <input type='hidden' name='form_submit' id='form_submit' value='{$tableName}'/>
-                    <input type='hidden' name='{$tableName}' id='{$tableName}' value='1' />
+                    <input type='hidden' name='form_submit' id='{$id}_form_submit' value='{$tableName}'/>
+                    <input type='hidden' name='{$tableName}' id='{$id}_marker' value='1' />
                 </div>
             </div> <!-- footer -->
             ";
@@ -689,7 +750,7 @@ class Form implements ComponentInterface
         return (string)$this->id;
     }
 
-    public function setId(string $id): Form
+    public function setId(string $id): static
     {
         $this->id = $id;
         return $this;
@@ -716,7 +777,7 @@ class Form implements ComponentInterface
      * @deprecated see addTab()
      * @param TabContent[] $tabs
      */
-    public function setTabs(array $tabs): Form
+    public function setTabs(array $tabs): static
     {
         $this->tabs = $tabs;
         return $this;
@@ -727,7 +788,7 @@ class Form implements ComponentInterface
         return (string)$this->name;
     }
 
-    public function setName(string $name): Form
+    public function setName(string $name): static
     {
         $this->name = $name;
         return $this;
@@ -742,9 +803,9 @@ class Form implements ComponentInterface
      * Sets if the Input label and input should be displayed in the same row, or in new line.
      * Acceptable values are FormRowDisplayMode::INLINE ("") and FormRowDisplayMode::ROW ("row")
      * @param string $formRowDisplayMode
-     * @return Form
+     * @return static
      */
-    public function setFormRowDisplayMode(string $formRowDisplayMode): Form
+    public function setFormRowDisplayMode(string $formRowDisplayMode): static
     {
         $this->formRowDisplayMode = $formRowDisplayMode;
         return $this;
@@ -771,9 +832,9 @@ class Form implements ComponentInterface
     /**
      * The action URL; empty falls back to the current request URI
      * @param string|null $action
-     * @return Form
+     * @return static
      */
-    public function setAction(?string $action): Form
+    public function setAction(?string $action): static
     {
         if (mb_strlen($action ?? '') > 0) {
             $this->action = $action;
@@ -790,7 +851,7 @@ class Form implements ComponentInterface
         return $this->autocomplete;
     }
 
-    public function setAutocomplete(string $autocomplete): Form
+    public function setAutocomplete(string $autocomplete): static
     {
         $this->autocomplete = $autocomplete;
         return $this;
@@ -804,9 +865,9 @@ class Form implements ComponentInterface
     /**
      * Prevent automatic form validation by the browser
      * @param bool $validate
-     * @return Form
+     * @return static
      */
-    public function setValidate(bool $validate): Form
+    public function setValidate(bool $validate): static
     {
         $this->validate = $validate;
         return $this;
@@ -827,7 +888,7 @@ class Form implements ComponentInterface
         return $this->submitButton;
     }
 
-    public function setSubmitButton(Button $submitButton): Form
+    public function setSubmitButton(Button $submitButton): static
     {
         $this->submitButton = $submitButton;
         return $this;
@@ -859,9 +920,9 @@ class Form implements ComponentInterface
      * Set a value of a field before the form is processed; it overrides whatever the request carries.
      * @param string $fieldName
      * @param mixed $value string, int, float, bool or null
-     * @return Form
+     * @return static
      */
-    public function setSubmittedFieldValue(string $fieldName, $value): Form
+    public function setSubmittedFieldValue(string $fieldName, $value): static
     {
         if (is_bool($value)) {
             $value = $value ? '1' : '0';
@@ -950,7 +1011,7 @@ class Form implements ComponentInterface
      * @return $this
      * @see FormLayout for sections, tabs, columns and per-mode exclusions (prefer it for new code)
      */
-    public function addFieldsFromObject(?array $fields = null): self
+    public function addFieldsFromObject(?array $fields = null): static
     {
         $fields = $fields ?? $this->object->getTable()->getFields();
 
@@ -984,7 +1045,7 @@ class Form implements ComponentInterface
      * @return $this
      * @see FormLayout::fieldset() for a layout the model can declare
      */
-    public function groupFields(string $groupLabel, array $fieldNames): self
+    public function groupFields(string $groupLabel, array $fieldNames): static
     {
         $this->fieldGroups[$groupLabel] = $fieldNames;
         return $this;
@@ -997,7 +1058,7 @@ class Form implements ComponentInterface
      * @param callable $condition (Form $form): bool
      * @return $this
      */
-    public function setFieldVisibilityCondition(string $fieldName, callable $condition): self
+    public function setFieldVisibilityCondition(string $fieldName, callable $condition): static
     {
         $this->fieldVisibilityConditions[$fieldName] = $condition;
         return $this;
@@ -1019,7 +1080,7 @@ class Form implements ComponentInterface
     /**
      * Enable or disable CSRF protection
      */
-    public function setCsrfProtection(bool $enabled): Form
+    public function setCsrfProtection(bool $enabled): static
     {
         $this->csrfProtection = $enabled;
         return $this;
@@ -1394,18 +1455,5 @@ class Form implements ComponentInterface
         if (!isset($_SESSION)) {
             $_SESSION = [];
         }
-    }
-
-    /**
-     * A boolean Settings flag, false when the key is missing
-     */
-    private static function settingFlag(string $key): bool
-    {
-        try {
-            $value = Settings::get($key);
-        } catch (\Throwable $ex) {
-            return false;
-        }
-        return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) === true;
     }
 }

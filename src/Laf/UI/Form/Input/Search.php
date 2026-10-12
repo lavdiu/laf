@@ -5,6 +5,9 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
+/**
+ * <input type="search">: a text input the browser styles for searching (clear button).
+ */
 class Search extends Text implements FormElementInterface
 {
     public function drawUpdateMode(): string

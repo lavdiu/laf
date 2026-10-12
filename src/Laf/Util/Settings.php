@@ -4,10 +4,16 @@ namespace Laf\Util;
 
 use Laf\Exception\MissingConfigParamException;
 
+/**
+ * Process-wide configuration: a flat key => value map (keys like 'database.hostname').
+ *
+ * get() throws MissingConfigParamException for an unknown key; has() and getBool()
+ * are the forgiving readers for optional keys.
+ */
 class Settings
 {
     /**
-     * @var Settings
+     * @var Settings|null
      */
     private static $instance;
     /**
@@ -29,7 +35,7 @@ class Settings
      */
     public static function getInstance(): Settings
     {
-        if (!self::$instance) {
+        if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
@@ -101,6 +107,33 @@ class Settings
         return self::getInstance()->getProperty($key);
     }
 
+    /**
+     * Whether a key is configured (a null value counts as configured)
+     */
+    public static function has(string $key): bool
+    {
+        return self::getInstance()->propertyExists($key);
+    }
+
+    /**
+     * A boolean setting: true/false, 1/0, "1"/"0", "yes"/"no", "on"/"off" are accepted;
+     * $default when the key is missing or the value is not a recognised boolean.
+     */
+    public static function getBool(string $key, bool $default = false): bool
+    {
+        if (!self::has($key)) {
+            return $default;
+        }
+        $value = self::getInstance()->getProperty($key);
+        if (is_bool($value)) {
+            return $value;
+        }
+        if ($value === null || is_array($value) || is_object($value)) {
+            return $default;
+        }
+        $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+        return $parsed ?? $default;
+    }
 
     /**
      * @param string $key

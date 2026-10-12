@@ -16,7 +16,7 @@ class Hidden extends Text implements FormElementInterface
         $this->setType(InputType::Hidden);
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $attributes = $this->controlAttributes(['required', 'placeholder', 'maxlength', 'minlength', 'pattern', 'inputmode', 'step', 'min', 'max', 'hidden', 'autocomplete', 'checked', 'accept', 'multiple', 'size']);
+        $attributes = $this->controlAttributes(array_merge($this->inputOnlyAttributesExcept('type', 'value'), ['required', 'hidden']));
         $classes = array_values(array_diff($this->getCssClasses(), ['form-control']));
 
         return "

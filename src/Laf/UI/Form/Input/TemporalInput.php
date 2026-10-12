@@ -29,7 +29,7 @@ abstract class TemporalInput extends Text implements FormElementInterface
     /**
      * Render the browser's native control (true), the text + picker input (false), or follow Settings (null)
      */
-    public function setNativeInput(?bool $native): self
+    public function setNativeInput(?bool $native): static
     {
         $this->nativeInput = $native;
         return $this;
@@ -40,7 +40,7 @@ abstract class TemporalInput extends Text implements FormElementInterface
         if ($this->nativeInput !== null) {
             return $this->nativeInput;
         }
-        return self::nativeInputsByDefault();
+        return Settings::getBool('form.native_date_inputs');
     }
 
     /** CSS class the picker JavaScript binds to */
@@ -123,15 +123,5 @@ abstract class TemporalInput extends Text implements FormElementInterface
     protected static function withSeconds(string $format, \DateTimeInterface $dt): string
     {
         return $dt->format('s') === '00' ? $format : Locale::formatWithSeconds($format);
-    }
-
-    private static function nativeInputsByDefault(): bool
-    {
-        try {
-            $value = Settings::get('form.native_date_inputs');
-        } catch (\Throwable $ex) {
-            return false;
-        }
-        return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) === true;
     }
 }

@@ -5,6 +5,9 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
+/**
+ * <input type="color">: the value is a "#rrggbb" string.
+ */
 class Color extends Text implements FormElementInterface
 {
     public function drawUpdateMode(): string
