@@ -36,19 +36,22 @@ Both write their caches to `var/` (ignored).
 
 ### Code Generation
 ```bash
-# Generate model classes from database schema: copy sample_files/class_generator.php into the application
-# (asm and routerarena keep it as app/util/generate_classes.php) and run it
-php app/util/generate_classes.php
-
-# This creates/updates:
-# - Base/Base[TableName].php (auto-generated, overwritten on regeneration)
-# - [TableName].php (user customization layer, created once)
-# - CRUD page files (.page extension)
+# vendor/bin/laf-generate (Laf\Generator\Cli): --bootstrap is the application's own configuration file
+# (Settings database.* + project.package_name; or the LAF_BOOTSTRAP variable), --lib the folder that receives
+# {Namespace}/Base/*.php (rewritten every run), {Namespace}/*.php (created once, --force overwrites),
+# generator_cache/pages/*.page (rewritten) and, with --install-pages, pages/*.page for tables that have none yet
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --lib=app/lib --install-pages
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --tables=customer,inv_* --classes   # patterns with *
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --list                              # dry run, writes nothing
+# --exclude=x,y (default audit_log, sql_error, object_list, phinx_*; --exclude= keeps all), --pages, --labels=FILE
+# (.php/.json page labels), --strict (exit 1 on warnings), --quiet; exit 2 = usage or configuration error.
+# asm and routerarena still run their own app/util/generate_classes.php (DatabaseGenerator from PHP, same result)
 ```
 `new DatabaseGenerator($libraryPath)` reads the namespace from `project.package_name`; `setTables([...])` /
 `setExcludedTables(['audit_log', 'phinx_*'])` select tables (base tables of the current database/schema, no views),
-`setLabelTranslations()`, `setOutput(callable)`, `setGenerateAutoloader(false)` (Composer apps), `getGeneratedFiles()`,
-`getWarnings()`. Per table: `ClassGenerator` / `PageGenerator` (`new X(new Table($name), $config)`, optional injected
+`setLabelTranslations()`, `setOutput(callable)`, `setGenerateAutoloader(false)` (Composer apps), `setInstallMissingPages(true)`
+/ `installMissingPages()` (copy the page of a table that has none in `live_page_dir`), `setForceRewriteClasses()`, `plan()`
+(what a run would write), `getGeneratedFiles()`, `getInstalledPages()`, `getWarnings()`. Per table: `ClassGenerator` / `PageGenerator` (`new X(new Table($name), $config)`, optional injected
 `TableInspectorInterface`; `TableInspectorFactory::create($table)` picks `MysqlTableInspector` or `PostgresTableInspector`). Column metadata is the
 same shape on both engines (upper-case information_schema keys + `FOREIGN_KEY`; PostgreSQL reads the current schema,
 `COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`). JSON column comments
@@ -390,10 +393,11 @@ examples/             # Usage examples
 
 ## Example Application
 
-No example application is checked in. `sample_files/` holds the bootstrap pieces (`config.php`, `database.php`,
-`constants.php`, `functions.php`, `class_generator.php`, `test.php`, `grid-callback-examples.md`),
-`examples/audit_logging_example.php` walks through the audit log, and `sample_project/` (gitignored) is a copy of
-the production ASM ERP built on LAF, kept for reference only.
+No example application is checked in. `sample_files/` holds `bootstrap.php` + `settings.php` (one bootstrap for
+web and CLI: Composer autoloader, `Settings::loadFromFile()`, `LAF_DB_*` / `APP_ENV` overrides; `settings.php` lists
+every key LAF reads), `class_generator.php` (DatabaseGenerator from PHP), `inspect_table.php`,
+`populate_table_object_list.php` and the grid callback notes; `examples/audit_logging_example.php` walks through the
+audit log, and `sample_project/` (gitignored) is a copy of the production ASM ERP built on LAF, kept for reference only.
 
 ## Field Types and Validation
 
@@ -419,7 +423,8 @@ Each type provides:
 ## Testing Notes
 
 - PHPUnit 9.6; `phpunit.xml` defines the `Unit` suite (everything under `tests/` except the database tests) and the
-  `Integration` suite (`DbTest`, `BaseObjectTest`, `PhpGridTest`, `GeneratorTest`, `DocumentIntegrationTest`)
+  `Integration` suite (`DbTest`, `BaseObjectTest`, `PhpGridTest`, `GeneratorTest`, `DocumentIntegrationTest`,
+  `GeneratorCliIntegrationTest`)
 - `tests/bootstrap.php` configures Settings from the `LAF_DB_*` environment variables; integration tests skip
   themselves when no connection can be made, and create their own tables (`dummy_table`, `code_table`, `link_table`,
   `status_table`, `audit_log`, `document`)

@@ -50,3 +50,5 @@
 *.PDF  diff=astextplain
 *.rtf  diff=astextplain
 *.RTF  diff=astextplain
+# command-line launchers must keep LF for the shebang
+bin/* text eol=lf

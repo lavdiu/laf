@@ -42,6 +42,16 @@ flatten it to dotted keys.
 
 ### 2. Generate the models and pages
 
+```bash
+# bootstrap.php = the file that configures Settings (see sample_files/bootstrap.php + settings.php)
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --lib=app/lib --install-pages
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --tables=customer,invoice_* --classes   # part of the schema
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --list                                   # dry run
+```
+
+`--help` lists the options (table patterns, `--exclude`, `--pages`, `--force`, `--labels=FILE`, `--strict`,
+`--quiet`). The same from PHP:
+
 ```php
 use Laf\Generator\DatabaseGenerator;
 
@@ -49,6 +59,7 @@ $generator = new DatabaseGenerator(__DIR__ . '/app/lib');       // writes app/li
 $generator
     ->setExcludedTables(['audit_log'])
     ->setGenerateAutoloader(false)                                 // Composer autoloads the package
+    ->setInstallMissingPages(true)                                 // new tables get their page in app/lib/pages/
     ->generateEverything();
 ```
 
@@ -135,8 +146,9 @@ vendor/bin/rector process --dry-run   # advisory only, PHP 8.0 set (rector.php)
 `.github/workflows/ci.yml` runs the unit suite on PHP 8.1 to 8.5, PHPStan, and the integration suite on both
 engines.
 
-`CLAUDE.md` holds the detailed architecture notes; `sample_files/` shows a bootstrap, a generator script and a
-grid.
+`CLAUDE.md` holds the detailed architecture notes; `sample_files/` holds a bootstrap (`bootstrap.php` +
+`settings.php` with every setting LAF reads), the generator from PHP, a table inspector script and the grid
+callback notes.
 
 ## License
 
