@@ -1,0 +1,10 @@
+parameters:
+    level: 5
+    phpVersion: 80000
+    paths:
+        - src
+    excludePaths:
+        # PhpGrid and SimpleTable are not reviewed yet (2026-10-12); analysed separately when they are
+        - src/Laf/UI/Grid
+    tmpDir: var/phpstan
+    treatPhpDocTypesAsCertain: false

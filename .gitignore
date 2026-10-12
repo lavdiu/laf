@@ -4,3 +4,4 @@
 .phpunit.result.cache
 /sample_project/
 /tests/Fixtures/generated/
+/var/

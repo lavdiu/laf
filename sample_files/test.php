@@ -2,13 +2,21 @@
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/config.php';
 
-use Laf\Generator\MysqlTableInspector;
+use Laf\Generator\TableInspectorFactory;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
 
-$ti = new MysqlTableInspector("person");
+/**
+ * Table metadata the generators work from: the factory picks the MySQL or PostgreSQL inspector from
+ * Settings 'database.engine'; both return the same column shape (upper-case information_schema keys
+ * plus FOREIGN_KEY). Models and pages themselves come from DatabaseGenerator (see class_generator.php).
+ */
+$ti = TableInspectorFactory::create('person');
 $ti->inspect();
+foreach ($ti->getColumns() as $column) {
+    echo $column['COLUMN_NAME'], ' ', $column['COLUMN_TYPE'] ?? $column['DATA_TYPE'], $ti->isForeignKeyColumn($column['COLUMN_NAME']) ? ' (FK)' : '', "\n";
+}
 
 $grid = new PhpGrid('business_partner_list');
 $grid->setTitle('business_partner List')
