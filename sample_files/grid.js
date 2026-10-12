@@ -1,1553 +1,1391 @@
-// Ensure a global registry exists
-window.grid = window.grid || {};
+/*
+ * LAF PhpGrid client. Pairs with Laf\UI\Grid\PhpGrid\PhpGrid: draw() renders the table shell and the
+ * inline script that creates `new Grid(name)`; bootstrap() answers the requests this file sends
+ * (?load_grid_by_name=...&page=&limit=&sort=&dir=&searchParams=[...]).
+ *
+ * Requirements: Bootstrap 5 (dropdowns) and Font Awesome; SheetJS (window.XLSX) is optional and only
+ * used for the client-side Excel export (the server export is the fallback). Plain ES2020, no build step,
+ * no jQuery.
+ *
+ * Public API (kept stable for the applications):
+ *   new Grid(name), Grid.autoInit(name), Grid.autoInitAll(), Grid.get(name), Grid.debug, Grid.searchDebounceMs
+ *   grid.initialize(), refresh(), fetchJson(), buildUrl(allRows), setRowsPerPage(n), clearFilters(), sort(column, dir)
+ *   grid.filters (object field => text, setting it reloads), currentPage, sortColumn, sortDir, rowsPerPage,
+ *   grid.downloadExcelJs(), downloadCsvJs(), showError(message), clearError()
+ *   grid.columns, rows, data, name, title, showTitleBar, showSearchBar, deferInitialize, rowLevelJsCallback
+ *   window.grid[name] is the registry every grid registers itself in.
+ *
+ * Callbacks (names resolved on window, dot-notation allowed):
+ *   column:  fn(cellValue, row, columnDef) -> null/undefined/true = default rendering, string = HTML for the cell,
+ *            object = {value, innerHTML, href, target, innerElementCssStyle, innerElementCssClass,
+ *            outerElementCssStyle, outerElementCssClass, hidden}
+ *   button:  fn(row, buttonDef) -> null/false = hide, true/undefined = default, object = {label, icon, href,
+ *            cssClass, disabled, hidden}
+ *   row:     fn(tr, row) called before the cells are drawn
+ */
+(function (window, document) {
+    'use strict';
 
-class Grid {
-    constructor(name) {
-        if (name.length < 1)
-            throw "Error attempting to initialize Grid with missing name : " + name;
-        this._id = null
-        this._name = name;
-        this._currentPage = 1;
-        this._title = null;
-        this._pageCount = 0;
-        this._rowCount = 0;
-        this._rowsPerPage = 10;
-        this._columns = [];
-        this._columnCount = 0;
-        this._columnCountVisible = 0;
-        this._data = null;
-        this._actionButtons = null;
-        this._allowExport = true;
-        this._rows = null;
-        this._message = null;
-        this._query = null;
-        this._queryCount = null;
-        this._url = null;
-        this._filters = [];
-        this._sortColumn = null;
-        this._sortDir = null;
-        this._abortController = null;
-        this._debounceTimers = {};
-        this._errorBannerEl = null;
+    window.grid = window.grid || {};
+
+    const FILTER_PREFIXES = [
+        ['<=', 'lteq'], ['>=', 'gteq'], ['!=', 'noteq'], ['<', 'lt'], ['>', 'gt'], ['=', 'eq'],
+    ];
+    const SEARCH_HINT = 'Type and press Enter. Prefixes: = exact, != not, <, >, <=, >=';
+
+    function registry() {
+        if (!window.grid || typeof window.grid !== 'object') {
+            window.grid = {};
+        }
+        return window.grid;
+    }
+
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) {
+            node.className = className;
+        }
+        if (text !== undefined && text !== null) {
+            node.textContent = text;
+        }
+        return node;
+    }
+
+    function icon(classes) {
+        const i = document.createElement('i');
+        i.className = classes;
+        i.setAttribute('aria-hidden', 'true');
+        return i;
+    }
+
+    function parseAttributes(value) {
+        if (!value) {
+            return null;
+        }
+        if (typeof value === 'object') {
+            return value;
+        }
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function applyAttributes(node, attributes) {
+        if (!attributes) {
+            return;
+        }
+        for (const name of Object.keys(attributes)) {
+            if (/^[a-zA-Z_:][-a-zA-Z0-9_:.]*$/.test(name)) {
+                node.setAttribute(name, String(attributes[name]));
+            }
+        }
+    }
+
+    function truthy(value) {
+        return value === true || value === 1 || value === '1' || value === 'true';
+    }
+
+    class Column {
+        constructor(definition) {
+            const d = definition || {};
+            this.data = d;
+            this.index = d.index || 0;
+            this.fieldName = d.fieldName || '';
+            this.label = d.label == null ? this.fieldName : String(d.label);
+            this.format = d.format || '';
+            this.href = d.href || null;
+            this.target = d.target || null;
+            this.innerElementCssStyle = d.innerElementCssStyle || '';
+            this.innerElementCssClass = d.innerElementCssClass || '';
+            this.outerElementCssStyle = d.outerElementCssStyle || '';
+            this.outerElementCssClass = d.outerElementCssClass || '';
+            this.visible = d.visible === undefined ? true : truthy(d.visible);
+            this.exportable = d.exportable === undefined ? true : truthy(d.exportable);
+            this.searchable = d.searchable === undefined ? true : truthy(d.searchable);
+            this.sortable = d.sortable === undefined ? true : truthy(d.sortable);
+            this.innerElementAttributes = parseAttributes(d.innerElementAttributes);
+            this.outerElementAttributes = parseAttributes(d.outerElementAttributes);
+            this.jsCallback = d.jsCallback || null;
+        }
+
+        get isNumeric() {
+            return this.format === 'integer' || this.format === 'float';
+        }
+    }
+
+    class Grid {
+        constructor(name) {
+            if (typeof name !== 'string' || name.length < 1) {
+                throw new Error('Grid: a grid name is required');
+            }
+            this.id = null;
+            this._name = name;
+            this._currentPage = 1;
+            this.title = '';
+            this.pageCount = 1;
+            this.rowCount = 0;
+            this._rowsPerPage = 10;
+            this.rowsPerPageOptions = null;
+            this.columns = {};
+            this.columnCount = 0;
+            this.columnCountVisible = 0;
+            this.data = null;
+            this.actionButtons = [];
+            this.allowExport = true;
+            this.rows = [];
+            this.message = null;
+            this.query = null;
+            this.queryCount = null;
+            this.url = null;
+            this._filters = {};
+            this._sortColumn = null;
+            this._sortDir = null;
+            this._abortController = null;
+            this._debounceTimer = null;
+            this._errorBannerEl = null;
+            this.el = null;
+            this.showTitleBar = true;
+            this.showSearchBar = true;
+            this.rowLevelJsCallback = null;
+            this.deferInitialize = false;
+            this._hiddenColumns = new Set();
+            this._ownsRowsPerPageMenu = false;
+            this._autoInitDone = false;
+            this._refetchAfterDraw = false;
+        }
+
+        // ─── Registry and start-up ──────────────────────────────────────
+
+        static get(name) {
+            return registry()[name] || null;
+        }
+
+        static log() {
+            if (Grid.debug && window.console) {
+                console.log.apply(console, ['[grid]'].concat(Array.from(arguments)));
+            }
+        }
 
         /**
-         * fields below will hold references to DOM objects in the table drawn
+         * Start a registered grid: at once, or when it scrolls into view when deferInitialize is set
          */
-        this._contentLoadingOverlay = null;
-        this._contentDrawTableOn = null;
-        this._contentTBody = null;
-        this._contentThead = null;
-        this._contentTfoot = null;
-        this._contentPaginationFirstPage = null;
-        this._contentPaginationPrevPage = null;
-        this._contentPaginationNextPage = null;
-        this._contentGridTitleRow = null;
-        this._contentPaginationLastPage = null;
-        this._contentPaginationCurrPage = null;
-        this._contentGridTitle = null;
-        this._contentGridButtons = null;
-        this._contentTheadColumnHeaders = null;
-        this._contentTheadColumnSearchRow = null;
-        this._contentPaginationTd = null;
-        this._contentPaginationInfoSection = null;
-        this._contentPaginationRowsPerPageSelector = null;
-        this._showTitleBar = true;
-        this._showSearchBar = true;
-        this._rowLevelJsCallback = null;
-        this._deferInitialize = false;
-        this._hiddenColumns = new Set();
-    }
-
-    /**
-     * Auto-initialize a grid: immediately if deferInitialize is false,
-     * or via IntersectionObserver when the grid becomes visible.
-     */
-    static autoInit(gridName) {
-        const grid = window.grid[gridName];
-        if (!grid) return;
-
-        if (!grid.deferInitialize) {
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function () {
-                    grid.initialize();
-                });
-            } else {
-                grid.initialize();
-            }
-            return;
-        }
-
-        // Deferred: observe visibility once DOM is ready
-        const observeGrid = function () {
-            const container = document.getElementById(gridName + '_container');
-            if (!container) return;
-
-            const observer = new IntersectionObserver(function (entries) {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        grid.initialize();
-                        observer.unobserve(entry.target);
-                    }
-                }
-            });
-            observer.observe(container);
-        };
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', observeGrid);
-        } else {
-            observeGrid();
-        }
-    }
-
-    /**
-     *
-     * @param allRows
-     * @returns {string}
-     */
-    buildUrl(allRows = false) {
-        var currentURL = new URL(window.location.href);
-        var tmpUrl = null;
-        tmpUrl = currentURL.origin;
-        tmpUrl += currentURL.pathname;
-        tmpUrl += currentURL.search;
-        if (currentURL.search.length < 3) {
-            tmpUrl += '?';
-        }
-
-        tmpUrl += "&load_grid_by_name=" + this.name;
-        tmpUrl += "&page=" + this.currentPage;
-        if (allRows) {
-            tmpUrl += "&limit=0";
-        } else {
-            tmpUrl += "&limit=" + this.rowsPerPage;
-        }
-
-        if (this.sortColumn !== '' && this.sortColumn != null) {
-            tmpUrl += "&sort=" + this.sortColumn + "&dir=" + this.sortDir;
-        }
-
-        var _fp = this.getFilterParams();
-        if (_fp.length > 3) {
-            tmpUrl += '&searchParams=' + _fp;
-        }
-
-        tmpUrl += "&rand=" + Math.random();
-        return tmpUrl;
-    }
-
-    getFilterParams() {
-        var tmpFilters = [];
-
-        for (var field in this.filters) {
-            var tmpFilter = {value: null, property: null, operator: null};
-
-            tmpFilter.value = this.filters[field];
-            tmpFilter.property = field;
-            tmpFilter.operator = 'like';
-
-            if (tmpFilter.value.startsWith('<=')) {
-                tmpFilter.value = tmpFilter.value.substr(2);
-                tmpFilter.operator = 'lteq';
-            } else if (tmpFilter.value.startsWith('>=')) {
-                tmpFilter.value = tmpFilter.value.substr(2);
-                tmpFilter.operator = 'gteq';
-            } else if (tmpFilter.value.startsWith('<')) {
-                tmpFilter.value = tmpFilter.value.substr(1);
-                tmpFilter.operator = 'lt';
-            } else if (tmpFilter.value.startsWith('>')) {
-                tmpFilter.value = tmpFilter.value.substr(1);
-                tmpFilter.operator = 'gt';
-            } else if (tmpFilter.value.startsWith('=')) {
-                tmpFilter.value = tmpFilter.value.substr(1);
-                tmpFilter.operator = 'eq';
-            } else if (tmpFilter.value.startsWith('!=')) {
-                tmpFilter.value = tmpFilter.value.substr(2);
-                tmpFilter.operator = 'noteq';
-            }
-
-            tmpFilters.push(tmpFilter);
-
-        }
-        return encodeURI(JSON.stringify(tmpFilters))
-    }
-
-    /**
-     * Find necessary DOM elements and keep references for easy access
-     */
-    fetchContentElementReferences() {
-        this.contentDrawTableOn = document.getElementById(this.name);
-        if (this.contentDrawTableOn === null) {
-            throw "Unable to find Grid table for " + name;
-        }
-        this.contentTBody = document.getElementById(this.name + '_tbody');
-        this.contentThead = document.getElementById(this.name + '_thead');
-        this.contentTfoot = document.getElementById(this.name + '_tfoot');
-        this.contentPaginationFirstPage = document.getElementById(this.name + '_paginationFirstPage');
-        this.contentPaginationPrevPage = document.getElementById(this.name + '_paginationPrevPage');
-        this.contentPaginationNextPage = document.getElementById(this.name + '_paginationNextPage');
-        this.contentPaginationLastPage = document.getElementById(this.name + '_paginationLastPage');
-        this.contentPaginationCurrPage = document.getElementById(this.name + '_paginationCurrPage');
-        this.contentLoadingOverlay = document.getElementById(this.name + '_loader');
-        this.contentGridTitleRow = document.getElementById(this.name + '_title_row');
-        this.contentGridTitle = document.getElementById(this.name + '_title');
-        this.contentGridButtons = document.getElementById(this.name + '_buttons');
-        this.contentTheadColumnHeaders = this.contentThead.getElementsByTagName('tr')[1];
-        this.contentTheadColumnSearchRow = this.contentThead.getElementsByTagName('tr')[2];
-        this.contentPaginationTd = document.getElementById(this.name + '_paginationTd');
-        this.contentPaginationInfoSection = document.getElementById(this.name + '_paginationInfoSection');
-        this.contentPaginationRowsPerPageSelector = document.getElementById(this.name + '_rowsPerPageSelector');
-    }
-
-    /**
-     * Retreive JSON file Async mode
-     * once downloaded, call initialize
-     */
-    async fetchJson() {
-        this.url = this.buildUrl();
-        this.showLoadingIcon();
-        this.clearError();
-        console.log("Loading json from URL: " + this.url);
-
-        // Abort any in-flight request
-        try {
-            if (this._abortController) {
-                this._abortController.abort();
-            }
-        } catch (e) {
-        }
-        this._abortController = new AbortController();
-        const signal = this._abortController.signal;
-
-        try {
-            const res = await fetch(this.url, {signal, headers: {'Accept': 'application/json'}});
-            if (!res.ok) {
-                const txt = await res.text();
-                throw new Error(`HTTP ${res.status}: ${txt || 'Request failed'}`);
-            }
-            const data = await res.json();
-            if (data && data.success === false) {
-                this.data = data;
-                this.initialize();
-                this.showError(data.message || 'An error occurred while loading grid data.');
-            } else {
-                this.data = data;
-                this.initialize();
-            }
-        } catch (error) {
-            if (error && error.name === 'AbortError') {
-                // Swallow aborts
+        static autoInit(gridName) {
+            const grid = Grid.get(gridName);
+            if (!grid || grid._autoInitDone) {
                 return;
             }
-            console.error("Failed loading data for the table.", error);
-            this.showError('Failed loading data for the table. Please try again.');
-        } finally {
-            this.hideLoadingIcon();
-        }
+            grid._autoInitDone = true;
 
-        if (this.contentPaginationRowsPerPageSelector) {
-            this.contentPaginationRowsPerPageSelector.innerHTML = "<i class='fa fa-bars'></i> " + (this.rowsPerPage == 0 ? 'All' : this.rowsPerPage);
-        }
-    }
-
-    refresh() {
-        if (!this.contentDrawTableOn) {
-            this.initialize();
-            return;
-        }
-        this.fetchJson();
-    }
-
-    initialize() {
-        // If this is the first run, fetch references and config from the DOM
-        if (!this.contentDrawTableOn) {
-            this.fetchContentElementReferences();
-            const container = document.getElementById(this.name + '_container');
-            if (container) {
-                this.rowsPerPage = parseInt(container.dataset.rowsPerPage, 10) || 10;
-                this.showTitleBar = container.dataset.showTitleBar === 'true';
-                this.showSearchBar = container.dataset.showSearchBar === 'true';
-            }
-            // Override initial rowsPerPage with saved per-grid preference, if present
-            try {
-                const perGridKey = 'laf.grid.' + this.name + '.rowsPerPage';
-                let savedRpp = localStorage.getItem(perGridKey);
-                // Backward-compat: if old global key exists and per-grid not set, use it and migrate
-                if (savedRpp === null) {
-                    const legacy = localStorage.getItem('laf.grid.rowsPerPage');
-                    if (legacy !== null) {
-                        savedRpp = legacy;
-                        try {
-                            localStorage.setItem(perGridKey, legacy);
-                        } catch (_) {
+            const start = function () {
+                if (!grid.deferInitialize || typeof IntersectionObserver !== 'function') {
+                    grid.initialize();
+                    return;
+                }
+                const container = document.getElementById(gridName + '_container');
+                if (!container) {
+                    grid.initialize();
+                    return;
+                }
+                const observer = new IntersectionObserver(function (entries) {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting) {
+                            observer.disconnect();
+                            grid.initialize();
                         }
                     }
+                });
+                observer.observe(container);
+            };
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', start);
+            } else {
+                start();
+            }
+        }
+
+        /**
+         * Register and start every table PhpGrid::draw() rendered that has no instance yet (pages drawn
+         * with setInlineScript(false), or grid.js loaded after the inline scripts)
+         */
+        static autoInitAll() {
+            const tables = document.querySelectorAll('table[data-component-type="Grid"]');
+            for (const table of tables) {
+                const name = table.id;
+                if (!name || Grid.get(name)) {
+                    continue;
                 }
-                if (savedRpp !== null) {
-                    const v = parseInt(savedRpp, 10);
-                    if (!isNaN(v)) {
-                        this.rowsPerPage = v;
+                const grid = new Grid(name);
+                registry()[name] = grid;
+                grid._readContainerConfig();
+                Grid.autoInit(name);
+            }
+        }
+
+        // ─── DOM ────────────────────────────────────────────────────────
+
+        _bindDom() {
+            const byId = (suffix) => document.getElementById(this.name + suffix);
+            const table = byId('');
+            if (!table) {
+                throw new Error('Grid: table #' + this.name + ' not found');
+            }
+            const thead = byId('_thead');
+            const headRows = thead ? thead.querySelectorAll('tr') : [];
+            this.el = {
+                container: byId('_container') || table.parentElement,
+                table: table,
+                thead: thead,
+                tbody: byId('_tbody'),
+                tfoot: byId('_tfoot'),
+                titleRow: byId('_title_row') || headRows[0] || null,
+                title: byId('_title'),
+                buttons: byId('_buttons'),
+                headerRow: byId('_header_row') || headRows[1] || null,
+                searchRow: byId('_search_row') || headRows[2] || null,
+                loader: byId('_loader'),
+                first: byId('_paginationFirstPage'),
+                prev: byId('_paginationPrevPage'),
+                curr: byId('_paginationCurrPage'),
+                next: byId('_paginationNextPage'),
+                last: byId('_paginationLastPage'),
+                info: byId('_paginationInfoSection'),
+                rowsPerPageButton: byId('_rowsPerPageSelector'),
+                rowsPerPageMenu: byId('_rowsPerPageMenu'),
+            };
+            if (!this.el.rowsPerPageMenu && this.el.rowsPerPageButton) {
+                const menu = this.el.rowsPerPageButton.parentElement ? this.el.rowsPerPageButton.parentElement.querySelector('.dropdown-menu') : null;
+                this.el.rowsPerPageMenu = menu;
+            }
+        }
+
+        _readContainerConfig() {
+            const container = document.getElementById(this.name + '_container');
+            if (!container) {
+                return;
+            }
+            const ds = container.dataset;
+            if (ds.rowsPerPage !== undefined) {
+                this._rowsPerPage = parseInt(ds.rowsPerPage, 10) || 0;
+            }
+            if (ds.showTitleBar !== undefined) {
+                this.showTitleBar = ds.showTitleBar === 'true';
+            }
+            if (ds.showSearchBar !== undefined) {
+                this.showSearchBar = ds.showSearchBar === 'true';
+            }
+            if (ds.deferInitialize !== undefined) {
+                this.deferInitialize = ds.deferInitialize === 'true';
+            }
+            if (ds.rowsPerPageOptions !== undefined) {
+                try {
+                    const options = JSON.parse(ds.rowsPerPageOptions);
+                    if (Array.isArray(options)) {
+                        this.rowsPerPageOptions = options.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n) && n >= 0);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+        }
+
+        _storageKey(suffix) {
+            return 'laf.grid.' + this.name + '.' + suffix;
+        }
+
+        _loadPreferences() {
+            try {
+                let saved = localStorage.getItem(this._storageKey('rowsPerPage'));
+                if (saved === null) {
+                    const legacy = localStorage.getItem('laf.grid.rowsPerPage');
+                    if (legacy !== null) {
+                        saved = legacy;
+                        localStorage.setItem(this._storageKey('rowsPerPage'), legacy);
                     }
                 }
-            } catch (e) { /* ignore storage errors */
-            }
-
-            // Load hidden columns preference
-            try {
-                var hidden = localStorage.getItem('laf.grid.' + this.name + '.hiddenColumns');
+                if (saved !== null && !isNaN(parseInt(saved, 10))) {
+                    this._rowsPerPage = parseInt(saved, 10);
+                }
+                const hidden = localStorage.getItem(this._storageKey('hiddenColumns'));
                 if (hidden) {
                     this._hiddenColumns = new Set(JSON.parse(hidden));
                 }
-            } catch (e) { /* ignore storage errors */ }
+            } catch (e) { /* storage unavailable */ }
         }
 
-        this.fetchContentElementReferences();
-
-        if (this.data == null) {
-            this.fetchJson();
-            return;
-        }
-        this.id = this.data.id;
-        this.name = this.data.name;
-        this.title = this.data.title;
-        this.rows = this.data.rows;
-        this.columns = this.data.columns;
-        this.columnCount = this.data.columnCount;
-        this.pageCount = this.data.pageCount;
-        this.rowCount = this.data.rowCount;
-        this.rowsPerPage = this.data.rowsPerPage;
-        this.message = this.data.message;
-        this.query = this.data.query;
-        this.queryCount = this.data.queryCount;
-        this.actionButtons = this.data.actionButtons;
-        this.allowExport = this.data.allowExport;
-        this.rowLevelJsCallback = this.data.rowLevelJsCallback;
-
-        // Sync server-confirmed sort state without triggering refresh loops
-        if (typeof this.data.sort !== 'undefined' && this.data.sort !== null) {
-            this._sortColumn = this.data.sort;
-        }
-        if (typeof this.data.dir !== 'undefined' && this.data.dir !== null) {
-            this._sortDir = this.data.dir;
+        _saveHiddenColumns() {
+            try {
+                if (this._hiddenColumns.size > 0) {
+                    localStorage.setItem(this._storageKey('hiddenColumns'), JSON.stringify(Array.from(this._hiddenColumns)));
+                } else {
+                    localStorage.removeItem(this._storageKey('hiddenColumns'));
+                }
+            } catch (e) { /* storage unavailable */ }
         }
 
-        this.initColumns();
+        _bindControls() {
+            const self = this;
+            const e = this.el;
+            const go = (page) => () => { self.currentPage = page(); };
+            if (e.first) e.first.onclick = go(() => 1);
+            if (e.prev) e.prev.onclick = go(() => self.currentPage - 1);
+            if (e.next) e.next.onclick = go(() => self.currentPage + 1);
+            if (e.last) e.last.onclick = go(() => self.pageCount);
 
-        this.draw();
-    }
-
-    initColumns() {
-        var col = this.columns;
-        this.columns = [];
-        this.columnCountVisible = 0;
-        for (var c in col) {
-            this.columns[col[c].fieldName] = new Column(col[c]);
-            // Apply saved hidden columns preference
-            if (this._hiddenColumns.has(col[c].fieldName)) {
-                this.columns[col[c].fieldName].visible = false;
+            // the rows-per-page menu is ours when PhpGrid sent the options; an older PhpGrid rendered its own
+            if (this.rowsPerPageOptions && e.rowsPerPageMenu) {
+                this._ownsRowsPerPageMenu = true;
+                this._drawRowsPerPageMenu();
             }
-            if (this.columns[col[c].fieldName].visible) {
-                this.columnCountVisible++;
-            }
-        }
-    }
 
-    drawTableHeader() {
-        var self = this;
-        this.contentTheadColumnHeaders.innerHTML = null;
-        this.contentTheadColumnSearchRow.innerHTML = null;
-
-        // Sticky header
-        this.contentThead.style.position = 'sticky';
-        this.contentThead.style.top = '0';
-        this.contentThead.style.zIndex = '2';
-        this.contentThead.style.backgroundColor = '#fff';
-
-        for (var columnIndex in this.columns) {
-            var column = this.columns[columnIndex];
-            if (column.visible != 1)
-                continue;
-            var th = document.createElement('th');
-
-            var columnTitle = document.createElement('span');
-            columnTitle.innerText = column.label;
-            columnTitle.classList.add('float-left');
-
-            var columnSortButton = document.createElement('a');
-            columnSortButton.className = 'float-end btn btn-sm btn-outline-secondary';
-            columnSortButton.href = 'javascript:;';
-            columnSortButton.setAttribute('fieldName', column.fieldName);
-            columnSortButton.setAttribute('gridName', this.name);
-
-            //set click handler
-            columnSortButton.onclick = function () {
-
-                if (window.grid[this.getAttribute('gridName')].sortColumn == this.getAttribute('fieldName')) {
-                    if (window.grid[self.name].sortDir == 'asc') {
-                        window.grid[self.name].sortDir = 'desc';
-                    } else {
-                        window.grid[self.name].sortDir = 'asc';
+            e.container.addEventListener('click', function (event) {
+                const target = event.target instanceof Element ? event.target : null;
+                if (!target) {
+                    return;
+                }
+                const sortButton = target.closest('[data-grid-sort]');
+                if (sortButton) {
+                    event.preventDefault();
+                    self._toggleSort(sortButton.getAttribute('data-grid-sort'));
+                    return;
+                }
+                const exportLink = target.closest('[data-grid-export]');
+                if (exportLink) {
+                    event.preventDefault();
+                    self._export(exportLink.getAttribute('data-grid-export'));
+                    return;
+                }
+                const action = target.closest('[data-grid-action]');
+                if (action) {
+                    event.preventDefault();
+                    const name = action.getAttribute('data-grid-action');
+                    if (name === 'clear-filters') {
+                        self.clearFilters();
+                    } else if (name === 'reset-columns') {
+                        self._hiddenColumns.clear();
+                        self._saveHiddenColumns();
+                        self.initColumns();
+                        self.draw();
                     }
-                } else {
-                    window.grid[self.name].sortColumn = this.getAttribute('fieldName');
-                    window.grid[self.name].sortDir = 'asc';
+                    return;
                 }
-            };
-
-            var columnSortbuttonIcon = document.createElement('i');
-            columnSortbuttonIcon.classList.add('fas');
-            if (window.grid[self.name].sortColumn == column.fieldName) {
-                if (window.grid[self.name].sortDir != 'desc') {
-                    columnSortbuttonIcon.classList.add('fa-sort-down');
-                } else {
-                    columnSortbuttonIcon.classList.add('fa-sort-up');
-                }
-            } else {
-                columnSortbuttonIcon.classList.add('fa-sort');
-            }
-            columnSortButton.appendChild(columnSortbuttonIcon);
-            columnSortButton.classList.add('d-print-none');
-            th.appendChild(columnTitle);
-            th.appendChild(columnSortButton);
-
-            this.contentTheadColumnHeaders.appendChild(th);
-
-
-            //draw the search field
-            if (this.showSearchBar) {
-                var input = document.createElement('input');
-                input.setAttribute('type', 'text');
-                input.setAttribute('placeholder', 'Search');
-                //input.style.cssText = "border:0;width:100%;height:100%;padding:1px;margin:0;";
-                input.className = 'form-control form-control-sm';
-                input.setAttribute('fieldName', column.fieldName);
-                input.setAttribute('gridName', this.name);
-                if (typeof this.filters[column.fieldName] !== 'undefined') {
-                    input.value = this.filters[column.fieldName];
-                }
-                input.onkeydown = function (event) {
-                    if (event.key === 'Enter') {
-                        // Build filters from ALL inputs for this grid
-                        var gridName = this.getAttribute('gridName');
-                        var grid = window.grid[gridName];
-                        var newFilters = {};
-                        var inputs = document.querySelectorAll('input[gridName="' + gridName + '"]');
-                        inputs.forEach(function (inp) {
-                            var field = inp.getAttribute('fieldName');
-                            var val = (inp.value || '').trim();
-                            if (val.length > 0) {
-                                newFilters[field] = val;
-                            }
-                        });
-                        grid.filters = newFilters; // triggers refresh via setter
-                        console.log('Search filters ', newFilters);
+                if (self._ownsRowsPerPageMenu) {
+                    const option = target.closest('[data-rows-per-page]');
+                    if (option && e.rowsPerPageMenu && e.rowsPerPageMenu.contains(option)) {
+                        event.preventDefault();
+                        self.setRowsPerPage(parseInt(option.getAttribute('data-rows-per-page'), 10) || 0);
                     }
-                };
-                var td = document.createElement('th');
-                td.appendChild(input);
-                this.contentTheadColumnSearchRow.appendChild(td);
-            }
-        }
-        var emptySearchRowTh = document.createElement('th');
-        var emptySearchRowTh2 = document.createElement('th');
-        emptySearchRowTh.innerHTML = "&nbsp;";
-        emptySearchRowTh2.innerHTML = "&nbsp;";
-
-        this.contentTheadColumnSearchRow.appendChild(emptySearchRowTh);
-        this.contentTheadColumnHeaders.appendChild(emptySearchRowTh2);
-
-        if (this.columnCountVisible > 3) {
-            this.contentGridTitle.colSpan = 2
-        }
-        if (this.columnCountVisible > 5) {
-            this.contentGridTitle.colSpan = 4
-        }
-        this.contentGridTitle.innerText = this.title;
-
-        if (!this.showTitleBar) {
-            this.contentGridTitleRow.style.display = 'none';
-        }
-        if (!this.showSearchBar) {
-            this.contentTheadColumnSearchRow.style.display = 'none';
-        }
-
-        this.drawGridExportbutton();
-    }
-
-    drawGridExportbutton() {
-        var self = this;
-        this.contentGridButtons.colSpan = (this.columnCountVisible - this.contentGridTitle.colSpan + 1);
-        this.contentGridButtons.innerHTML = "";
-
-        if (this.allowExport) {
-
-            var btnGroup = document.createElement('div');
-            btnGroup.classList.add('btn-group');
-
-            var mainBtn = document.createElement('a');
-            mainBtn.setAttribute('gridName', this.name);
-            mainBtn.setAttribute('title', "Export to Excel");
-            mainBtn.innerHTML = "<i class='fas fa-download'></i>";
-            mainBtn.href = "javascript:;";
-            mainBtn.className = 'btn btn-sm btn-outline-secondary';
-            mainBtn.onclick = function () {
-                window.grid[self.name].downloadExcelJs();
-            }
-
-            var dropdownToggleButton = document.createElement('button');
-            dropdownToggleButton.className = "btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split";
-            dropdownToggleButton.setAttribute('data-bs-toggle', 'dropdown');
-            dropdownToggleButton.setAttribute('aria-haspopup', 'true');
-            dropdownToggleButton.setAttribute('aria-expande', 'false');
-
-            var dropdownMenu = document.createElement('div');
-            dropdownMenu.classList.add('dropdown-menu');
-
-            var links = [
-                {label: 'Excel (JavaScript)', action: 'js', handler: 'downloadExcelJs'}
-                , {label: 'Excel (PHPSpreadsheet)', action: 'server', param: 'export_grid_to_excel=1'}
-                , {label: 'Excel (Spout)', action: 'server', param: 'export_grid_to_excel=2'}
-                , {label: 'CSV (JavaScript)', action: 'js', handler: 'downloadCsvJs'}
-                , {label: 'CSV (PHP)', action: 'server', param: 'export_grid_to_csv=1'}
-            ];
-
-            for (var _idx in links) {
-                var _link = document.createElement('a');
-                _link.classList.add('dropdown-item');
-                _link.innerHTML = "<i class='fas fa-download'></i> " + links[_idx].label;
-                _link.setAttribute('gridName', this.name);
-
-                if (links[_idx].action === 'js') {
-                    (function(handlerName, gridName) {
-                        _link.href = 'javascript:;';
-                        _link.onclick = function() {
-                            window.grid[gridName][handlerName]();
-                        };
-                    })(links[_idx].handler, self.name);
-                } else {
-                    (function(param, gridName) {
-                        _link.href = 'javascript:;';
-                        _link.onclick = function() {
-                            window.location.href = window.grid[gridName].buildUrl(true) + '&' + param;
-                        };
-                    })(links[_idx].param, self.name);
                 }
+            });
 
-                dropdownMenu.appendChild(_link)
-            }
+            e.container.addEventListener('keydown', function (event) {
+                const input = event.target instanceof Element ? event.target.closest('input[data-grid-search]') : null;
+                if (!input) {
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    self._applySearchInputs();
+                } else if (event.key === 'Escape' && input.value !== '') {
+                    event.preventDefault();
+                    input.value = '';
+                    self._applySearchInputs();
+                }
+            });
 
-            btnGroup.appendChild(mainBtn);
-            btnGroup.appendChild(dropdownToggleButton);
-            btnGroup.appendChild(dropdownMenu);
-            btnGroup.classList.add('d-print-none');
-            this.contentGridButtons.appendChild(btnGroup);
-        }
+            e.container.addEventListener('input', function (event) {
+                const input = event.target instanceof Element ? event.target.closest('input[data-grid-search]') : null;
+                if (!input || !(Grid.searchDebounceMs > 0)) {
+                    return;
+                }
+                clearTimeout(self._debounceTimer);
+                self._debounceTimer = setTimeout(() => self._applySearchInputs(), Grid.searchDebounceMs);
+            });
 
-        // Column visibility toggle
-        this.drawColumnVisibilityToggle();
-    }
-
-    drawColumnVisibilityToggle() {
-        var self = this;
-
-        var btnGroup = document.createElement('div');
-        btnGroup.classList.add('btn-group', 'ms-1', 'd-print-none');
-
-        var toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-sm btn-outline-secondary dropdown-toggle';
-        toggleBtn.setAttribute('data-bs-toggle', 'dropdown');
-        toggleBtn.setAttribute('data-bs-auto-close', 'outside');
-        toggleBtn.setAttribute('aria-haspopup', 'true');
-        toggleBtn.setAttribute('aria-expanded', 'false');
-        toggleBtn.setAttribute('title', 'Show/Hide Columns');
-        toggleBtn.innerHTML = "<i class='fas fa-columns'></i>";
-
-        var dropdownMenu = document.createElement('div');
-        dropdownMenu.classList.add('dropdown-menu', 'dropdown-menu-end');
-        dropdownMenu.style.maxHeight = '300px';
-        dropdownMenu.style.overflowY = 'auto';
-        dropdownMenu.style.minWidth = '200px';
-
-        for (var columnIndex in this.columns) {
-            var column = this.columns[columnIndex];
-            var item = document.createElement('label');
-            item.classList.add('dropdown-item', 'd-flex', 'align-items-center', 'gap-2');
-            item.style.cursor = 'pointer';
-            item.style.userSelect = 'none';
-
-            var checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = column.visible == true || column.visible == 1;
-            checkbox.setAttribute('data-field', column.fieldName);
-            checkbox.classList.add('form-check-input', 'mt-0');
-
-            checkbox.onchange = function () {
-                var field = this.getAttribute('data-field');
-                if (this.checked) {
+            e.container.addEventListener('change', function (event) {
+                const checkbox = event.target instanceof Element ? event.target.closest('input[data-grid-column-toggle]') : null;
+                if (!checkbox) {
+                    return;
+                }
+                const field = checkbox.getAttribute('data-grid-column-toggle');
+                if (!self.columns[field]) {
+                    return;
+                }
+                if (checkbox.checked) {
                     self._hiddenColumns.delete(field);
-                    self.columns[field].visible = true;
                 } else {
                     self._hiddenColumns.add(field);
-                    self.columns[field].visible = false;
                 }
-                self.saveHiddenColumns();
-                self.recountVisibleColumns();
+                self.columns[field].visible = checkbox.checked;
+                self._saveHiddenColumns();
+                self._recountVisibleColumns();
                 self.draw();
-            };
-
-            var label = document.createElement('span');
-            label.innerText = column.label;
-
-            item.appendChild(checkbox);
-            item.appendChild(label);
-            dropdownMenu.appendChild(item);
+            });
         }
 
-        // Reset button
-        var divider = document.createElement('div');
-        divider.classList.add('dropdown-divider');
-        dropdownMenu.appendChild(divider);
-
-        var resetItem = document.createElement('a');
-        resetItem.classList.add('dropdown-item', 'text-center');
-        resetItem.href = 'javascript:;';
-        resetItem.innerText = 'Reset All';
-        resetItem.onclick = function () {
-            self._hiddenColumns.clear();
-            self.saveHiddenColumns();
-            self.initColumns();
-            self.draw();
-        };
-        dropdownMenu.appendChild(resetItem);
-
-        btnGroup.appendChild(toggleBtn);
-        btnGroup.appendChild(dropdownMenu);
-        this.contentGridButtons.appendChild(btnGroup);
-    }
-
-    saveHiddenColumns() {
-        try {
-            if (this._hiddenColumns.size > 0) {
-                localStorage.setItem('laf.grid.' + this.name + '.hiddenColumns', JSON.stringify(Array.from(this._hiddenColumns)));
-            } else {
-                localStorage.removeItem('laf.grid.' + this.name + '.hiddenColumns');
-            }
-        } catch (e) { /* ignore storage errors */ }
-    }
-
-    recountVisibleColumns() {
-        this.columnCountVisible = 0;
-        for (var columnIndex in this.columns) {
-            if (this.columns[columnIndex].visible == true || this.columns[columnIndex].visible == 1) {
-                this.columnCountVisible++;
-            }
-        }
-    }
-
-    drawTableFooter() {
-        // First, pagination state
-        this.disableInactivePaginationButtons();
-
-        // Then, draw summary row if backend provided columnTotals
-        if (!this.contentTfoot) return;
-        // Clear existing footer content
-        while (this.contentTfoot.firstChild) {
-            this.contentTfoot.removeChild(this.contentTfoot.firstChild);
-        }
-
-        var tr = document.createElement('tr');
-        const formatter = new Intl.NumberFormat('en-US', {
-            style: 'decimal',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        });
-
-        if (this.data && this.data.columnTotals) {
-            if (this.data.columnTotals.length < 1) {
+        _drawRowsPerPageMenu() {
+            const menu = this.el.rowsPerPageMenu;
+            if (!menu) {
                 return;
             }
-            const totals = this.data.columnTotals;
-            for (var columnId in this.columns) {
-                var column = this.columns[columnId];
+            menu.innerHTML = '';
+            for (const option of this.rowsPerPageOptions) {
+                const li = el('li');
+                const link = el('a', 'dropdown-item', option === 0 ? 'All' : String(option));
+                link.href = '#';
+                link.setAttribute('data-rows-per-page', String(option));
+                if (option === this.rowsPerPage) {
+                    link.classList.add('active');
+                }
+                li.appendChild(link);
+                menu.appendChild(li);
+            }
+        }
 
-                //skip hidden columns
-                if (column.visible != 1) {
+        _updateRowsPerPageButton() {
+            if (this.el && this.el.rowsPerPageButton) {
+                this.el.rowsPerPageButton.innerHTML = '';
+                this.el.rowsPerPageButton.appendChild(icon('fa fa-bars'));
+                this.el.rowsPerPageButton.appendChild(document.createTextNode(' ' + (this.rowsPerPage === 0 ? 'All' : this.rowsPerPage)));
+            }
+            if (this._ownsRowsPerPageMenu) {
+                this._drawRowsPerPageMenu();
+            }
+        }
+
+        // ─── Loading ────────────────────────────────────────────────────
+
+        /**
+         * The URL of the grid's own request: the page URL plus the grid parameters
+         */
+        buildUrl(allRows = false) {
+            const url = new URL(window.location.href);
+            const p = url.searchParams;
+            p.set('load_grid_by_name', this.name);
+            p.set('page', String(allRows ? 1 : this.currentPage));
+            p.set('limit', String(allRows ? 0 : this.rowsPerPage));
+            if (this.sortColumn) {
+                p.set('sort', this.sortColumn);
+                p.set('dir', this.sortDir || 'asc');
+            } else {
+                p.delete('sort');
+                p.delete('dir');
+            }
+            const filters = this.getFilterParams();
+            if (filters) {
+                p.set('searchParams', filters);
+            } else {
+                p.delete('searchParams');
+            }
+            p.delete('export_grid_to_excel');
+            p.delete('export_grid_to_csv');
+            url.hash = '';
+            return url.toString();
+        }
+
+        /**
+         * The searchParams value: a JSON list of {property, operator, value}, '' when there is no filter.
+         * A value may start with <=, >=, !=, <, > or = to choose the operator; everything else is a LIKE.
+         */
+        getFilterParams() {
+            const list = [];
+            for (const field of Object.keys(this.filters)) {
+                let value = this.filters[field];
+                if (value === null || value === undefined) {
                     continue;
                 }
-
-                var th = document.createElement('th');
-                th.style.textAlign = 'right';
-                var innerElement = document.createElement('span');
-
-                innerElement.innerText = "";
-                if (totals.hasOwnProperty(column.fieldName)) {
-                    innerElement.innerText = formatter.format(totals[column.fieldName]);
+                value = String(value);
+                let operator = 'like';
+                for (const [prefix, op] of FILTER_PREFIXES) {
+                    if (value.startsWith(prefix)) {
+                        value = value.slice(prefix.length);
+                        operator = op;
+                        break;
+                    }
                 }
-                th.appendChild(innerElement);
-
-                tr.appendChild(th);
+                list.push({property: field, operator: operator, value: value});
             }
-            this.contentTfoot.appendChild(tr);
+            return list.length ? JSON.stringify(list) : '';
         }
-    }
 
-    async downloadExcelJs() {
-        console.log('Downloading Grid in Excel: ' + this.name);
-        this.showLoadingIcon();
-        this.url = this.buildUrl(true);
+        async fetchJson() {
+            if (!this.el) {
+                this.initialize();
+                return;
+            }
+            this.url = this.buildUrl();
+            this.showLoadingIcon();
+            this.clearError();
+            Grid.log('loading', this.url);
 
-        try {
-            const res = await fetch(this.url, {headers: {'Accept': 'application/json'}});
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const _data = await res.json();
-            var nowDate = new Date();
-            var now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-            var fileName = _data.name;
-            var worksheet = XLSX.utils.json_to_sheet(_data.rows);
-            var workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0, 30));
-            XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.xlsx'), {bookType: 'xlsx'});
-        } catch (error) {
-            console.error("Failed to download Excel file.", error);
-            alert('Failed loading data for the export. Please try again');
-        } finally {
-            this.hideLoadingIcon();
-        }
-    }
+            if (this._abortController) {
+                try { this._abortController.abort(); } catch (e) { /* ignore */ }
+            }
+            this._abortController = new AbortController();
+            const signal = this._abortController.signal;
 
-    async downloadCsvJs() {
-        console.log('Downloading Grid in CSV: ' + this.name);
-        this.showLoadingIcon();
-        this.url = this.buildUrl(true);
-        try {
-            const res = await fetch(this.url, {headers: {'Accept': 'application/json'}});
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const _data = await res.json();
-            const nowDate = new Date();
-            const now = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1) + '-' + nowDate.getDate() + ' ' + nowDate.getHours() + '.' + nowDate.getMinutes();
-            const fileName = _data.name;
-            const worksheet = XLSX.utils.json_to_sheet(_data.rows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, fileName.substr(0, 30));
-            XLSX.writeFile(workbook, (fileName + ' (' + now + ')' + '.csv'), {bookType: 'csv'});
-        } catch (e) {
-            console.error('Failed loading data for the CSV export.', e);
-            alert('Failed loading data for the export. Please try again');
-        } finally {
-            this.hideLoadingIcon();
-        }
-    }
-
-    /**
-     * Resolve a callback string to a function reference.
-     * Supports dot-notation (e.g. "MyApp.buttons.checkStatus") and direct function references.
-     * @param {string|function} callback
-     * @returns {function|null}
-     */
-    _resolveCallback(callback) {
-        if (typeof callback === 'function') return callback;
-        if (typeof callback !== 'string' || !callback) return null;
-        var parts = callback.split('.');
-        var fn = window;
-        for (var i = 0; i < parts.length; i++) {
-            fn = fn[parts[i]];
-            if (!fn) return null;
-        }
-        return typeof fn === 'function' ? fn : null;
-    }
-
-    draw() {
-        this.drawTableHeader();
-        this.drawTableFooter();
-        //reset the body so we can re-populate
-        this.contentTBody.innerHTML = null;
-
-        var fragment = document.createDocumentFragment();
-
-        for (var rowIndex in this.rows) {
-            const tr = document.createElement('tr');
-            tr.setAttribute('id', this.name + '_row_' + rowIndex);
-            if (this.rowLevelJsCallback){
-                let rowLevelcallbackFn = this._resolveCallback(this.rowLevelJsCallback);
-                if (typeof rowLevelcallbackFn === 'function') {
-                    rowLevelcallbackFn(tr, this.rows[rowIndex]);
+            try {
+                const response = await fetch(this.url, {
+                    signal: signal,
+                    headers: {'Accept': 'application/json'},
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                });
+                let payload = null;
+                const text = await response.text();
+                try {
+                    payload = JSON.parse(text);
+                } catch (e) {
+                    payload = null;
                 }
+                if (!response.ok && !(payload && typeof payload === 'object' && 'success' in payload)) {
+                    throw new Error('HTTP ' + response.status + (text ? ': ' + text.slice(0, 300) : ''));
+                }
+                if (!payload || typeof payload !== 'object') {
+                    throw new Error('The grid request did not return JSON');
+                }
+                this.data = payload;
+                this.initialize();
+                if (payload.success === false) {
+                    this.showError(payload.message || 'An error occurred while loading the grid data.');
+                }
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
+                if (window.console) {
+                    console.error('Grid ' + this.name + ': loading failed.', error);
+                }
+                this.showError('Failed loading data for the table. Please try again.');
+            } finally {
+                this.hideLoadingIcon();
+                this._updateRowsPerPageButton();
             }
-            for (const columnId in this.rows[rowIndex]) {
-                const column = this.columns[columnId];
+        }
 
-                //skip hidden columns
-                if (column.visible != 1) {
+        refresh() {
+            if (!this.el) {
+                this.initialize();
+                return;
+            }
+            this.fetchJson();
+        }
+
+        initialize() {
+            if (!this.el) {
+                this._bindDom();
+                this._readContainerConfig();
+                this._loadPreferences();
+                this._bindControls();
+            }
+            if (this.data == null) {
+                this.fetchJson();
+                return;
+            }
+            this._applyData(this.data);
+            this.draw();
+            if (this._refetchAfterDraw) {
+                this._refetchAfterDraw = false;
+                this.fetchJson();
+            }
+        }
+
+        _applyData(data) {
+            this.id = data.id;
+            this.title = data.title == null ? '' : String(data.title);
+            this.rows = Array.isArray(data.rows) ? data.rows : [];
+            this.columns = data.columns || {};
+            this.columnCount = data.columnCount || 0;
+            this.pageCount = Math.max(1, parseInt(data.pageCount, 10) || 1);
+            this.rowCount = parseInt(data.rowCount, 10) || 0;
+            if (data.rowsPerPage !== undefined && data.rowsPerPage !== null) {
+                this._rowsPerPage = parseInt(data.rowsPerPage, 10) || 0;
+            }
+            if (Array.isArray(data.rowsPerPageOptions) && data.rowsPerPageOptions.length) {
+                this.rowsPerPageOptions = data.rowsPerPageOptions;
+            }
+            this.message = data.message;
+            this.query = data.query;
+            this.queryCount = data.queryCount;
+            this.actionButtons = Array.isArray(data.actionButtons) ? data.actionButtons : [];
+            this.allowExport = data.allowExport !== false;
+            this.rowLevelJsCallback = data.rowLevelJsCallback || null;
+
+            // the server confirms the sort it applied; keep it without triggering a reload
+            if (data.sort !== undefined && data.sort !== null) {
+                this._sortColumn = data.sort;
+            }
+            if (data.dir !== undefined && data.dir !== null) {
+                this._sortDir = String(data.dir).toLowerCase();
+            }
+            if (this._currentPage > this.pageCount) {
+                this._currentPage = this.pageCount;
+                this._refetchAfterDraw = this.rows.length === 0 && this.rowCount > 0;
+            }
+            this.initColumns();
+        }
+
+        initColumns() {
+            const definitions = this.columns;
+            const list = Array.isArray(definitions) ? definitions : Object.values(definitions || {});
+            this.columns = {};
+            this.columnCountVisible = 0;
+            for (const definition of list) {
+                const column = definition instanceof Column ? new Column(definition.data) : new Column(definition);
+                if (!column.fieldName) {
                     continue;
                 }
-
-                var td = document.createElement('td');
-                var innerElement = null;
-                let cellValue = this.rows[rowIndex][columnId];
-
-
-                // --- column callback evaluation ---
-                if (column.jsCallback) {
-                    let callbackFn = this._resolveCallback(column.jsCallback);
-                    if (typeof callbackFn === 'function') {
-                        let result = callbackFn(cellValue, this.rows[rowIndex]);
-                        innerElement = document.createElement('span');
-                        innerElement.innerHTML = result;
-                    }
-                } else if (column.href != null) {
-                    innerElement = document.createElement('a');
-                    innerElement.href = this.formatLinkHref(this.rows[rowIndex], column.href);
-                    innerElement.innerText = cellValue;
-                    if (column.target != null) {
-                        innerElement.target = column.target;
-                    }
-                } else {
-                    innerElement = document.createElement('span');
-                    innerElement.innerText = cellValue;
+                if (this._hiddenColumns.has(column.fieldName)) {
+                    column.visible = false;
                 }
+                this.columns[column.fieldName] = column;
+                if (column.visible) {
+                    this.columnCountVisible++;
+                }
+            }
+        }
 
-                td.appendChild(innerElement);
+        _recountVisibleColumns() {
+            this.columnCountVisible = this.visibleColumns().length;
+        }
 
-                //set styling attributes for the span/a
-                innerElement.style = column.innerElementCssStyle;
-                innerElement.className = column.innerElementCssClass;
+        visibleColumns() {
+            return Object.values(this.columns).filter((column) => column.visible);
+        }
 
-                //set styling attributes for the td
-                td.style = column.outerElementCssStyle;
-                td.className = column.outerElementCssClass;
+        get hasActions() {
+            return this.actionButtons.length > 0;
+        }
 
+        // ─── Drawing ────────────────────────────────────────────────────
 
+        draw() {
+            this.drawTableHeader();
+            this.drawTableBody();
+            this.drawTableFooter();
+            this._drawPagination();
+            this.hideLoadingIcon();
+        }
+
+        drawTableHeader() {
+            const e = this.el;
+            if (e.thead) {
+                e.thead.style.position = 'sticky';
+                e.thead.style.top = '0';
+                e.thead.style.zIndex = '2';
+            }
+            if (!e.headerRow || !e.searchRow) {
+                return;
+            }
+            e.headerRow.innerHTML = '';
+            e.searchRow.innerHTML = '';
+
+            for (const column of this.visibleColumns()) {
+                const th = el('th');
+                th.setAttribute('data-grid-column', column.fieldName);
+                if (column.isNumeric) {
+                    th.classList.add('text-end');
+                }
+                const label = el('span', 'laf-grid-label', column.label);
+                th.appendChild(label);
+
+                if (column.sortable) {
+                    const sorted = this.sortColumn === column.fieldName;
+                    const button = el('button', 'btn btn-sm btn-link p-0 ms-1 d-print-none laf-grid-sort');
+                    button.type = 'button';
+                    button.setAttribute('data-grid-sort', column.fieldName);
+                    button.setAttribute('aria-label', 'Sort by ' + column.label);
+                    button.title = 'Sort by ' + column.label;
+                    button.appendChild(icon('fas ' + (sorted ? (this.sortDir === 'desc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort')));
+                    th.appendChild(button);
+                    th.setAttribute('aria-sort', sorted ? (this.sortDir === 'desc' ? 'descending' : 'ascending') : 'none');
+                }
+                e.headerRow.appendChild(th);
+
+                const searchTh = el('th');
+                if (column.searchable) {
+                    const input = el('input', 'form-control form-control-sm');
+                    input.type = 'search';
+                    input.placeholder = 'Search';
+                    input.title = SEARCH_HINT;
+                    input.setAttribute('aria-label', 'Search ' + column.label);
+                    input.setAttribute('data-grid-search', column.fieldName);
+                    input.autocomplete = 'off';
+                    if (this.filters[column.fieldName] !== undefined) {
+                        input.value = this.filters[column.fieldName];
+                    }
+                    searchTh.appendChild(input);
+                }
+                e.searchRow.appendChild(searchTh);
+            }
+
+            if (this.hasActions) {
+                const actionsTh = el('th', 'laf-grid-actions');
+                actionsTh.style.width = '60px';
+                e.headerRow.appendChild(actionsTh);
+                e.searchRow.appendChild(el('th'));
+            }
+
+            if (e.title) {
+                e.title.colSpan = 1;
+                if (this.columnCountVisible > 3) {
+                    e.title.colSpan = 2;
+                }
+                if (this.columnCountVisible > 5) {
+                    e.title.colSpan = 4;
+                }
+                e.title.textContent = this.title;
+            }
+            if (e.titleRow) {
+                e.titleRow.style.display = this.showTitleBar ? '' : 'none';
+            }
+            e.searchRow.style.display = this.showSearchBar ? '' : 'none';
+
+            this.drawGridButtons();
+        }
+
+        drawGridButtons() {
+            const e = this.el;
+            if (!e.buttons) {
+                return;
+            }
+            const totalColumns = this.columnCountVisible + (this.hasActions ? 1 : 0);
+            e.buttons.colSpan = Math.max(1, totalColumns - (e.title ? e.title.colSpan : 1));
+            e.buttons.innerHTML = '';
+
+            if (this.allowExport) {
+                const group = el('div', 'btn-group d-print-none');
+                const main = el('button', 'btn btn-sm btn-outline-secondary');
+                main.type = 'button';
+                main.title = 'Export to Excel';
+                main.setAttribute('data-grid-export', 'xlsx');
+                main.appendChild(icon('fas fa-download'));
+                group.appendChild(main);
+
+                const toggle = el('button', 'btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split');
+                toggle.type = 'button';
+                toggle.setAttribute('data-bs-toggle', 'dropdown');
+                toggle.setAttribute('aria-expanded', 'false');
+                toggle.appendChild(el('span', 'visually-hidden', 'Export options'));
+                group.appendChild(toggle);
+
+                const menu = el('ul', 'dropdown-menu dropdown-menu-end');
+                for (const entry of [
+                    ['xlsx', 'Excel'], ['csv', 'CSV'], ['xlsx-server', 'Excel (server)'], ['csv-server', 'CSV (server)'],
+                ]) {
+                    const li = el('li');
+                    const link = el('button', 'dropdown-item');
+                    link.type = 'button';
+                    link.setAttribute('data-grid-export', entry[0]);
+                    link.appendChild(icon('fas fa-download'));
+                    link.appendChild(document.createTextNode(' ' + entry[1]));
+                    li.appendChild(link);
+                    menu.appendChild(li);
+                }
+                group.appendChild(menu);
+                e.buttons.appendChild(group);
+            }
+
+            this.drawColumnVisibilityToggle();
+        }
+
+        drawColumnVisibilityToggle() {
+            const group = el('div', 'btn-group ms-1 d-print-none');
+            const toggle = el('button', 'btn btn-sm btn-outline-secondary dropdown-toggle');
+            toggle.type = 'button';
+            toggle.setAttribute('data-bs-toggle', 'dropdown');
+            toggle.setAttribute('data-bs-auto-close', 'outside');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.title = 'Show/hide columns';
+            toggle.appendChild(icon('fas fa-columns'));
+            toggle.appendChild(el('span', 'visually-hidden', 'Show/hide columns'));
+
+            const menu = el('div', 'dropdown-menu dropdown-menu-end');
+            menu.style.maxHeight = '300px';
+            menu.style.overflowY = 'auto';
+            menu.style.minWidth = '200px';
+
+            for (const column of Object.values(this.columns)) {
+                const item = el('label', 'dropdown-item d-flex align-items-center gap-2');
+                item.style.cursor = 'pointer';
+                const checkbox = el('input', 'form-check-input mt-0');
+                checkbox.type = 'checkbox';
+                checkbox.checked = column.visible;
+                checkbox.setAttribute('data-grid-column-toggle', column.fieldName);
+                item.appendChild(checkbox);
+                item.appendChild(el('span', null, column.label));
+                menu.appendChild(item);
+            }
+            menu.appendChild(el('div', 'dropdown-divider'));
+            const reset = el('button', 'dropdown-item text-center', 'Reset all');
+            reset.type = 'button';
+            reset.setAttribute('data-grid-action', 'reset-columns');
+            menu.appendChild(reset);
+
+            group.appendChild(toggle);
+            group.appendChild(menu);
+            this.el.buttons.appendChild(group);
+        }
+
+        drawTableBody() {
+            const tbody = this.el.tbody;
+            if (!tbody) {
+                return;
+            }
+            tbody.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            const columns = this.visibleColumns();
+            const rowCallback = this.rowLevelJsCallback ? this._resolveCallback(this.rowLevelJsCallback) : null;
+
+            if (this.rows.length === 0) {
+                const tr = el('tr', 'laf-grid-empty');
+                const td = el('td', 'text-center text-muted py-3', 'No records found');
+                td.colSpan = Math.max(1, columns.length + (this.hasActions ? 1 : 0));
                 tr.appendChild(td);
+                fragment.appendChild(tr);
             }
 
-            /**
-             * Drawing the action buttons per row
-             */
-            var actionButtonsTd = document.createElement('td');
-            if (this.actionButtons.length > 0) {
-                var actionButtonsDropdown = document.createElement('div');
-                actionButtonsDropdown.classList.add('btn-group');
-                var actionButtonsDropdown_button = document.createElement('button');
-                actionButtonsDropdown_button.className = "btn btn-outline-secondary btn-sm dropdown-toggle";
-                actionButtonsDropdown_button.setAttribute('type', 'button');
-                actionButtonsDropdown_button.setAttribute('data-bs-toggle', 'dropdown');
-                actionButtonsDropdown_button.setAttribute('aria-haspopup', 'true');
-                actionButtonsDropdown_button.setAttribute('aria-expanded', 'false');
-                actionButtonsDropdown_button.innerHTML = "<i class='fa fa-cog'></i>";
+            this.rows.forEach((row, rowIndex) => {
+                const tr = el('tr');
+                tr.id = this.name + '_row_' + rowIndex;
+                if (rowCallback) {
+                    try {
+                        rowCallback(tr, row);
+                    } catch (error) {
+                        if (window.console) console.error('Grid ' + this.name + ': row callback failed', error);
+                    }
+                }
+                for (const column of columns) {
+                    const td = el('td');
+                    this._renderCell(td, column, row[column.fieldName], row);
+                    tr.appendChild(td);
+                }
+                if (this.hasActions) {
+                    const td = el('td', 'text-center');
+                    this._renderActions(td, row);
+                    tr.appendChild(td);
+                }
+                fragment.appendChild(tr);
+            });
+            tbody.appendChild(fragment);
+        }
 
-                actionButtonsDropdown.appendChild(actionButtonsDropdown_button);
-                var actionButtonsDropdown_menu = document.createElement('div');
-                actionButtonsDropdown_menu.classList.add('dropdown-menu');
-                for (var _idx in this.actionButtons) {
-                    var currentActionButton = this.actionButtons[_idx];
-
-                    if (currentActionButton.hasOwnProperty('href') && currentActionButton.hasOwnProperty('label') && currentActionButton.hasOwnProperty('icon')) {
-                        var _item = document.createElement('a');
-                        _item.classList.add('dropdown-item');
-                        _item.href = this.formatLinkHref(this.rows[rowIndex], currentActionButton.href)
-                        _item.innerHTML = "<i class='" + currentActionButton.icon + "'></i> " + currentActionButton.label;
-
-
-                        //check if it has attributes
-                        for (var attribProperty in currentActionButton.attributeList) {
-                            _item.setAttribute(attribProperty, currentActionButton.attributeList[attribProperty]);
-                        }
-
-                        actionButtonsDropdown_menu.appendChild(_item);
-                    } else if (currentActionButton.jsCallback) {
-                        var callbackFn = this._resolveCallback(currentActionButton.jsCallback);
-                        if (typeof callbackFn === 'function') {
-                            var result = callbackFn(this.rows[rowIndex], currentActionButton);
-                            if (result === false || result === null) return '';
-                            if (typeof result === 'object') {
-                                if (result.hidden === true) continue;
-                                // shallow-merge overrides into a copy so the original is never mutated
-                                currentActionButton = Object.assign({}, currentActionButton, result);
+        _renderCell(td, column, value, row) {
+            const def = {
+                value: value,
+                innerHTML: null,
+                href: column.href,
+                target: column.target,
+                innerElementCssStyle: column.innerElementCssStyle,
+                innerElementCssClass: column.innerElementCssClass,
+                outerElementCssStyle: column.outerElementCssStyle,
+                outerElementCssClass: column.outerElementCssClass,
+                hidden: false,
+            };
+            if (column.jsCallback) {
+                const callback = this._resolveCallback(column.jsCallback);
+                if (callback) {
+                    let result;
+                    try {
+                        result = callback(value, row, column);
+                    } catch (error) {
+                        if (window.console) console.error('Grid ' + this.name + ': column callback failed', error);
+                    }
+                    if (typeof result === 'string') {
+                        def.innerHTML = result;
+                    } else if (result && typeof result === 'object') {
+                        for (const key of Object.keys(def)) {
+                            if (result[key] !== undefined) {
+                                def[key] = result[key];
                             }
                         }
                     }
                 }
-                actionButtonsDropdown.appendChild(actionButtonsDropdown_menu);
-                actionButtonsTd.appendChild(actionButtonsDropdown);
-                actionButtonsTd.style.textAlign = 'center';
-                actionButtonsTd.style.width = '60px';
             }
 
-            tr.appendChild(actionButtonsTd);
-            fragment.appendChild(tr);
+            if (def.outerElementCssStyle) td.style.cssText = def.outerElementCssStyle;
+            if (def.outerElementCssClass) td.className = def.outerElementCssClass;
+            if (column.isNumeric) td.classList.add('text-end');
+            applyAttributes(td, column.outerElementAttributes);
+            if (def.hidden) {
+                return;
+            }
+
+            let inner;
+            if (def.href) {
+                inner = el('a');
+                inner.href = this.formatLinkHref(row, def.href);
+                if (def.target) {
+                    inner.target = def.target;
+                }
+            } else {
+                inner = el('span');
+            }
+            if (def.innerHTML !== null && def.innerHTML !== undefined) {
+                inner.innerHTML = def.innerHTML;
+            } else {
+                inner.textContent = def.value === null || def.value === undefined ? '' : String(def.value);
+            }
+            if (def.innerElementCssStyle) inner.style.cssText = def.innerElementCssStyle;
+            if (def.innerElementCssClass) inner.className = def.innerElementCssClass;
+            applyAttributes(inner, column.innerElementAttributes);
+            td.appendChild(inner);
         }
 
-        this.contentTBody.appendChild(fragment);
+        _renderActions(td, row) {
+            const group = el('div', 'btn-group');
+            const toggle = el('button', 'btn btn-outline-secondary btn-sm dropdown-toggle');
+            toggle.type = 'button';
+            toggle.setAttribute('data-bs-toggle', 'dropdown');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-label', 'Actions');
+            toggle.appendChild(icon('fa fa-cog'));
+            group.appendChild(toggle);
 
-        this.hideLoadingIcon();
-        this.bindActionsToGrid();
-    }
+            const menu = el('div', 'dropdown-menu dropdown-menu-end');
+            let count = 0;
+            for (const definition of this.actionButtons) {
+                let button = definition;
+                if (definition && definition.jsCallback) {
+                    const callback = this._resolveCallback(definition.jsCallback);
+                    if (callback) {
+                        let result;
+                        try {
+                            result = callback(row, definition);
+                        } catch (error) {
+                            if (window.console) console.error('Grid ' + this.name + ': button callback failed', error);
+                            result = true;
+                        }
+                        if (result === false || result === null) {
+                            continue;
+                        }
+                        if (result && typeof result === 'object') {
+                            if (result.hidden === true) {
+                                continue;
+                            }
+                            button = Object.assign({}, definition, result);
+                        }
+                    }
+                }
+                if (!button || button.href === undefined || button.label === undefined) {
+                    continue;
+                }
+                const item = el('a', 'dropdown-item' + (button.cssClass ? ' ' + button.cssClass : ''));
+                item.href = this.formatLinkHref(row, String(button.href)) || '#';
+                if (button.icon) {
+                    item.appendChild(icon(button.icon));
+                    item.appendChild(document.createTextNode(' '));
+                }
+                const label = el('span');
+                label.innerHTML = String(button.label);
+                item.appendChild(label);
+                if (button.attributeList && typeof button.attributeList === 'object') {
+                    const attributes = {};
+                    for (const name of Object.keys(button.attributeList)) {
+                        attributes[name] = this.formatLinkHref(row, String(button.attributeList[name]));
+                    }
+                    applyAttributes(item, attributes);
+                }
+                if (button.disabled) {
+                    item.classList.add('disabled');
+                    item.setAttribute('aria-disabled', 'true');
+                    item.tabIndex = -1;
+                    item.style.opacity = '0.5';
+                    item.style.pointerEvents = 'none';
+                }
+                menu.appendChild(item);
+                count++;
+            }
+            if (count === 0) {
+                return;
+            }
+            group.appendChild(menu);
+            td.appendChild(group);
+            td.style.width = '60px';
+        }
 
-    setRowsPerPage(numberOfRows) {
-        this.rowsPerPage = numberOfRows;
-        // Persist as per-grid default
-        try {
-            localStorage.setItem('laf.grid.' + this.name + '.rowsPerPage', String(numberOfRows));
-        } catch (e) { /* ignore storage errors */
+        drawTableFooter() {
+            const tfoot = this.el.tfoot;
+            if (!tfoot) {
+                return;
+            }
+            tfoot.innerHTML = '';
+            const totals = this.data ? this.data.columnTotals : null;
+            if (!totals || typeof totals !== 'object' || Array.isArray(totals) || Object.keys(totals).length === 0) {
+                return;
+            }
+            const formatter = new Intl.NumberFormat(document.documentElement.lang || navigator.language || 'en-US', {
+                style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2,
+            });
+            const tr = el('tr', 'laf-grid-totals');
+            for (const column of this.visibleColumns()) {
+                const th = el('th', 'text-end');
+                if (Object.prototype.hasOwnProperty.call(totals, column.fieldName) && totals[column.fieldName] !== null) {
+                    const number = Number(totals[column.fieldName]);
+                    th.textContent = isNaN(number) ? String(totals[column.fieldName]) : formatter.format(number);
+                }
+                tr.appendChild(th);
+            }
+            if (this.hasActions) {
+                tr.appendChild(el('th'));
+            }
+            tfoot.appendChild(tr);
         }
-        if (this.currentPage === 1) {
-            this.refresh();
-        } else {
-            this.currentPage = 1;
-        }
-    }
 
-    /**
-     * Given a url from a cell or action button,
-     * it will format the href based on the table data and query string parameters
-     * anything like {id} gets replaced with the value of the id column in the table
-     * anything like [module] gets replaced with the value on ?module= from the URL
-     * @param data
-     * @param href
-     * @returns {*}
-     */
-    formatLinkHref(data, href) {
-        if (!href) {
-            return null;
-        }
-        if (href.includes('{')) {
-            for (let column in data) {
-                if (data.hasOwnProperty(column)) {
-                    href = href.replaceAll(('{' + column + '}'), data[column]);
+        _drawPagination() {
+            const e = this.el;
+            const setDisabled = (button, disabled) => {
+                if (!button) return;
+                const li = button.parentElement;
+                if (li) li.classList.toggle('disabled', disabled);
+                if (button.tagName === 'BUTTON') button.disabled = disabled;
+                button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            };
+            setDisabled(e.first, this.currentPage <= 1);
+            setDisabled(e.prev, this.currentPage <= 1);
+            setDisabled(e.next, this.currentPage >= this.pageCount);
+            setDisabled(e.last, this.currentPage >= this.pageCount);
+            if (e.curr) {
+                e.curr.textContent = String(this.currentPage);
+            }
+            if (e.info) {
+                e.info.innerHTML = '';
+                let text;
+                if (this.rowCount === 0) {
+                    text = 'No rows';
+                } else if (this.rowsPerPage === 0) {
+                    text = this.rowCount.toLocaleString() + ' rows';
+                } else {
+                    const from = (this.currentPage - 1) * this.rowsPerPage + 1;
+                    const to = Math.min(this.rowCount, this.currentPage * this.rowsPerPage);
+                    text = from.toLocaleString() + '–' + to.toLocaleString() + ' of ' + this.rowCount.toLocaleString()
+                        + ' · Page ' + this.currentPage.toLocaleString() + ' of ' + this.pageCount.toLocaleString();
+                }
+                e.info.appendChild(document.createTextNode(text));
+                if (Object.keys(this.filters).length > 0) {
+                    const clear = el('button', 'btn btn-sm btn-link py-0 ms-2', 'Clear filters');
+                    clear.type = 'button';
+                    clear.setAttribute('data-grid-action', 'clear-filters');
+                    e.info.appendChild(clear);
                 }
             }
         }
 
-        var urlParams = new URLSearchParams(window.location.search);
-        if (href.includes('[')) {
-            for (const [key, value] of urlParams) {
-                href = href.replaceAll(('\[' + key + '\]'), value);
+        // ─── Interaction ────────────────────────────────────────────────
+
+        _applySearchInputs() {
+            const filters = {};
+            const inputs = this.el.container.querySelectorAll('input[data-grid-search]');
+            for (const input of inputs) {
+                const value = (input.value || '').trim();
+                if (value.length > 0) {
+                    filters[input.getAttribute('data-grid-search')] = value;
+                }
+            }
+            this.filters = filters;
+        }
+
+        clearFilters() {
+            if (this.el) {
+                for (const input of this.el.container.querySelectorAll('input[data-grid-search]')) {
+                    input.value = '';
+                }
+            }
+            this.filters = {};
+        }
+
+        _toggleSort(field) {
+            if (!field || !this.columns[field] || !this.columns[field].sortable) {
+                return;
+            }
+            if (this.sortColumn === field) {
+                this.sort(field, this.sortDir === 'asc' ? 'desc' : 'asc');
+            } else {
+                this.sort(field, 'asc');
             }
         }
-        return href
-    }
 
-    bindActionsToGrid() {
-        var self = this;
-        this.contentPaginationFirstPage.onclick = function () {
-            window.grid[self.name].currentPage = 1;
-        };
-        this.contentPaginationPrevPage.onclick = function () {
-            window.grid[self.name].currentPage--;
-        };
-        this.contentPaginationNextPage.onclick = function () {
-            window.grid[self.name].currentPage++;
-        };
-        this.contentPaginationLastPage.onclick = function () {
-            window.grid[self.name].currentPage = self.pageCount;
-        };
-    }
-
-    get currentPage() {
-        return this._currentPage;
-    }
-
-    set currentPage(value) {
-        var newValue = value;
-
-        if (value > this.pageCount) {
-            newValue = this.pageCount;
-        } else if (value < 1) {
-            newValue = 1;
-        } else {
-            newValue = value;
+        /**
+         * Sort by a column and reload (one request)
+         */
+        sort(column, dir = 'asc') {
+            this._sortColumn = column;
+            this._sortDir = dir === 'desc' ? 'desc' : 'asc';
+            this._currentPage = 1;
+            this.refresh();
         }
 
-        if (newValue == this._currentPage) {
-            console.log('same page');
-            return
-        } else {
-            this._currentPage = newValue;
-            console.log('Current Page: ' + this._currentPage);
-            this.contentPaginationCurrPage.innerText = this._currentPage;
+        setRowsPerPage(numberOfRows) {
+            const n = parseInt(numberOfRows, 10);
+            this.rowsPerPage = isNaN(n) || n < 0 ? 10 : n;
+            try {
+                localStorage.setItem(this._storageKey('rowsPerPage'), String(this.rowsPerPage));
+            } catch (e) { /* storage unavailable */ }
+            this._currentPage = 1;
+            this.refresh();
+        }
+
+        /**
+         * Replace {column} with the row's value and [param] with the page's query parameter
+         */
+        formatLinkHref(data, href) {
+            if (!href) {
+                return null;
+            }
+            let result = String(href);
+            if (result.includes('{') && data) {
+                for (const column of Object.keys(data)) {
+                    const value = data[column];
+                    result = result.split('{' + column + '}').join(value === null || value === undefined ? '' : String(value));
+                }
+            }
+            if (result.includes('[')) {
+                const params = new URLSearchParams(window.location.search);
+                for (const [key, value] of params) {
+                    result = result.split('[' + key + ']').join(value);
+                }
+            }
+            return result;
+        }
+
+        _resolveCallback(callback) {
+            if (typeof callback === 'function') {
+                return callback;
+            }
+            if (typeof callback !== 'string' || !callback) {
+                return null;
+            }
+            let fn = window;
+            for (const part of callback.split('.')) {
+                fn = fn ? fn[part] : undefined;
+                if (!fn) {
+                    return null;
+                }
+            }
+            return typeof fn === 'function' ? fn : null;
+        }
+
+        // ─── Exports ────────────────────────────────────────────────────
+
+        serverExportUrl(kind) {
+            return this.buildUrl(true) + (kind === 'csv' ? '&export_grid_to_csv=1' : '&export_grid_to_excel=2');
+        }
+
+        _export(kind) {
+            if (kind === 'xlsx') {
+                this.downloadExcelJs();
+            } else if (kind === 'csv') {
+                this.downloadCsvJs();
+            } else if (kind === 'csv-server') {
+                window.location.href = this.serverExportUrl('csv');
+            } else {
+                window.location.href = this.serverExportUrl('xlsx');
+            }
+        }
+
+        _exportFileName(extension) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return this.name + ' (' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+                + ' ' + pad(now.getHours()) + pad(now.getMinutes()) + ').' + extension;
+        }
+
+        /**
+         * Every matching row as objects keyed by column label, visible + exportable columns only
+         */
+        async _fetchExportRows() {
+            const response = await fetch(this.buildUrl(true), {headers: {'Accept': 'application/json'}, credentials: 'same-origin', cache: 'no-store'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const payload = await response.json();
+            if (!payload || payload.success === false) {
+                throw new Error(payload && payload.message ? payload.message : 'Export failed');
+            }
+            const columns = this.visibleColumns().filter((column) => column.exportable);
+            return (payload.rows || []).map((row) => {
+                const out = {};
+                for (const column of columns) {
+                    const value = row[column.fieldName];
+                    out[column.label] = column.isNumeric && value !== null && value !== '' && !isNaN(Number(value)) ? Number(value) : value;
+                }
+                return out;
+            });
+        }
+
+        async downloadExcelJs() {
+            if (!window.XLSX || !window.XLSX.utils) {
+                window.location.href = this.serverExportUrl('xlsx');
+                return;
+            }
+            this.showLoadingIcon();
+            try {
+                const rows = await this._fetchExportRows();
+                const worksheet = window.XLSX.utils.json_to_sheet(rows);
+                const workbook = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(workbook, worksheet, this.name.slice(0, 30));
+                window.XLSX.writeFile(workbook, this._exportFileName('xlsx'), {bookType: 'xlsx'});
+            } catch (error) {
+                if (window.console) console.error('Grid ' + this.name + ': Excel export failed.', error);
+                this.showError('The export failed. Please try again.');
+            } finally {
+                this.hideLoadingIcon();
+            }
+        }
+
+        async downloadCsvJs() {
+            this.showLoadingIcon();
+            try {
+                const rows = await this._fetchExportRows();
+                const labels = this.visibleColumns().filter((column) => column.exportable).map((column) => column.label);
+                const escape = (value) => {
+                    const text = value === null || value === undefined ? '' : String(value);
+                    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+                };
+                const lines = [labels.map(escape).join(',')];
+                for (const row of rows) {
+                    lines.push(labels.map((label) => escape(row[label])).join(','));
+                }
+                const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+                const link = el('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = this._exportFileName('csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            } catch (error) {
+                if (window.console) console.error('Grid ' + this.name + ': CSV export failed.', error);
+                this.showError('The export failed. Please try again.');
+            } finally {
+                this.hideLoadingIcon();
+            }
+        }
+
+        // ─── Feedback ───────────────────────────────────────────────────
+
+        showLoadingIcon() {
+            if (this.el && this.el.loader) {
+                this.el.loader.style.display = '';
+            }
+        }
+
+        hideLoadingIcon() {
+            if (this.el && this.el.loader) {
+                this.el.loader.style.display = 'none';
+            }
+        }
+
+        _errorBanner() {
+            if (this._errorBannerEl && document.body.contains(this._errorBannerEl)) {
+                return this._errorBannerEl;
+            }
+            const banner = el('div', 'alert alert-danger');
+            banner.id = this.name + '_errorBanner';
+            banner.setAttribute('role', 'alert');
+            banner.style.display = 'none';
+            const container = document.getElementById(this.name + '_container');
+            if (container && container.parentNode) {
+                container.parentNode.insertBefore(banner, container);
+            } else {
+                document.body.prepend(banner);
+            }
+            this._errorBannerEl = banner;
+            return banner;
+        }
+
+        showError(message) {
+            const banner = this._errorBanner();
+            banner.textContent = message || 'An error occurred.';
+            banner.style.display = '';
+        }
+
+        clearError() {
+            if (this._errorBannerEl) {
+                this._errorBannerEl.style.display = 'none';
+                this._errorBannerEl.textContent = '';
+            }
+        }
+
+        // ─── Accessors with behaviour ───────────────────────────────────
+
+        get name() {
+            return this._name;
+        }
+
+        set name(value) {
+            this._name = value;
+        }
+
+        get currentPage() {
+            return this._currentPage;
+        }
+
+        set currentPage(value) {
+            let page = parseInt(value, 10);
+            if (isNaN(page)) {
+                page = 1;
+            }
+            page = Math.min(Math.max(1, page), Math.max(1, this.pageCount));
+            if (page === this._currentPage) {
+                return;
+            }
+            this._currentPage = page;
+            Grid.log('page', page);
+            if (this.el && this.el.curr) {
+                this.el.curr.textContent = String(page);
+            }
             this.fetchJson();
         }
-        this.disableInactivePaginationButtons();
-        this.setPaginationInfoSection();
-    }
 
-    setPaginationInfoSection() {
-        this.contentPaginationInfoSection.innerText = "Pages: " + this.pageCount.toLocaleString() + ' Rows: ' + this.rowCount.toLocaleString();
-    }
-
-    disableInactivePaginationButtons() {
-        if (this.currentPage === 1) {
-            this.contentPaginationFirstPage.parentElement.classList.add('disabled');
-            this.contentPaginationPrevPage.parentElement.classList.add('disabled');
-        } else {
-            this.contentPaginationFirstPage.parentElement.classList.remove('disabled');
-            this.contentPaginationPrevPage.parentElement.classList.remove('disabled');
+        get rowsPerPage() {
+            return this._rowsPerPage;
         }
 
-        if (this.currentPage === this.pageCount) {
-            this.contentPaginationLastPage.parentElement.classList.add('disabled');
-            this.contentPaginationNextPage.parentElement.classList.add('disabled');
-        } else {
-            this.contentPaginationLastPage.parentElement.classList.remove('disabled');
-            this.contentPaginationNextPage.parentElement.classList.remove('disabled');
+        set rowsPerPage(value) {
+            this._rowsPerPage = parseInt(value, 10) || 0;
         }
-        this.setPaginationInfoSection();
-    }
 
-    showLoadingIcon() {
-        this.contentLoadingOverlay.style.display = "";
-    }
-
-    hideLoadingIcon() {
-        this.contentLoadingOverlay.style.display = "none";
-    }
-
-    createOrGetErrorBanner() {
-        if (this._errorBannerEl && document.body.contains(this._errorBannerEl)) return this._errorBannerEl;
-        const banner = document.createElement('div');
-        banner.id = this.name + '_errorBanner';
-        banner.className = 'alert alert-danger';
-        banner.style.display = 'none';
-        // Insert before table container if possible
-        const container = document.getElementById(this.name + '_container');
-        if (container && container.parentNode) {
-            container.parentNode.insertBefore(banner, container);
-        } else {
-            document.body.prepend(banner);
+        get filters() {
+            return this._filters;
         }
-        this._errorBannerEl = banner;
-        return banner;
-    }
 
-    showError(message) {
-        const el = this.createOrGetErrorBanner();
-        el.textContent = message || 'An error occurred.';
-        el.style.display = '';
-    }
+        set filters(value) {
+            this._filters = value && typeof value === 'object' ? value : {};
+            this._currentPage = 1;
+            this.refresh();
+        }
 
-    clearError() {
-        if (this._errorBannerEl) {
-            this._errorBannerEl.style.display = 'none';
-            this._errorBannerEl.textContent = '';
+        get sortColumn() {
+            return this._sortColumn;
+        }
+
+        set sortColumn(value) {
+            this._sortColumn = value;
+            this._currentPage = 1;
+        }
+
+        get sortDir() {
+            return this._sortDir;
+        }
+
+        set sortDir(value) {
+            this._sortDir = value ? String(value).toLowerCase() : null;
+            this._currentPage = 1;
+            this.refresh();
         }
     }
 
-    get sortColumn() {
-        return this._sortColumn;
-    }
-
-    set sortColumn(value) {
-        this._sortColumn = value;
-        this._currentPage = 1;
-        //this.drawTableHeader();
-        //this.refresh();
-    }
-
-    get sortDir() {
-        return this._sortDir;
-    }
-
-    set sortDir(value) {
-        this._sortDir = value;
-        this._currentPage = 1;
-        this.refresh();
-    }
-
-    get allowExport() {
-        return this._allowExport;
-    }
-
-    set allowExport(value) {
-        this._allowExport = value;
-    }
-
-    get name() {
-        return this._name;
-    }
-
-    set name(value) {
-        this._name = value;
-    }
-
-    get pageCount() {
-        return this._pageCount;
-    }
-
-    set pageCount(value) {
-        this._pageCount = value;
-    }
-
-    get rowCount() {
-        return this._rowCount;
-    }
-
-    set rowCount(value) {
-        this._rowCount = value;
-    }
-
-    get rowsPerPage() {
-        return this._rowsPerPage;
-    }
-
-    set rowsPerPage(value) {
-        this._rowsPerPage = value;
-    }
-
-    get columns() {
-        return this._columns;
-    }
-
-    set columns(value) {
-        this._columns = value;
-    }
-
-    get data() {
-        return this._data;
-    }
-
-    set data(value) {
-        this._data = value;
-    }
-
-    get message() {
-        return this._message;
-    }
-
-    set message(value) {
-        this._message = value;
-    }
-
-    get url() {
-        return this._url;
-    }
-
-    set url(value) {
-        this._url = value;
-    }
-
-    get filters() {
-        return this._filters;
-    }
-
-    set filters(value) {
-        this._filters = value;
-        this.refresh();
-    }
-
-    get columnCount() {
-        return this._columnCount;
-    }
-
-    set columnCount(value) {
-        this._columnCount = value;
-    }
-
-    get query() {
-        return this._query;
-    }
-
-    set query(value) {
-        this._query = value;
-    }
-
-    get queryCount() {
-        return this._queryCount;
-    }
-
-    set queryCount(value) {
-        this._queryCount = value;
-    }
-
-
-    get rows() {
-        return this._rows;
-    }
-
-    set rows(value) {
-        this._rows = value;
-    }
-
-    get id() {
-        return this._id;
-    }
-
-    set id(value) {
-        this._id = value;
-    }
-
-    get title() {
-        return this._title;
-    }
-
-    set title(value) {
-        this._title = value;
-    }
-
-    get contentDrawTableOn() {
-        return this._contentDrawTableOn;
-    }
-
-    set contentDrawTableOn(value) {
-        this._contentDrawTableOn = value;
-    }
-
-    get contentTBody() {
-        return this._contentTBody;
-    }
-
-    set contentTBody(value) {
-        this._contentTBody = value;
-    }
-
-    get contentThead() {
-        return this._contentThead;
-    }
-
-    set contentThead(value) {
-        this._contentThead = value;
-    }
-
-    get contentTfoot() {
-        return this._contentTfoot;
-    }
-
-    set contentTfoot(value) {
-        this._contentTfoot = value;
-    }
-
-    get contentPaginationFirstPage() {
-        return this._contentPaginationFirstPage;
-    }
-
-    set contentPaginationFirstPage(value) {
-        this._contentPaginationFirstPage = value;
-    }
-
-    get contentPaginationPrevPage() {
-        return this._contentPaginationPrevPage;
-    }
-
-    set contentPaginationPrevPage(value) {
-        this._contentPaginationPrevPage = value;
-    }
-
-    get contentPaginationNextPage() {
-        return this._contentPaginationNextPage;
-    }
-
-    set contentPaginationNextPage(value) {
-        this._contentPaginationNextPage = value;
-    }
-
-    get contentPaginationLastPage() {
-        return this._contentPaginationLastPage;
-    }
-
-    set contentPaginationLastPage(value) {
-        this._contentPaginationLastPage = value;
-    }
-
-    get contentPaginationCurrPage() {
-        return this._contentPaginationCurrPage;
-    }
-
-    set contentPaginationCurrPage(value) {
-        this._contentPaginationCurrPage = value;
-    }
-
-    get contentLoadingOverlay() {
-        return this._contentLoadingOverlay;
-    }
-
-    set contentLoadingOverlay(value) {
-        this._contentLoadingOverlay = value;
-    }
-
-    get contentGridTitle() {
-        return this._contentGridTitle;
-    }
-
-    set contentGridTitle(value) {
-        this._contentGridTitle = value;
-    }
-
-    get contentGridButtons() {
-        return this._contentGridButtons;
-    }
-
-    set contentGridButtons(value) {
-        this._contentGridButtons = value;
-    }
-
-    get columnCountVisible() {
-        return this._columnCountVisible;
-    }
-
-    set columnCountVisible(value) {
-        this._columnCountVisible = value;
-    }
-
-    get contentTheadColumnHeaders() {
-        return this._contentTheadColumnHeaders;
-    }
-
-    set contentTheadColumnHeaders(value) {
-        this._contentTheadColumnHeaders = value;
-    }
-
-    get contentPaginationTd() {
-        return this._contentPaginationTd;
-    }
-
-    set contentPaginationTd(value) {
-        this._contentPaginationTd = value;
-    }
-
-    get contentPaginationInfoSection() {
-        return this._contentPaginationInfoSection;
-    }
-
-    set contentPaginationInfoSection(value) {
-        this._contentPaginationInfoSection = value;
-    }
-
-    get contentPaginationRowsPerPageSelector() {
-        return this._contentPaginationRowsPerPageSelector;
-    }
-
-    set contentPaginationRowsPerPageSelector(value) {
-        this._contentPaginationRowsPerPageSelector = value;
-    }
-
-    get contentTheadColumnSearchRow() {
-        return this._contentTheadColumnSearchRow;
-    }
-
-    set contentTheadColumnSearchRow(value) {
-        this._contentTheadColumnSearchRow = value;
-    }
-
-    get actionButtons() {
-        return this._actionButtons;
-    }
-
-    set actionButtons(value) {
-        this._actionButtons = value;
-    }
-
-    get rowLevelJsCallback() {
-        return this._rowLevelJsCallback;
-    }
-
-    set rowLevelJsCallback(value) {
-        this._rowLevelJsCallback = value;
-    }
-
-
-}
-
-class Column {
-    constructor(json_string) {
-        this._index = 0;
-        this._fieldName = "";
-        this._label = "";
-        this._format = "";
-        this._href = "";
-        this._target = "";
-        this._innerElementCssStyle = "";
-        this._innerElementCssClass = "";
-        this._outerElementCssStyle = "";
-        this._outerElementCssClass = "";
-        this._visible = true;
-        this._innerElementAttributes = "";
-        this._outerElementAttributes = "";
-        this._json_string = json_string;
-        this._data = [];
-        this._jsCallback = null;
-
-        this.loadValuesFromJson();
-    }
-
-    loadValuesFromJson() {
-        //this._data = JSON.parse(this._json_string);
-        this._data = this._json_string;
-        this._index = this._data.index;
-        this._fieldName = this._data.fieldName;
-        this._label = this._data.label;
-        this._format = this._data.format;
-        this._href = this._data.href;
-        this._innerElementCssStyle = this._data.innerElementCssStyle;
-        this._innerElementCssClass = this._data.innerElementCssClass;
-        this._outerElementCssStyle = this._data.outerElementCssStyle;
-        this._outerElementCssClass = this._data.outerElementCssClass;
-        this._visible = this._data.visible;
-        this._innerElementAttributes = this._data.innerElementAttributes;
-        this._outerElementAttributes = this._data.outerElementAttributes;
-        this._target = this._data.target;
-        this._jsCallback = this._data.jsCallback;
-    }
-
-
-    get json_string() {
-        return this._json_string;
-    }
-
-    set json_string(value) {
-        this._json_string = value;
-    }
-
-    get index() {
-        return this._index;
-    }
-
-    set index(value) {
-        this._index = value;
-    }
-
-    get fieldName() {
-        return this._fieldName;
-    }
-
-    set fieldName(value) {
-        this._fieldName = value;
-    }
-
-    get label() {
-        return this._label;
-    }
-
-    set label(value) {
-        this._label = value;
-    }
-
-    get format() {
-        return this._format;
-    }
-
-    set format(value) {
-        this._format = value;
-    }
-
-    get href() {
-        return this._href;
-    }
-
-    set href(value) {
-        this._href = value;
-    }
-
-    get target() {
-        return this._target;
-    }
-
-    set target(value) {
-        this._target = value;
-    }
-
-    get innerElementCssStyle() {
-        return this._innerElementCssStyle;
-    }
-
-    set innerElementCssStyle(value) {
-        this._innerElementCssStyle = value;
-    }
-
-    get innerElementCssClass() {
-        return this._innerElementCssClass;
-    }
-
-    set innerElementCssClass(value) {
-        this._innerElementCssClass = value;
-    }
-
-    get outerElementCssStyle() {
-        return this._outerElementCssStyle;
-    }
-
-    set outerElementCssStyle(value) {
-        this._outerElementCssStyle = value;
-    }
-
-    get outerElementCssClass() {
-        return this._outerElementCssClass;
-    }
-
-    set outerElementCssClass(value) {
-        this._outerElementCssClass = value;
-    }
-
-    get visible() {
-        return this._visible;
-    }
-
-    set visible(value) {
-        this._visible = value;
-    }
-
-    get innerElementAttributes() {
-        return this._innerElementAttributes;
-    }
-
-    set innerElementAttributes(value) {
-        this._innerElementAttributes = value;
-    }
-
-    get outerElementAttributes() {
-        return this._outerElementAttributes;
-    }
-
-    set outerElementAttributes(value) {
-        this._outerElementAttributes = value;
-    }
-
-    get data() {
-        return this._data;
-    }
-
-    set data(value) {
-        this._data = value;
-    }
-
-    set showSearchBar(value) {
-        this._showSearchBar = value;
-    }
-
-    get showSearchBar() {
-        return this._showSearchBar;
-    }
+    Grid.debug = false;
+    Grid.searchDebounceMs = 0;
+    Grid.Column = Column;
 
-    set showTitleBar(value) {
-        this._showTitleBar = value;
-    }
-
-    get showTitleBar() {
-        return this._showTitleBar;
-    }
-
-    get jsCallback() {
-        return this._jsCallback;
-    }
-
-    set jsCallback(value) {
-        this._jsCallback = value;
-    }
+    window.Grid = Grid;
 
-    get deferInitialize() {
-        return this._deferInitialize;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', Grid.autoInitAll);
+    } else {
+        setTimeout(Grid.autoInitAll, 0);
     }
-
-    set deferInitialize(value) {
-        this._deferInitialize = value;
-    }
-
-    set contentGridTitleRow(value){
-        this._contentGridTitleRow = value;
-    }
-
-    get contentGridTitleRow(){
-        return this._contentGridTitleRow;
-    }
-
-}
-
-window.Grid = Grid;
+})(window, document);

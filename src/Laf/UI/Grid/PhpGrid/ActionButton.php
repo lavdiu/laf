@@ -1,45 +1,26 @@
 <?php
 
-
 namespace Laf\UI\Grid\PhpGrid;
 
+use JsonSerializable;
+
 /**
- * Class ActionButton
- * @package Laf\UI\Grid\PhpGrid
+ * One entry of the per-row action menu of a PhpGrid. The href is a template: {column} is replaced by the
+ * row's value and [param] by the page's query string parameter (grid.js formatLinkHref()). The public
+ * properties are the JSON contract with grid.js.
  */
-class ActionButton
+class ActionButton implements JsonSerializable
 {
-    /**
-     * @var string
-     */
-    public $label = null;
-
-    /**
-     * @var string
-     */
-    public $href = null;
-
-    /**
-     * @var string
-     */
-    public $icon = null;
-
-    /**
-     * @var array
-     */
-    public $attributeList = [];
-
-    /**
-     * @var string|null JS callback function name (supports dot-notation, e.g. "MyApp.buttons.check")
-     */
+    public string $label;
+    public string $href;
+    public ?string $icon;
+    /** @var array<string, string> attribute name => value, set on the rendered link */
+    public array $attributeList = [];
+    /** JS function name called per row before rendering (dot-notation allowed): fn(row, buttonDef) */
     public ?string $jsCallback = null;
+    /** Extra CSS classes for the rendered link */
+    public ?string $cssClass = null;
 
-    /**
-     * ActionButton constructor.
-     * @param string $label
-     * @param string $href
-     * @param string $icon
-     */
     public function __construct(string $label, string $href, ?string $icon = null)
     {
         $this->label = $label;
@@ -48,61 +29,79 @@ class ActionButton
     }
 
     /**
-     * @return string
+     * Button from an array keyed by property name (label and href required); unknown keys are ignored
      */
+    public static function createFromAssocArray(array $settings): ActionButton
+    {
+        $button = new self(
+            isset($settings['label']) ? (string)$settings['label'] : '',
+            isset($settings['href']) ? (string)$settings['href'] : '',
+            isset($settings['icon']) && $settings['icon'] !== '' ? (string)$settings['icon'] : null
+        );
+        if (isset($settings['attributeList']) && is_array($settings['attributeList'])) {
+            foreach ($settings['attributeList'] as $name => $value) {
+                $button->addAttribute((string)$name, is_scalar($value) ? (string)$value : '');
+            }
+        }
+        if (isset($settings['jsCallback']) && $settings['jsCallback'] !== '') {
+            $button->setJsCallback((string)$settings['jsCallback']);
+        }
+        if (isset($settings['cssClass']) && $settings['cssClass'] !== '') {
+            $button->setCssClass((string)$settings['cssClass']);
+        }
+        return $button;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return [
+            'label' => $this->label,
+            'href' => $this->href,
+            'icon' => $this->icon,
+            'attributeList' => $this->attributeList,
+            'jsCallback' => $this->jsCallback,
+            'cssClass' => $this->cssClass,
+        ];
+    }
+
     public function getLabel(): string
     {
         return $this->label;
     }
 
-    /**
-     * @param string $label
-     * @return ActionButton
-     */
-    public function setLabel(string $label): ActionButton
+    public function setLabel(string $label): static
     {
         $this->label = $label;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getHref(): string
     {
         return $this->href;
     }
 
-    /**
-     * @param string $href
-     * @return ActionButton
-     */
-    public function setHref(string $href): ActionButton
+    public function setHref(string $href): static
     {
         $this->href = $href;
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getIcon(): string
+    public function getIcon(): ?string
     {
         return $this->icon;
     }
 
-    /**
-     * @param string $icon
-     * @return ActionButton
-     */
-    public function setIcon(string $icon): ActionButton
+    public function setIcon(?string $icon): static
     {
-        $this->icon = $icon;
+        $this->icon = ($icon === '') ? null : $icon;
         return $this;
     }
 
     /**
-     * @return array
+     * @return array<string, string>
      */
     public function getAttributes(): array
     {
@@ -110,36 +109,53 @@ class ActionButton
     }
 
     /**
-     * @param array $attributes
-     * @return ActionButton
+     * @param array<string, string> $attributes
      */
-    public function setAttributes(array $attributes): ActionButton
+    public function setAttributes(array $attributes): static
     {
-        $this->attributeList = $attributes;
+        $this->attributeList = [];
+        foreach ($attributes as $name => $value) {
+            $this->addAttribute((string)$name, is_scalar($value) ? (string)$value : '');
+        }
         return $this;
     }
 
-    public function addAttribute(string $attribute, string $value): ActionButton
+    public function addAttribute(string $attribute, string $value): static
     {
         $this->attributeList[$attribute] = $value;
         return $this;
     }
 
-    /**
-     * @return string|null
-     */
+    public function getCssClass(): ?string
+    {
+        return $this->cssClass;
+    }
+
+    public function setCssClass(?string $cssClass): static
+    {
+        $this->cssClass = ($cssClass === '') ? null : $cssClass;
+        return $this;
+    }
+
     public function getJsCallback(): ?string
     {
         return $this->jsCallback;
     }
 
     /**
-     * @param string $callback JS function name (supports dot-notation, e.g. "MyApp.buttons.check")
-     * @return ActionButton
+     * @param string|null $callback JS function name (dot-notation allowed, e.g. "MyApp.buttons.check")
      */
-    public function setJsCallbackk(string $callback): ActionButton
+    public function setJsCallback(?string $callback): static
     {
-        $this->jsCallback = $callback;
+        $this->jsCallback = ($callback === '') ? null : $callback;
         return $this;
+    }
+
+    /**
+     * @deprecated misspelled name kept for compatibility, use setJsCallback()
+     */
+    public function setJsCallbackk(string $callback): static
+    {
+        return $this->setJsCallback($callback);
     }
 }

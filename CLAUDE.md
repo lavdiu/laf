@@ -26,7 +26,7 @@ vendor/bin/phpunit tests/BaseObjectTest.php
 
 ### Code Quality
 ```bash
-# Static analysis: phpstan.neon = level 5 on src/, PHP 8.0 floor, src/Laf/UI/Grid excluded until it is reviewed; must stay at 0 errors
+# Static analysis: phpstan.neon = level 5 on src/, PHP 8.0 floor, only the deprecated SimpleTable excluded; must stay at 0 errors
 vendor/bin/phpstan analyse
 
 # Rector is advisory only: rector.php = PHP 8.0 set + dead-code + code-quality on src/ and tests/, apply suggestions by hand
@@ -120,7 +120,26 @@ Base/Base[TableName].php (auto-generated from schema)
 
 Hierarchical component-based rendering:
 - **Form**: Auto-generates forms from BaseObject fields, processes submissions via `processForm()`
-- **Grid Components**: SimpleTable, PhpGrid for data tables with pagination
+- **Grid** (`src/Laf/UI/Grid/PhpGrid/`, client `sample_files/grid.js`, demo `sample_files/grid_demo.php`): `PhpGrid($name)`
+  takes `setSqlQuery()` (wrapped as a derived table, may order/group and use `:params` from `setParamsList()`),
+  `addColumn(new Column($field, $label, $visible, $exportable, $href, $target, ...))`, `addActionButton(new
+  ActionButton($label, $hrefTemplate, $icon))` (`{column}` / `[query_param]` placeholders, `addAttribute()`,
+  `setJsCallback()`), `setRowsPerPage()`, `setRowsPerPageOptions([10, 50, 100])` (0 = All), `setSortDetails()`,
+  `setEnableWildCardSearch()` (LIKE contains instead of starts-with), `setColumnTotals()`, `setShowTitle()`,
+  `setShowSearchBar()`, `setAllowExport()`, `setDeferInitialize()` (loads when visible), `setInlineScript(false)`
+  (no inline `<script>`, `Grid.autoInitAll()` picks the table up), `setRowLevelJsCallback()`, `setDebug()`,
+  `setMaxRowsPerPage()`, `setCsvBom()`. Page flow: `if ($grid->isReadyToHandleRequests()) { $grid->bootstrap(); }`
+  then `echo $grid->draw()`. `bootstrap()` answers the grid's own request (`load_grid_by_name`): JSON page, or
+  `export_grid_to_excel` (XLSX through OpenSpout) / `export_grid_to_csv`; it exits (`bootstrap(false)` returns).
+  `GridRequest` parses page/limit/sort/dir/searchParams (operators lt gt lteq gteq eq noteq like notlike in between
+  isnull notnull; unknown columns and operators dropped), `GridQuery` builds the data/count/totals SQL with quoted
+  identifiers (reserved-word aliases work), unique `:fN` bindings, `CAST(col AS TEXT) ILIKE` on PostgreSQL (LIKE is
+  case-insensitive on both engines). Column tuning: `setSearchOperator()`, `setWildcardMode()`,
+  `setCaseInsensitive()` (for =/!=), `setCaseInsensitiveSort()`, `setSearchable(false)`, `setSortable(false)`,
+  `setFormat()` (else detected from the result set: integer/float/boolean/date/time/datetime/string; grid.js
+  right-aligns numeric columns and exports them as numbers). `execute()` false + `getErrorMessage()` /
+  `getErrorCode()` / `getHttpStatus()` on failure; `toArray()` / `toJson()` is the payload. Callback contract in
+  `sample_files/grid-callback-examples.md`. `SimpleTable` is deprecated and untouched.
 - **HTML table** (`src/Laf/UI/Table/`): `Table` is a ComponentInterface (`Table::fromArray($rows, $headers)`,
   `addRow($values)` escaped, `bootstrap()`, `setResponsive()`, `setCaption()`, `addTheadRow()`, `getTfoot()`), rows are
   `Tr` (`addCells($values, $header)`), cells `Td` / `Th` (`Cell`): `setText()` is escaped, the constructor and
@@ -396,7 +415,8 @@ examples/             # Usage examples
 No example application is checked in. `sample_files/` holds `bootstrap.php` + `settings.php` (one bootstrap for
 web and CLI: Composer autoloader, `Settings::loadFromFile()`, `LAF_DB_*` / `APP_ENV` overrides; `settings.php` lists
 every key LAF reads), `class_generator.php` (DatabaseGenerator from PHP), `inspect_table.php`,
-`populate_table_object_list.php` and the grid callback notes; `examples/audit_logging_example.php` walks through the
+`populate_table_object_list.php`, `grid_demo.php` (every grid feature against a table it creates; `?js=old` loads an
+older grid.js from `var/grid_old.js` for compatibility checks) and the grid callback notes; `examples/audit_logging_example.php` walks through the
 audit log, and `sample_project/` (gitignored) is a copy of the production ASM ERP built on LAF, kept for reference only.
 
 ## Field Types and Validation
