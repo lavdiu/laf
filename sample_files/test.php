@@ -2,12 +2,12 @@
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/config.php';
 
-use Laf\Generator\TableInspector;
+use Laf\Generator\MysqlTableInspector;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\ActionButton;
 
-$ti = new TableInspector("person");
+$ti = new MysqlTableInspector("person");
 $ti->inspect();
 
 $grid = new PhpGrid('business_partner_list');
