@@ -62,7 +62,10 @@ drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","se
 `$obj->getForm($drawMode)` (laid out by the model, see Forms), one related-records tab per foreign key column that
 points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, and delete links
 carrying the form's CSRF token (`Form::withCsrfToken()` / `isValidCsrfToken()`; pretty-URL rewrites must keep the
-query string). Config keys `page_factory` / `page_factory_method` replace `{namespace}\Factory::GeneralPage()`.
+query string). A related tab's rows belong to the other table, so its View / Update buttons go to that table's page
+(no Delete there: config `module_for_table` maps table => module, or a callable; default = the table name) while the
+page's own list acts on the current module. Config keys `page_factory` / `page_factory_method` replace
+`{namespace}\Factory::GeneralPage()`.
 
 ### Dependencies
 ```bash
@@ -94,7 +97,8 @@ Base/Base[TableName].php (auto-generated from schema)
 #### 1. Database/ORM Layer (`src/Laf/Database/`)
 
 **BaseObject** is the foundation providing Active Record functionality:
-- CRUD operations: `select()`, `insert()`, `update()`, `store()`, `hardDelete()`, `softDelete()`
+- CRUD operations: `select()`, `insert()`, `update()`, `store()`, `hardDelete()` (false when the row was already
+  gone: nothing deleted, `afterDelete()` not called), `softDelete()`
 - Query building: `find()`, `findOne()`, `bOfind()`, `bOfindOne()`, `findAsArray()`, `query()` (single-table `Query`)
 - Lifecycle hooks: `beforeInsert/afterInsert/beforeUpdate/afterUpdate/beforeDelete/afterDelete/afterLoad`
 - State: `isNew()`, `isDirty()`, `getChangedFields()`, `isLoaded()`, `validate()`, `transaction()`
@@ -258,14 +262,16 @@ $customer = Customer::findOne(['email' => 'john@example.com']);
 **Complex Queries** (single table; column names are validated against the model, values bound through the field types):
 ```php
 $results = Customer::query()
-    ->where('city', 'New York')          // = (null → IS NULL, array → IN)
-    ->orWhere('city', '=', 'Boston')
-    ->where('balance', '>', 0)
+    ->where('balance', '>', 0)           // = (null → IS NULL, array → IN)
+    ->whereGroup(fn (Query $q) => $q->where('city', 'New York')->orWhere('city', 'Boston'))   // (… OR …) in parentheses
+    ->when($search !== '', fn (Query $q) => $q->where('name', 'LIKE', "%$search%"))          // conditional piece
     ->whereNull('deleted_on')
     ->orderBy('name', 'ASC')
     ->limit(10)
     ->get();                             // Customer[] from one SELECT; also first(), arrays(), column(), count(), exists(), delete()
 ```
+Conditions are joined flat in the order given, so an `orWhere()` outside a `whereGroup()` / `orWhereGroup()` applies
+to everything before it (`a AND b OR c`); group the alternatives.
 
 **Write path**: `store()` = `insert()` when `isNew()` else `update()` (only changed fields; nothing changed = nothing written).
 Unset nullable columns are left out of the INSERT so database defaults apply (`reload()` reads them back). `created_on/by`

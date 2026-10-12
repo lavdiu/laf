@@ -29,6 +29,13 @@ class TypeJson extends AbstractFieldType
             return json_encode($value);
         }
         $s = trim($this->toStringOrFail($value));
+        if (function_exists('json_validate')) {
+            // PHP 8.3+: checks the syntax without building the value
+            if (!json_validate($s)) {
+                throw $this->invalid($value, 'not valid JSON: ' . json_last_error_msg());
+            }
+            return $s;
+        }
         try {
             json_decode($s, false, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $ex) {

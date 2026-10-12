@@ -406,6 +406,20 @@ class BaseObjectTest extends TestCase
 		$this->assertFalse($row->hardDelete());
 	}
 
+	/** @test */
+	public function orm_hard_delete_of_a_row_removed_meanwhile_returns_false()
+	{
+		$row = $this->newDummy('gone-meanwhile');
+		$row->store();
+		$other = new DummyTable($row->getIdVal());
+		$other->auditLogDisable();
+		$this->assertTrue($other->hardDelete(), 'first delete removes the row');
+
+		$this->assertFalse($row->hardDelete(), 'the row is already gone: nothing deleted, not a success');
+		$this->assertSame(0, $row->getAffectedRows());
+		$this->assertFalse($row->isLoaded());
+	}
+
 	// ── foreign keys ──
 
 	/** @test */

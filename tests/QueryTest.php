@@ -52,6 +52,41 @@ class QueryTest extends TestCase
     }
 
     /** @test */
+    public function where_group_wraps_its_conditions_so_or_cannot_drop_the_outer_filter()
+    {
+        $q = $this->query()
+            ->where('integer_field', 5)
+            ->whereGroup(fn (Query $sub) => $sub->where('varchar_field45', 'open')->orWhere('null_field', null))
+            ->orWhereGroup(function (Query $sub) {
+                $sub->where('bool_field', true)->whereIn('integer_field', [1, 2]);
+            })
+            ->whereGroup(fn (Query $sub) => null);
+
+        $this->assertSame(
+            'SELECT * FROM `dummy_table` WHERE `integer_field` = :v0'
+            . ' AND (`varchar_field45` = :v1 OR `null_field` IS NULL)'
+            . ' OR (`bool_field` = :v2 AND `integer_field` IN (:v3, :v4))',
+            $q->getSql(),
+            'an empty group adds nothing'
+        );
+        $this->assertSame([':v0' => 5, ':v1' => 'open', ':v2' => 1, ':v3' => 1, ':v4' => 2], $q->getBindingValues());
+        $this->assertSame('SELECT * FROM `dummy_table` WHERE (`integer_field` = :v0)', $this->query()->whereGroup(fn (Query $s) => $s->where('integer_field', 1))->getSql());
+    }
+
+    /** @test */
+    public function when_applies_the_callback_only_for_a_truthy_condition()
+    {
+        $search = '';
+        $q = $this->query()
+            ->when($search !== '', fn (Query $s) => $s->where('varchar_field45', 'LIKE', "%$search%"))
+            ->when('abc', fn (Query $s, $value) => $s->where('varchar_field45', $value), fn (Query $s) => $s->whereNull('varchar_field45'))
+            ->when(0, fn (Query $s) => $s->where('integer_field', 1), fn (Query $s, $value) => $s->where('integer_field', $value));
+
+        $this->assertSame('SELECT * FROM `dummy_table` WHERE `varchar_field45` = :v0 AND `integer_field` = :v1', $q->getSql());
+        $this->assertSame([':v0' => 'abc', ':v1' => 0], $q->getBindingValues());
+    }
+
+    /** @test */
     public function booleans_bind_as_integers_on_both_engines()
     {
         foreach ([Identifier::MYSQL, Identifier::POSTGRES] as $engine) {

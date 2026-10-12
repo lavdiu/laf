@@ -41,9 +41,8 @@ class UrlParser
 
     private function __construct()
     {
-        if (Settings::has('settings.use_pretty_url')) {
-            $this->usePrettyUrl = (bool)Settings::get('settings.use_pretty_url');
-        }
+        // getBool(): "false", "off", "0" from an ini or env file mean false ((bool)"false" is true)
+        $this->usePrettyUrl = Settings::getBool('settings.use_pretty_url', true);
         $this->buildFromUri();
     }
 

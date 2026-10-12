@@ -164,6 +164,49 @@ final class Query
         return $this;
     }
 
+    /**
+     * Conditions added inside the callback are wrapped in parentheses, so an
+     * orWhere() in the group cannot swallow the conditions before it:
+     *   ->where('customer_id', 5)->whereGroup(fn (Query $q) => $q->where('status', 'open')->orWhere('due_on', '<', $today))
+     *   -> customer_id = :v0 AND (status = :v1 OR due_on < :v2)
+     * An empty group adds nothing.
+     * @param callable(Query): mixed $callback
+     */
+    public function whereGroup(callable $callback, string $boolean = 'AND'): self
+    {
+        $outerCount = count($this->wheres);
+        $callback($this);
+        $inner = array_slice($this->wheres, $outerCount);
+        $this->wheres = array_slice($this->wheres, 0, $outerCount);
+        if (count($inner) > 0) {
+            $this->wheres[] = [$this->boolean($boolean), '(' . $this->joinConditions($inner) . ')'];
+        }
+        return $this;
+    }
+
+    /** @param callable(Query): mixed $callback */
+    public function orWhereGroup(callable $callback): self
+    {
+        return $this->whereGroup($callback, 'OR');
+    }
+
+    /**
+     * Apply $then when $condition is truthy, else $otherwise when given:
+     *   ->when($search !== '', fn (Query $q) => $q->where('name', 'LIKE', "%$search%"))
+     * @param mixed $condition
+     * @param callable(Query, mixed): mixed $then
+     * @param callable(Query, mixed): mixed|null $otherwise
+     */
+    public function when($condition, callable $then, ?callable $otherwise = null): self
+    {
+        if ($condition) {
+            $then($this, $condition);
+        } elseif ($otherwise !== null) {
+            $otherwise($this, $condition);
+        }
+        return $this;
+    }
+
     public function orderBy(string $field, string $direction = 'ASC'): self
     {
         $direction = strtoupper(trim($direction));
@@ -414,11 +457,17 @@ final class Query
         if (count($this->wheres) === 0) {
             return '';
         }
+        return ' WHERE ' . $this->joinConditions($this->wheres);
+    }
+
+    /** @param array<int, array{0: string, 1: string}> $wheres [boolean, sql] */
+    private function joinConditions(array $wheres): string
+    {
         $sql = '';
-        foreach ($this->wheres as $i => [$boolean, $condition]) {
+        foreach (array_values($wheres) as $i => [$boolean, $condition]) {
             $sql .= ($i === 0 ? '' : ' ' . $boolean . ' ') . $condition;
         }
-        return ' WHERE ' . $sql;
+        return $sql;
     }
 
     private function quoteTable(): string
