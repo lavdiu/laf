@@ -11,12 +11,14 @@
             <exclude>tests/PhpGridTest.php</exclude>
             <exclude>tests/DbTest.php</exclude>
             <exclude>tests/GeneratorTest.php</exclude>
+            <exclude>tests/DocumentIntegrationTest.php</exclude>
         </testsuite>
         <testsuite name="Integration">
             <file>tests/DbTest.php</file>
             <file>tests/BaseObjectTest.php</file>
             <file>tests/PhpGridTest.php</file>
             <file>tests/GeneratorTest.php</file>
+            <file>tests/DocumentIntegrationTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>
