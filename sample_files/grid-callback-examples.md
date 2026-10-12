@@ -93,7 +93,9 @@ function approveButton(row, button) {
 ```
 
 Attributes added with `ActionButton::addAttribute()` are set on the link; `{column}` placeholders in their
-values are replaced like in the href, so `addAttribute('onclick', 'return confirm("Delete {name}?")')` works.
+values are replaced like in the href, except in event handlers (`on*`), which are set verbatim: row data must
+never land inside script. Read the row from the link instead, e.g. `addAttribute('data-name', '{name}')` and
+`addAttribute('onclick', 'return confirm("Delete " + this.dataset.name + "?")')`.
 
 ## Row callback
 

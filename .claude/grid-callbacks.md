@@ -12,7 +12,7 @@
 
 ## Behavior
 - Backwards compatible: no callback = identical behavior; original objects never mutated
-- `{column}` and `[query_param]` placeholders are replaced in hrefs and in button attribute values
+- `{column}` and `[query_param]` placeholders are replaced in hrefs and in button attribute values, never in `on*` event handlers (row data must not land in script; use a `data-*` attribute and read it from `this.dataset`)
 - Detailed examples in `sample_files/grid-callback-examples.md`; a live page in `sample_files/grid_demo.php`
 
 ## Key Files

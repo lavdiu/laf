@@ -983,7 +983,9 @@
                 if (button.attributeList && typeof button.attributeList === 'object') {
                     const attributes = {};
                     for (const name of Object.keys(button.attributeList)) {
-                        attributes[name] = this.formatLinkHref(row, String(button.attributeList[name]));
+                        const raw = String(button.attributeList[name]);
+                        // never substitute row data into an event handler: a stored value could inject script
+                        attributes[name] = /^on/i.test(name) ? raw : this.formatLinkHref(row, raw);
                     }
                     applyAttributes(item, attributes);
                 }
