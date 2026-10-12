@@ -1,8 +1,8 @@
-Second review of `src/Laf/Database/Db.php` after the 8f50144 rework: 7 remaining defects fixed (error log lost inside transactions, flat nesting, dead cached connection after a server drop, port not following `setEngine()`, schema lists, engine source, lost SQLSTATE), savepoint nesting, reconnect-on-loss, plain-table write helpers, keyed fetch and schema lookups, verified on MariaDB and PostgreSQL under E_ALL on PHP 8.5.
+Second review of `src/Laf/Database/Db.php` after the 949aa04 rework: 7 remaining defects fixed (error log lost inside transactions, flat nesting, dead cached connection after a server drop, port not following `setEngine()`, schema lists, engine source, lost SQLSTATE), savepoint nesting, reconnect-on-loss, plain-table write helpers, keyed fetch and schema lookups, verified on MariaDB and PostgreSQL under E_ALL on PHP 8.5.
 
 # Db review 2 — 2026-10-12
 
-Branch `improvements1`, on top of the first Db rework (8f50144, notes `agent/2026-10-11-db-notes.md`). Companion edits:
+Branch `improvements1`, on top of the first Db rework (949aa04, notes `agent/2026-10-11-db-notes.md`). Companion edits:
 `src/Laf/Database/Identifier.php` (`engine()`), `src/Laf/Exception/DbConnectException.php` (code), `src/Laf/UI/Grid/SimpleTable.php`
 (dead branch), `src/Laf/UI/Grid/PhpGrid/PhpGrid.php` (one E_ALL deprecation), `tests/DbUnitTest.php` (+7), `tests/DbTest.php` (+5),
 `tests/KeysAndTableTest.php` (detaches the default instance), `CLAUDE.md`, `sample_files/database.php`.
@@ -39,7 +39,7 @@ Branch `improvements1`, on top of the first Db rework (8f50144, notes `agent/202
 
 ## 3. Compatibility
 
-Kept: every public method and signature of 8f50144, the positional constructor with string/false ports, raw `PDOException` from
+Kept: every public method and signature of 949aa04, the positional constructor with string/false ports, raw `PDOException` from
 statements, `getConnection()` for raw PDO use (routerarena transactions keep working and now nest with `transaction()`), the static
 helpers, `setSqlErrorLogger()`.
 

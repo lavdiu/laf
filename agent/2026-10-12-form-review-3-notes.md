@@ -2,7 +2,7 @@ Third review of `src/Laf/UI/Form` (inputs, controls, Form, FormLayout) on `impro
 
 # Scope
 
-The folder was reworked twice before (03bfda8 inputs, 94df703 Form.php), so this pass covered what those left:
+The folder was reworked twice before (d10b72e inputs, 332d97d Form.php), so this pass covered what those left:
 every `Input/*` class, `Control/Button`, the constant classes, `FormLayout` and the remaining rough edges of
 `Form`. Every file in the folder was read, plus `FormElementTrait`, `ComponentTrait`, `Field`, the type classes,
 `ClassGenerator`, the containers FormLayout builds, `Link`, `Settings`, the five existing Form test files and the

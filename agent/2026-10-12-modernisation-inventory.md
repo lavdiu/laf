@@ -23,13 +23,13 @@ Inventory (2026-10-12, branch improvements1) of the LAF source that the review-a
 
 | File | Lines | State |
 |---|---|---|
-| `src/Laf/Database/Field/Field.php` | 1,040 | Centre of the ORM; got the FieldType rewrite (9d0c26c) but is tab-indented, 23 untyped properties, 29 public methods without return types, `getAttribute(): string` returns null, `$loadedOnTs` write-only, `@param mixed` against `FieldType`. |
+| `src/Laf/Database/Field/Field.php` | 1,040 | Centre of the ORM; got the FieldType rewrite (cec9e06) but is tab-indented, 23 untyped properties, 29 public methods without return types, `getAttribute(): string` returns null, `$loadedOnTs` write-only, `@param mixed` against `FieldType`. |
 | `src/Laf/Database/Table.php` | 371 | 6 untyped properties, 18 methods without return types. |
 | `src/Laf/Database/ForeignKey.php` | 342 | 9 untyped properties, 3 untyped getters. |
 | `src/Laf/Database/PrimaryKey.php` | 194 | 2 untyped properties, 3 "ternary always true" PHPStan hits. |
 | `src/Laf/Database/AuditLog.php` | 750 | 6 untyped static properties, 3 PHPStan hits. |
 | `AbstractFieldType.php`, `FieldTypeFactory.php` | | 1 PHPStan hit each (redundant `instanceof`, `??` on a complete map). |
-| `src/Laf/UI/Table/Table.php`, `Tr.php`, `Cell.php` | 854 | Reworked in 9d0c26c (ComponentInterface, escaping, 44 tests) but 31 untyped properties, `Cell::getData()` untyped. |
+| `src/Laf/UI/Table/Table.php`, `Tr.php`, `Cell.php` | 854 | Reworked in cec9e06 (ComponentInterface, escaping, 44 tests) but 31 untyped properties, `Cell::getData()` untyped. |
 
 `BaseObject.php`, `Db.php`, `Query.php` were reviewed twice; what is untyped there is untyped on purpose (generated overrides).
 
