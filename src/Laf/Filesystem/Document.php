@@ -48,6 +48,11 @@ class Document
         'image/avif' => 'avif',
     ];
 
+    /** types the browser may render inline; anything else is sent as an attachment (SVG, HTML, XML can carry scripts) */
+    private const INLINE_SAFE_MIME_TYPES = [
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif', 'application/pdf', 'text/plain',
+    ];
+
     private const EXTENSION_BY_MIME = [
         'application/pdf' => 'pdf',
         'image/svg+xml' => 'svg',
@@ -421,9 +426,12 @@ class Document
 
     /**
      * Sends the stored file and ends the request: `view` inline, `download` as an attachment named after the
-     * original file, `thumbnail` the thumbnail (or the file itself when there is none). A missing record, a
-     * record with an encrypt key or a missing file redirects to the not-found URL, or answers 404 when
-     * none is configured. Conditional requests get 304. $exit = false returns instead of ending the script.
+     * original file, `thumbnail` the thumbnail (or the file itself when there is none). Only raster images,
+     * PDF and plain text are sent inline; every other type (SVG, HTML, XML, Office files) goes out as an
+     * `application/octet-stream` attachment, and every response carries a sandboxing Content-Security-Policy,
+     * so an uploaded file can never run as a page of the site. A missing record, a record with an encrypt key
+     * or a missing file redirects to the not-found URL, or answers 404 when none is configured. Conditional
+     * requests get 304. $exit = false returns instead of ending the script.
      */
     public function handleRequest(string $request = self::ACTION_VIEW, bool $exit = true): void
     {
@@ -485,11 +493,15 @@ class Document
             return;
         }
 
-        $this->sendHeader('Content-Type: ' . $this->contentType());
+        $type = $this->contentType();
+        $safe = in_array($type, self::INLINE_SAFE_MIME_TYPES, true);
+        $inline = $safe && $request !== self::ACTION_DOWNLOAD;
+        $this->sendHeader('Content-Type: ' . ($safe ? $type : 'application/octet-stream'));
         $this->sendHeader('Content-Length: ' . $size);
         $this->sendHeader('X-Content-Type-Options: nosniff');
+        $this->sendHeader("Content-Security-Policy: sandbox; default-src 'none'");
         $this->sendHeader('Content-Disposition: ' . self::contentDisposition(
-            $request === self::ACTION_DOWNLOAD ? 'attachment' : 'inline',
+            $inline ? 'inline' : 'attachment',
             $this->downloadName($request === self::ACTION_THUMBNAIL ? basename($path) : null)
         ));
         $this->sendBody($path);

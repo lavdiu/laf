@@ -189,7 +189,9 @@ Storage failures throw `RuntimeException` (files written so far are removed). `n
 files) and `handleRequest('view'|'download'|'thumbnail')`, which streams the file with `Content-Type`,
 `Content-Length`, `Last-Modified`, `ETag` (304 on a conditional request), `Cache-Control: private, max-age=
 upload.cache_max_age` and a `Content-Disposition` named after the original file, then exits (`handleRequest($action,
-false)` returns instead). A missing record, an encrypted record or a missing file redirects to
+false)` returns instead). Only raster images, PDF and plain text are sent inline; SVG, HTML and every other type go
+out as an `application/octet-stream` attachment under a sandboxing Content-Security-Policy (uploads never run as a
+page of the site). A missing record, an encrypted record or a missing file redirects to
 `upload.not_found_url` (fallback: the legacy `404` key, `Document::setNotFoundUrl()`), or answers 404 when none is set.
 `upload.documents_directory` must exist and be writable; the path is joined with exactly one slash.
 
