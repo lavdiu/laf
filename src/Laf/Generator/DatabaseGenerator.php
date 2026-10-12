@@ -17,7 +17,9 @@ use Psr\Log\LoggerInterface;
  *       ->generateEverything($labels);
  *
  * Progress lines go to echo (web: flushed) or to the callable given to
- * setOutput(); getGeneratedFiles() lists what was written.
+ * setOutput(); getGeneratedFiles() lists what was written. setInstallMissingPages(true) also copies the
+ * page of every table that has none in live_page_dir yet; plan() shows what a run would write.
+ * `vendor/bin/laf-generate` (Laf\Generator\Cli) is the command-line front end.
  */
 class DatabaseGenerator
 {
@@ -46,8 +48,13 @@ class DatabaseGenerator
 
     private bool $generateAutoloader = true;
 
+    private bool $installMissingPages = false;
+
     /** @var string[] */
     private array $generatedFiles = [];
+
+    /** @var string[] pages copied to live_page_dir by installMissingPages() */
+    private array $installedPages = [];
 
     /** @var string[] */
     private array $warnings = [];
@@ -143,6 +150,38 @@ class DatabaseGenerator
     }
 
     /**
+     * Whether existing model classes are overwritten (Base classes always are); the constructor's second argument
+     */
+    public function setForceRewriteClasses(bool $force): static
+    {
+        $this->config['rewrite_class'] = $force;
+        return $this;
+    }
+
+    public function isForceRewriteClasses(): bool
+    {
+        return !empty($this->config['rewrite_class']);
+    }
+
+    /**
+     * Whether generateEverything() ends with installMissingPages()
+     */
+    public function setInstallMissingPages(bool $install): static
+    {
+        $this->installMissingPages = $install;
+        return $this;
+    }
+
+    /**
+     * The pages installMissingPages() copied to live_page_dir
+     * @return string[]
+     */
+    public function getInstalledPages(): array
+    {
+        return $this->installedPages;
+    }
+
+    /**
      * The files written so far
      * @return string[]
      */
@@ -201,6 +240,73 @@ class DatabaseGenerator
     }
 
     /**
+     * Copies the generated page of every selected table from page_dir to live_page_dir when no page is there
+     * yet; a page that exists is never touched (the live pages are the application's own code)
+     * @throws \RuntimeException when a page cannot be copied
+     */
+    public function installMissingPages(): static
+    {
+        $pageDir = rtrim((string)($this->getConfig()['page_dir'] ?? ''), '/\\');
+        $liveDir = rtrim((string)($this->getConfig()['live_page_dir'] ?? ''), '/\\');
+        if ($pageDir === '' || $liveDir === '') {
+            return $this;
+        }
+        $this->write("\nInstalling the pages of new tables");
+        foreach ($this->getTables() as $table) {
+            $name = $table['table_name'] . '.page';
+            $source = $pageDir . '/' . $name;
+            $target = $liveDir . '/' . $name;
+            if (!is_file($source)) {
+                $this->warn($table['table_name'] . ': no generated page to install (' . $source . ')');
+                continue;
+            }
+            if (file_exists($target)) {
+                continue;
+            }
+            if (!is_dir($liveDir) && !mkdir($liveDir, 0755, true) && !is_dir($liveDir)) {
+                throw new \RuntimeException("Cannot create directory: {$liveDir}");
+            }
+            if (!copy($source, $target)) {
+                throw new \RuntimeException("Failed to write file: {$target}");
+            }
+            $this->installedPages[] = $target;
+            $this->generatedFiles[] = $target;
+            $this->write("\nInstalled page: " . $name);
+        }
+        return $this;
+    }
+
+    /**
+     * What a run would write for every selected table, without writing anything: the Base class path, the
+     * class path and whether it exists (kept unless rewrite_class), the page path, and the live page path
+     * and whether it exists (installMissingPages() copies only missing ones)
+     *
+     * @return array<int, array{table: string, base_class: string, class: string, class_exists: bool,
+     *                          page: string, live_page: string, live_page_exists: bool}>
+     */
+    public function plan(): array
+    {
+        $liveDir = rtrim((string)($this->getConfig()['live_page_dir'] ?? ''), '/\\');
+        $plan = [];
+        foreach ($this->getTables() as $table) {
+            $tableObject = new Table($table['table_name']);
+            $classGenerator = new ClassGenerator($tableObject, $this->getConfig());
+            $pageGenerator = new PageGenerator($tableObject, $this->getConfig(), $this->labelTranslations);
+            $livePage = $liveDir . '/' . $table['table_name'] . '.page';
+            $plan[] = [
+                'table' => $table['table_name'],
+                'base_class' => $classGenerator->getBaseClassFilePath(),
+                'class' => $classGenerator->getClassFilePath(),
+                'class_exists' => $classGenerator->classFileExists(),
+                'page' => $pageGenerator->getPageFilePath(),
+                'live_page' => $livePage,
+                'live_page_exists' => file_exists($livePage),
+            ];
+        }
+        return $plan;
+    }
+
+    /**
      * Generates {class_dir}/autoload.php, a PSR-0 style autoloader for the generated namespace
      */
     public function generateAutoLoader(): static
@@ -235,10 +341,14 @@ PHP;
      */
     public function createDirectoryStructure(): static
     {
+        $announced = false;
         foreach (['class_dir', 'base_class_dir', 'page_dir'] as $key) {
             $dir = (string)($this->getConfig()[$key] ?? '');
             if ($dir !== '' && !is_dir($dir)) {
-                $this->write("\nCreating directory structure");
+                if (!$announced) {
+                    $this->write("\nCreating directory structure");
+                    $announced = true;
+                }
                 if (!mkdir($dir, 0755, true) && !is_dir($dir)) {
                     throw new \RuntimeException("Cannot create directory: {$dir}");
                 }
@@ -298,7 +408,8 @@ PHP;
     }
 
     /**
-     * Generates everything: directories, autoloader (unless switched off), classes and pages
+     * Generates everything: directories, autoloader (unless switched off), classes, pages and, with
+     * setInstallMissingPages(true), the live pages of new tables
      * @param array<string, string> $labelTranslations page labels; keeps setLabelTranslations() when empty
      * @throws MissingConfigParamException when the config is incomplete
      */
@@ -316,6 +427,9 @@ PHP;
         }
         $this->processTables()
             ->processPages();
+        if ($this->installMissingPages) {
+            $this->installMissingPages();
+        }
     }
 
     /* ───────────── internals ───────────── */

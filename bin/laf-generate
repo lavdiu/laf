@@ -1,0 +1,27 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * laf-generate: generates the Base and model classes and the CRUD pages of the connected database.
+ * Run `vendor/bin/laf-generate --help` for the options.
+ */
+
+declare(strict_types=1);
+
+foreach ([
+    __DIR__ . '/../vendor/autoload.php',        // LAF checked out on its own
+    __DIR__ . '/../../../autoload.php',         // installed in vendor/lavdiu/laf/bin
+    getcwd() . '/vendor/autoload.php',          // run from an application root
+] as $autoload) {
+    if (is_file($autoload)) {
+        require_once $autoload;
+        break;
+    }
+}
+
+if (!class_exists(\Laf\Generator\Cli::class)) {
+    fwrite(STDERR, "laf-generate: Composer autoloader not found, run composer install first\n");
+    exit(2);
+}
+
+exit(\Laf\Generator\Cli::main($argv));
