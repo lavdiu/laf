@@ -287,7 +287,6 @@ class Field
     {
         if ($this->value != $value) {
             $this->value = $value;
-            #@TODO $this->value = $this->sanitizeHTML($value);
             $this->setUpdatedOnTs();
         }
         $this->syncFormElementValue();

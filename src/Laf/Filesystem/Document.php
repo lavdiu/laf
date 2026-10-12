@@ -140,6 +140,41 @@ class Document
     }
 
     /**
+     * Stores every file posted in a multi-file field (`<input type="file" name="field[]" multiple>`) and
+     * returns the new document ids in posted order. Slots with nothing usable are skipped, with the rules of
+     * upload(); a single-file entry is accepted too.
+     *
+     * @param array|null $files the `$_FILES` entry to use instead of `$_FILES[$fieldName]`
+     * @return int[]
+     * @throws \RuntimeException when a file cannot be stored; the files stored before it keep their records
+     */
+    public static function uploadMany(string $fieldName, ?array $files = null): array
+    {
+        $files = $files ?? ($_FILES[$fieldName] ?? null);
+        if (!is_array($files) || !isset($files['tmp_name'])) {
+            return [];
+        }
+        if (!is_array($files['tmp_name'])) {
+            $id = self::upload($fieldName, $files);
+            return $id === null ? [] : [$id];
+        }
+        $ids = [];
+        foreach (array_keys($files['tmp_name']) as $index) {
+            $id = self::upload($fieldName, [
+                'name' => $files['name'][$index] ?? '',
+                'type' => $files['type'][$index] ?? '',
+                'tmp_name' => $files['tmp_name'][$index],
+                'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+                'size' => $files['size'][$index] ?? 0,
+            ]);
+            if ($id !== null) {
+                $ids[] = $id;
+            }
+        }
+        return $ids;
+    }
+
+    /**
      * Stores a file that is already on disk (a download, a generated report) as a document and returns the
      * new id. An uploaded file is moved, any other file is copied. Images (`image/png`, `jpeg`, `gif`,
      * `webp`, `bmp`, `avif`) are resized to `upload.max_image_size` and get a `upload.thumbnail_size`
