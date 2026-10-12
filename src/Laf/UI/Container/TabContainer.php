@@ -23,7 +23,7 @@ class TabContainer extends GenericContainer implements ComponentInterface
     public function __construct(?string $id = "", bool $showNavButtons = false)
     {
         $this->id = $id;
-        if(strlen($this->id??'')<1){
+        if (strlen($this->id) < 1) {
             $this->id = Util::uuid();
         }
         $this->showNavButtons = $showNavButtons;
@@ -76,14 +76,28 @@ class TabContainer extends GenericContainer implements ComponentInterface
 
         if ($this->isShowNavButtons()) {
             $html .= "
-            <div class='text-right'>
-                <a href='javascript:;' class='btn btn-outline-success' onclick=\"$('#{$this->getId()}_tab_links > .nav-item > .active').parent().prev('li').find('a').trigger('click');window.scroll({top:0,left:0,behavior:'smooth'});\"><i class='fa fa-arrow-alt-circle-left'> </i> Previous</a>
-                <a href='javascript:;' class='btn btn-outline-success' onclick=\"$('#{$this->getId()}_tab_links > .nav-item > .active').parent().next('li').find('a').trigger('click');window.scroll({top:0,left:0,behavior:'smooth'});\"><i class='fa fa-arrow-alt-circle-right'> </i> Next</a>
+            <div class='text-end'>
+                <a href='javascript:;' class='btn btn-outline-success' onclick=\"" . Util::attr(self::navigationScript($this->getId(), 'previous')) . "\"><i class='fa fa-arrow-alt-circle-left'> </i> Previous</a>
+                <a href='javascript:;' class='btn btn-outline-success' onclick=\"" . Util::attr(self::navigationScript($this->getId(), 'next')) . "\"><i class='fa fa-arrow-alt-circle-right'> </i> Next</a>
             </div>
             ";
         }
         $html .= "\n</div>";
         return $html;
+    }
+
+    /**
+     * Plain-JavaScript click handler that activates the previous or next tab of the
+     * container whose id is given ("{id}_tab_links" holds the tab links) and scrolls to the top.
+     * @param string $direction 'previous' or 'next'
+     */
+    public static function navigationScript(string $containerId, string $direction): string
+    {
+        $sibling = $direction === 'next' ? 'nextElementSibling' : 'previousElementSibling';
+        $selector = json_encode('#' . $containerId . '_tab_links > .nav-item > .active', JSON_UNESCAPED_SLASHES);
+        return "(function(){var a=document.querySelector({$selector});"
+            . "var li=a?a.closest('li'):null;var s=li?li.{$sibling}:null;var t=s?s.querySelector('a'):null;"
+            . "if(t){t.click();window.scroll({top:0,left:0,behavior:'smooth'});}})();";
     }
 
     /**

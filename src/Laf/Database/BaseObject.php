@@ -1054,13 +1054,15 @@ class BaseObject implements \JsonSerializable
     private function checkFieldsForMissingRequiredValues(): void
     {
         $msg = [];
+        $names = [];
         foreach ($this->getTable()->getFields() as $field) {
             if ($field->isRequired() && ($field->getValue() === null || $field->getValue() === '') && !$field->isPrimaryKey()) {
                 $msg[] = sprintf("Field %s is required. Value provided is %s", $field->getName(), (string)$field->getValue());
+                $names[] = $field->getName();
             }
         }
         if (count($msg) > 0) {
-            throw new MissingFieldValueException(join('; ', $msg));
+            throw (new MissingFieldValueException(join('; ', $msg)))->setFieldNames($names);
         }
     }
 
@@ -1075,12 +1077,12 @@ class BaseObject implements \JsonSerializable
                 continue;
             }
             if ($this->isDuplicateValue($field)) {
-                throw new UniqueFieldDuplicateValueException(sprintf(
+                throw (new UniqueFieldDuplicateValueException(sprintf(
                     "Field %s must be unique: value '%s' already exists in %s",
                     $name,
                     is_scalar($field->getValue()) ? (string)$field->getValue() : gettype($field->getValue()),
                     $this->getTable()->getName()
-                ));
+                )))->setFieldNames([$name]);
             }
         }
     }

@@ -234,6 +234,19 @@ class ContainerTest extends TestCase
 	}
 
 	/** @test */
+	public function tab_container_nav_buttons_use_plain_javascript()
+	{
+		$tabs = new TabContainer('nav-tabs', true);
+		$tabs->addComponent(new TabItem('Tab'));
+		$html = $tabs->draw();
+
+		$this->assertStringContainsString('text-end', $html);
+		$this->assertStringContainsString('previousElementSibling', $html);
+		$this->assertStringNotContainsString("$('", $html);
+		$this->assertStringContainsString('#nav-tabs_tab_links', TabContainer::navigationScript('nav-tabs', 'next'));
+	}
+
+	/** @test */
 	public function tab_container_without_nav_buttons()
 	{
 		$tabs = new TabContainer('no-nav');

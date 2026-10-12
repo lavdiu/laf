@@ -42,6 +42,17 @@ class FormTest extends TestCase
                 return $this;
             }
 
+            /** @var \Throwable|null thrown by insert() instead of writing (tests the write-refusal path without a database) */
+            public ?\Throwable $refuseWritesWith = null;
+
+            public function insert()
+            {
+                if ($this->refuseWritesWith !== null) {
+                    throw $this->refuseWritesWith;
+                }
+                return parent::insert();
+            }
+
             private function buildClassForTest()
             {
                 $this->setTable(new \Laf\Database\Table('dummy_table'));
@@ -947,5 +958,229 @@ class FormTest extends TestCase
         $form->setComponents([$file]);
         $form->setDrawMode(DrawMode::UPDATE);
         $this->assertStringContainsString("enctype='multipart/form-data'", $form->draw());
+    }
+
+    // ── second review: request reading, field list, element sync, error summary ──
+
+    /** @test */
+    public function a_post_form_ignores_a_get_submission(): void
+    {
+        $form = $this->makeForm('/submit');
+        $_GET = ['dummy_table' => '1', 'dummy_table_draw_mode' => DrawMode::UPDATE, 'form_submit' => 'dummy_table', str_rot13('varchar_field45') => 'via get'];
+        $this->assertFalse($form->isSubmitted());
+        $this->assertFalse($form->detectSubmission());
+        $this->assertNull($form->processForm());
+        $this->assertNull($form->getObject()->getField('varchar_field45')->getValue());
+
+        $form->setMethod(Form::METHOD_GET);
+        $this->assertTrue($form->isSubmitted());
+        $this->assertTrue($form->detectSubmission());
+        $this->assertSame(Form::METHOD_GET, $form->getMethod());
+        $_GET = [];
+    }
+
+    /** @test */
+    public function set_request_replaces_the_superglobals(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setCsrfProtection(false);
+        $_POST = [];
+        $form->setRequest(['dummy_table' => '1', 'dummy_table_draw_mode' => DrawMode::INSERT, 'form_submit' => 'dummy_table', str_rot13('varchar_field45') => 'injected']);
+        $this->assertTrue($form->isSubmitted());
+        $this->assertTrue($form->detectSubmission());
+        $form->applySubmittedValues();
+        $this->assertSame('injected', $form->getObject()->getField('varchar_field45')->getValue());
+
+        $form->setRequest(null);
+        $this->assertFalse($form->isSubmitted());
+    }
+
+    /** @test */
+    public function disabled_and_read_only_booleans_are_left_alone_when_absent(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $object->getField('bool_field')->setValue(true);
+        $element = $object->getField('bool_field')->getFormElement();
+        $form->setComponents([$element, $object->getField('varchar_field45')->getFormElement()]);
+        $this->post(['varchar_field45' => 'x']);
+        $form->detectSubmission();
+
+        $element->setDisabled(true);
+        $form->applySubmittedValues();
+        $this->assertTrue($object->getField('bool_field')->getValue(), 'disabled: nothing posted, untouched');
+
+        $element->setDisabled(false)->setDrawMode(DrawMode::VIEW);
+        $form->applySubmittedValues();
+        $this->assertTrue($object->getField('bool_field')->getValue(), 'read-only: untouched');
+        $this->assertSame(['varchar_field45'], $form->getEditableFieldNames());
+        $this->assertSame(['bool_field', 'varchar_field45'], $form->getRenderedFieldNames());
+
+        $element->setDrawMode(null);
+        $form->applySubmittedValues();
+        $this->assertFalse($object->getField('bool_field')->getValue(), 'editable and absent: unchecked');
+    }
+
+    /** @test */
+    public function the_drawn_form_posts_a_signed_list_of_its_editable_fields(): void
+    {
+        $form = $this->makeForm('/submit');
+        $object = $form->getObject();
+        $object->getField('bool_field')->setValue(true);
+        $form->setComponents([$object->getField('varchar_field45')->getFormElement()]);
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+
+        $this->assertSame(1, preg_match("/name='dummy_table_fields' value='([^']*)'/", $html, $m));
+        $list = $m[1];
+        $this->assertStringStartsWith(str_rot13('varchar_field45') . '|', $list);
+
+        // generated pages process before they lay the form out: every field is a component then
+        $processing = new Form($object, '/submit');
+        $processing->setComponents($object->getAllFieldsAsFormElements());
+        $this->post(['varchar_field45' => 'x']);
+        $_POST['dummy_table_fields'] = $list;
+        $processing->detectSubmission();
+        $processing->applySubmittedValues();
+        $this->assertTrue($object->getField('bool_field')->getValue(), 'not among the drawn fields: untouched');
+        $this->assertSame('x', $object->getField('varchar_field45')->getValue());
+
+        // a tampered list is ignored: the components decide again
+        $_POST['dummy_table_fields'] = str_rot13('varchar_field45') . ',' . str_rot13('bool_field') . '|' . str_repeat('0', 64);
+        $processing->applySubmittedValues();
+        $this->assertFalse($object->getField('bool_field')->getValue(), 'tampered list ignored, every component counts');
+    }
+
+    /** @test */
+    public function restrict_to_rendered_fields_drops_unlisted_values_and_needs_the_list(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setCsrfProtection(false)->setRestrictToRenderedFields(true);
+        $this->assertTrue($form->isRestrictToRenderedFields());
+        $object = $form->getObject();
+        $form->setComponents([$object->getField('varchar_field45')->getFormElement()]);
+        $form->setDrawMode(DrawMode::INSERT);
+        preg_match("/name='dummy_table_fields' value='([^']*)'/", $form->draw(), $m);
+
+        $this->post(['varchar_field45' => 'kept', 'text_field' => 'dropped']);
+        $_POST['dummy_table_fields'] = $m[1];
+        $form->detectSubmission();
+        $form->applySubmittedValues();
+        $this->assertSame('kept', $object->getField('varchar_field45')->getValue());
+        $this->assertNull($object->getField('text_field')->getValue());
+        $this->assertFalse($form->hasErrors());
+
+        $form->setSubmittedFieldValue('text_field', 'by code');
+        $form->applySubmittedValues();
+        $this->assertSame('by code', $object->getField('text_field')->getValue(), 'code-set values always apply');
+
+        unset($_POST['dummy_table_fields']);
+        try {
+            $form->processForm();
+            $this->fail('expected FormValidationException');
+        } catch (\Laf\Exception\FormValidationException $ex) {
+            $this->assertArrayHasKey(Form::FORM_ERROR_KEY, $ex->getErrors());
+        }
+    }
+
+    /** @test */
+    public function elements_show_the_submitted_values_after_a_failed_validation(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setCsrfProtection(false);
+        $object = $form->getObject();
+        $object->getField('varchar_field45')->setValue('old');
+        $form->setComponents($object->getAllFieldsAsFormElements());
+        $this->post(['varchar_field45' => 'new value', 'bool_field' => 'maybe']);
+
+        try {
+            $form->processForm();
+            $this->fail('expected FormValidationException');
+        } catch (\Laf\Exception\FormValidationException $ex) {
+            $this->assertSame(['bool_field'], array_keys($ex->getErrors()));
+        }
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+        $this->assertStringContainsString('value="new value"', $html, 'the converted value is shown');
+        $this->assertSame('maybe', $form->getFieldElement('bool_field')->getValue(), 'what was typed stays visible');
+        $this->assertStringContainsString("id='dummy_table_errors' class='alert alert-danger laf-form-errors'", $html);
+        $this->assertStringContainsString('<li>Bool Field: invalid value</li>', $html);
+
+        $form->setShowErrorSummary(false);
+        $this->assertStringNotContainsString('laf-form-errors', $form->draw());
+        $this->assertStringContainsString('laf-form-errors', $form->drawErrorSummary());
+    }
+
+    /** @test */
+    public function a_field_value_change_is_mirrored_by_its_element(): void
+    {
+        $form = $this->makeForm('/submit');
+        $field = $form->getObject()->getField('varchar_field45');
+        $this->assertFalse($field->hasFormElement());
+        $element = $field->getFormElement();
+        $this->assertTrue($field->hasFormElement());
+        $field->setValue('later');
+        $this->assertSame('later', $element->getValue());
+        $field->loadValueFromDb('from db');
+        $this->assertSame('from db', $element->getValue());
+        $form->getObject()->getField('bool_field')->getFormElement();
+        $form->getObject()->getField('bool_field')->setValue(true);
+        $this->assertSame('1', $form->getObject()->getField('bool_field')->getFormElement()->getValue());
+    }
+
+    /** @test */
+    public function add_error_marks_the_element_and_the_summary(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setComponents($form->getObject()->getAllFieldsAsFormElements());
+        $form->addError('varchar_field45', 'taken');
+        $this->assertSame(['taken'], $form->getFieldElement('varchar_field45')->getErrors());
+        $form->setDrawMode(DrawMode::UPDATE);
+        $html = $form->draw();
+        $this->assertStringContainsString('is-invalid', $html);
+        $this->assertStringContainsString('<li>taken</li>', $html);
+        $this->assertSame($html, (string)$form);
+    }
+
+    /** @test */
+    public function write_refusals_become_validation_errors_on_the_field(): void
+    {
+        $form = $this->makeForm('/submit');
+        $form->setCsrfProtection(false);
+        $object = $form->getObject();
+        $form->setComponents($object->getAllFieldsAsFormElements());
+        $object->refuseWritesWith = (new \Laf\Exception\UniqueFieldDuplicateValueException('Field varchar_field45 must be unique'))->setFieldNames(['varchar_field45']);
+        $this->post(['varchar_field45' => 'dup', 'bool_field' => '0']);
+
+        try {
+            $form->processForm();
+            $this->fail('expected FormValidationException');
+        } catch (\Laf\Exception\FormValidationException $ex) {
+            $this->assertSame(['Varchar Field: this value is already in use'], $ex->getErrors()['varchar_field45']);
+            $this->assertSame('Field varchar_field45 must be unique', $ex->getMessage());
+            $this->assertInstanceOf(\Laf\Exception\UniqueFieldDuplicateValueException::class, $ex->getPrevious());
+        }
+        $this->assertSame(['Varchar Field: this value is already in use'], $form->getFieldElement('varchar_field45')->getErrors());
+
+        $object->refuseWritesWith = new \Laf\Exception\MissingFieldValueException('Missing primary key value for dummy_table.id');
+        try {
+            $form->processForm();
+            $this->fail('expected FormValidationException');
+        } catch (\Laf\Exception\FormValidationException $ex) {
+            $this->assertSame(['Missing primary key value for dummy_table.id'], $ex->getErrors()[Form::FORM_ERROR_KEY]);
+        }
+    }
+
+    /** @test */
+    public function form_nav_buttons_target_the_tab_container_on_the_form(): void
+    {
+        $form = $this->makeForm('/submit');
+        $tabs = new \Laf\UI\Container\TabContainer('person_tabs');
+        $tabs->addComponent(new \Laf\UI\Container\TabItem('A'));
+        $form->setComponents([$tabs]);
+        $ref = new \ReflectionProperty(Form::class, 'tabs');
+        $ref->setValue($form, [1, 2]);
+        $form->setDrawMode(DrawMode::UPDATE);
+        $this->assertStringContainsString('#person_tabs_tab_links', $form->draw());
     }
 }

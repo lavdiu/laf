@@ -8,14 +8,18 @@ use Laf\Database\Field\TypeBool;
 use Laf\Exception\CsrfTokenException;
 use Laf\Exception\FormValidationException;
 use Laf\Exception\InvalidValueException;
+use Laf\Exception\MissingFieldValueException;
+use Laf\Exception\UniqueFieldDuplicateValueException;
 use Laf\Filesystem\Document;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Container\Fieldset;
+use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabContent;
 use Laf\UI\Form\Control\Button;
 use Laf\UI\Form\Control\SubmitButton;
 use Laf\UI\Form\Input\File;
 use Laf\UI\Traits\ComponentTrait;
+use Laf\Util\Settings;
 use Laf\Util\Util;
 
 /**
@@ -25,13 +29,15 @@ use Laf\Util\Util;
  * Submission contract (unchanged for the apps): hidden "form_submit" carries the
  * table name (isSubmitted()), a hidden input named after the table marks the
  * request (processForm()), "{name}_draw_mode" says whether it was an insert or
- * an update, every field is posted under its rot13 name, and
- * "_csrf_token_{name}" carries the CSRF token (POST only).
+ * an update, every field is posted under its rot13 name, "_csrf_token_{name}"
+ * carries the CSRF token (POST only) and "{name}_fields" the signed list of
+ * the editable elements the form was drawn with. A form reads the request of
+ * its own method only: a POST form (the default) ignores a GET submission.
  *
  * processForm() = detectSubmission() + CSRF check + applySubmittedValues() +
  * validate() + insert()/update(). Invalid input raises FormValidationException
  * with every message; the elements then render their messages when the form is
- * drawn again.
+ * drawn again, and the form draws an error summary above them.
  */
 class Form implements ComponentInterface
 {
@@ -42,6 +48,12 @@ class Form implements ComponentInterface
 
     const AUTOCOMPLETE_ON = 'on';
     const AUTOCOMPLETE_OFF = 'off';
+
+    /** Key of the messages in getErrors() that belong to the form as a whole, not to one field */
+    const FORM_ERROR_KEY = '_form';
+
+    /** Session key of the secret that signs the field list */
+    const SIGNING_KEY_SESSION_KEY = '_laf_form_key';
 
     /** @var array<string, string[]> field groups for layout (label => [fieldNames]) */
     protected array $fieldGroups = [];
@@ -77,6 +89,9 @@ class Form implements ComponentInterface
 
     protected bool $showNavButtons = true;
 
+    /** Draw the alert with every message above the fields when there are errors */
+    protected bool $showErrorSummary = true;
+
     /** @var string */
     protected $formRowDisplayMode = FormRowDisplayMode::ROW;
 
@@ -88,8 +103,17 @@ class Form implements ComponentInterface
     /** Run Field::validate() on the submitted fields before writing */
     protected bool $validateOnSubmit = true;
 
+    /** Apply only the fields the form was drawn with (signed field list); off keeps every posted field */
+    protected bool $restrictToRenderedFields = false;
+
     /** @var array<string, string[]> field name => messages, from the last applySubmittedValues()/validate() */
     protected array $errors = [];
+
+    /** @var array|null request data set with setRequest(); null reads the superglobals */
+    private ?array $requestData = null;
+
+    /** @var array|null uploaded files set with setRequest(); null reads $_FILES */
+    private ?array $requestFiles = null;
 
     /**
      * Form constructor.
@@ -100,6 +124,7 @@ class Form implements ComponentInterface
     {
         $this->setObject($tableObject);
         $this->setAction($action);
+        $this->restrictToRenderedFields = self::settingFlag('form.restrict_to_rendered_fields');
 
         $sb = new SubmitButton();
         $sb->setValue('Submit')
@@ -107,6 +132,11 @@ class Form implements ComponentInterface
             ->addCssClass('btn-md')
             ->addCssClass('btn-success');
         $this->setSubmitButton($sb);
+    }
+
+    public function __toString(): string
+    {
+        return $this->draw();
     }
 
     /**
@@ -127,10 +157,11 @@ class Form implements ComponentInterface
      * @param string|null $documentHandlerClass class with a static upload(string $fieldName) for document fields (default Laf\Filesystem\Document)
      * @return int|string|array|null the record id, null when the form was not submitted
      * @throws CsrfTokenException when the token is missing or wrong (POST)
-     * @throws FormValidationException when a submitted value is invalid or breaks a field constraint
+     * @throws FormValidationException when a submitted value is invalid, breaks a field constraint, is missing
+     *         although required or duplicates a unique value
      * @throws \Exception from the insert/update
      */
-    public function processForm(?string $documentHandlerClass = null)
+    public function processForm(?string $documentHandlerClass = null): int|string|array|null
     {
         if (!$this->detectSubmission()) {
             return null;
@@ -154,14 +185,18 @@ class Form implements ComponentInterface
         $pk = $object->getTable()->getPrimaryKey();
         $pkField = $pk->getFirstField();
 
-        if ($pk->hasValue()) {
-            if ($pkField !== null && !$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
-                $object->insert();
+        try {
+            if ($pk->hasValue()) {
+                if ($pkField !== null && !$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
+                    $object->insert();
+                } else {
+                    $object->update();
+                }
             } else {
-                $object->update();
+                $object->insert();
             }
-        } else {
-            $object->insert();
+        } catch (UniqueFieldDuplicateValueException | MissingFieldValueException $ex) {
+            throw $this->validationExceptionFromWrite($ex);
         }
 
         $object->reload();
@@ -169,20 +204,17 @@ class Form implements ComponentInterface
     }
 
     /**
-     * Reads the request marker: sets the method and the draw mode the form was drawn in.
-     * @return bool false when this form was not submitted
+     * Reads the request marker of the form's method and the draw mode the form was drawn in.
+     * @return bool false when this form was not submitted (a POST form ignores a GET submission)
      */
     public function detectSubmission(): bool
     {
+        $request = $this->getRequestData();
         $marker = $this->getObject()->getTable()->getNameRot13();
-        if (!empty($_GET[$marker])) {
-            $this->setMethod(self::METHOD_GET);
-        } elseif (!empty($_POST[$marker])) {
-            $this->setMethod(self::METHOD_POST);
-        } else {
+        if (empty($request[$marker])) {
             return false;
         }
-        $mode = $this->getRequestData()[$this->getName() . '_draw_mode'] ?? '';
+        $mode = $request[$this->getName() . '_draw_mode'] ?? '';
         $this->setDrawMode(is_scalar($mode) ? (string)$mode : '');
         return true;
     }
@@ -192,8 +224,13 @@ class Form implements ComponentInterface
      *
      * Per field, in order: a value set with setSubmittedFieldValue() wins; a document
      * field is replaced only when a file was uploaded; a posted field is converted
-     * with its type's fromInput(); a boolean that was rendered but not posted is
-     * false. Conversion failures are collected as errors (getErrors()), not thrown.
+     * with its type's fromInput(); a boolean that was drawn editable but not posted
+     * is false. Which fields were drawn editable comes from the signed field list
+     * the drawn form posts back ("{name}_fields"), or from the form's components
+     * when the request carries none. With setRestrictToRenderedFields(true) a
+     * posted field outside that list is ignored and a missing list is an error.
+     * Conversion failures are collected as errors (getErrors()), not thrown; the
+     * element then shows what was typed.
      *
      * @param string|null $documentHandlerClass see processForm()
      */
@@ -201,14 +238,25 @@ class Form implements ComponentInterface
     {
         $this->errors = [];
         $request = $this->getRequestData();
-        $rendered = $this->getRenderedFieldNames();
+        $listed = $this->verifiedFieldList();
+        if ($listed === null && $this->restrictToRenderedFields) {
+            $this->addError(self::FORM_ERROR_KEY, 'The form is out of date or was changed; reload the page and try again');
+            return;
+        }
+        $editable = $this->editableFieldNamesFor($listed);
 
         foreach ($this->getObject()->getTable()->getFields() as $field) {
             $name = $field->getName();
             $key = $field->getNameRot13();
+            $raw = null;
             try {
                 if (array_key_exists($name, $this->submittedFieldValues)) {
                     $field->setValue($this->convertInput($field, $this->submittedFieldValues[$name]));
+                    continue;
+                }
+
+                $isEditable = in_array($name, $editable, true);
+                if ($this->restrictToRenderedFields && !$isEditable) {
                     continue;
                 }
 
@@ -222,30 +270,36 @@ class Form implements ComponentInterface
                     if (is_array($raw)) {
                         $raw = join(',', array_filter(array_map('strval', $raw), fn($v) => $v !== ''));
                     }
-                    $field->setValue($this->convertInput($field, is_scalar($raw) ? (string)$raw : null));
-                } elseif ($field->hasType() && $field->getType() instanceof TypeBool && in_array($name, $rendered, true)) {
+                    $raw = is_scalar($raw) ? (string)$raw : null;
+                    $field->setValue($this->convertInput($field, $raw));
+                } elseif ($isEditable && $field->hasType() && $field->getType() instanceof TypeBool) {
                     /**
-                     * a checkbox that is not ticked sends nothing: rendered but absent means false
+                     * a checkbox that is not ticked sends nothing: drawn editable but absent means false
                      */
                     $field->setValue(false);
                 }
             } catch (InvalidValueException $ex) {
                 $this->addError($name, sprintf('%s: invalid value', $field->getLabel() ?: $name));
+                $element = $this->elementOf($field);
+                if ($element !== null && $raw !== null && method_exists($element, 'setValue')) {
+                    $element->setValue($raw);
+                }
             }
         }
     }
 
     /**
-     * Runs Field::validate() on every rendered or explicitly submitted field and
-     * hands the messages to the elements.
+     * Runs Field::validate() on every field that was drawn editable (signed field
+     * list, else the form's components) or explicitly submitted, and hands the
+     * messages to the elements.
      * @return array<string, string[]> field name => messages (empty when valid)
      */
     public function validate(): array
     {
-        $rendered = $this->getRenderedFieldNames();
+        $editable = $this->editableFieldNamesFor($this->verifiedFieldList());
         foreach ($this->getObject()->getTable()->getFields() as $field) {
             $name = $field->getName();
-            if (!in_array($name, $rendered, true) && !array_key_exists($name, $this->submittedFieldValues)) {
+            if (!in_array($name, $editable, true) && !array_key_exists($name, $this->submittedFieldValues)) {
                 continue;
             }
             foreach ($field->validate() as $message) {
@@ -257,7 +311,7 @@ class Form implements ComponentInterface
     }
 
     /**
-     * @return array<string, string[]> field name => messages
+     * @return array<string, string[]> field name => messages (FORM_ERROR_KEY for form-level messages)
      */
     public function getErrors(): array
     {
@@ -284,11 +338,16 @@ class Form implements ComponentInterface
     }
 
     /**
-     * Records a message for a field (shown by its element in update mode)
+     * Records a message for a field; its element (when on the form) shows it in update mode.
+     * Use FORM_ERROR_KEY for a message that belongs to the form as a whole.
      */
     public function addError(string $fieldName, string $message): Form
     {
         $this->errors[$fieldName][] = $message;
+        $element = $this->getFieldElement($fieldName);
+        if ($element !== null) {
+            $element->setErrors($this->errors[$fieldName]);
+        }
         return $this;
     }
 
@@ -300,7 +359,7 @@ class Form implements ComponentInterface
         $this->errors = [];
         foreach ($errors as $fieldName => $messages) {
             foreach ((array)$messages as $message) {
-                $this->addError((string)$fieldName, (string)$message);
+                $this->errors[(string)$fieldName][] = (string)$message;
             }
         }
         $this->pushErrorsToElements();
@@ -329,9 +388,36 @@ class Form implements ComponentInterface
     }
 
     /**
-     * @return BaseObject
+     * Apply only the fields the form was drawn with. The drawn form posts a signed list of its
+     * editable elements; with this on, a posted field outside the list is ignored and a submission
+     * without a valid list fails validation (FORM_ERROR_KEY). Default off, or Settings
+     * 'form.restrict_to_rendered_fields'. Values set with setSubmittedFieldValue() always apply.
      */
-    public function getObject()
+    public function setRestrictToRenderedFields(bool $restrict): static
+    {
+        $this->restrictToRenderedFields = $restrict;
+        return $this;
+    }
+
+    public function isRestrictToRenderedFields(): bool
+    {
+        return $this->restrictToRenderedFields;
+    }
+
+    /**
+     * Read the submission from the given arrays instead of $_POST/$_GET and $_FILES
+     * (tests, imports, API handlers); null goes back to the superglobals.
+     * @param array|null $data field values keyed like the request (rot13 names, markers)
+     * @param array|null $files like $_FILES
+     */
+    public function setRequest(?array $data, ?array $files = null): static
+    {
+        $this->requestData = $data;
+        $this->requestFiles = $data === null ? null : ($files ?? []);
+        return $this;
+    }
+
+    public function getObject(): BaseObject
     {
         return $this->object;
     }
@@ -353,6 +439,9 @@ class Form implements ComponentInterface
         return $this->method;
     }
 
+    /**
+     * GET or POST (default); the form reads the request array of this method only
+     */
     public function setMethod(string $method): Form
     {
         $this->method = strtoupper($method) === self::METHOD_GET ? self::METHOD_GET : self::METHOD_POST;
@@ -370,12 +459,12 @@ class Form implements ComponentInterface
     }
 
     /**
-     * Checks if a form has been submitted
+     * Checks if a form has been submitted (hidden "form_submit" of the form's method carries the table name)
      * @return bool
      */
     public function isSubmitted(): bool
     {
-        $submitted = $_POST['form_submit'] ?? ($_GET['form_submit'] ?? null);
+        $submitted = $this->getRequestData()['form_submit'] ?? null;
         return is_scalar($submitted) && (string)$submitted !== ''
             && $this->getObject()->getTable()->getNameRot13() == (string)$submitted;
     }
@@ -427,6 +516,20 @@ class Form implements ComponentInterface
     {
         $this->resetButton = $resetButton;
         return $this;
+    }
+
+    /**
+     * Draw an alert listing every message above the fields when the form has errors (default true)
+     */
+    public function setShowErrorSummary(bool $show): static
+    {
+        $this->showErrorSummary = $show;
+        return $this;
+    }
+
+    public function isShowErrorSummary(): bool
+    {
+        return $this->showErrorSummary;
     }
 
     /* ───────────── drawing ───────────── */
@@ -486,9 +589,14 @@ class Form implements ComponentInterface
             . (($this->hasFiles() || $this->containsFileInput()) ? "\n\t\tenctype='multipart/form-data'" : "") . ">
              ";
 
+        if ($this->showErrorSummary) {
+            $html .= $this->drawErrorSummary();
+        }
+
         $html .= $this->drawComponents();
 
         $html .= "<input type='hidden' name='{$name}_draw_mode' id='{$id}_draw_mode' value='" . Util::e($this->getDrawMode()) . "' />";
+        $html .= "<input type='hidden' name='" . Util::e($this->getFieldListInputName()) . "' value='" . Util::e($this->signedFieldList($this->editableFieldKeys())) . "' />";
 
         if ($this->csrfProtection) {
             $html .= "<input type='hidden' name='" . Util::e($this->getCsrfSessionKey()) . "' value='" . Util::e($this->generateCsrfToken()) . "' />";
@@ -527,11 +635,33 @@ class Form implements ComponentInterface
     }
 
     /**
+     * The alert with every current message (empty string without errors); drawn above the
+     * fields by default, or wherever a page puts it with setShowErrorSummary(false).
+     */
+    public function drawErrorSummary(): string
+    {
+        $messages = $this->getErrorMessages();
+        if ($messages === []) {
+            return '';
+        }
+        $items = '';
+        foreach ($messages as $message) {
+            $items .= "\n\t\t\t\t<li>" . Util::e($message) . "</li>";
+        }
+        return "\n\t\t<div id='" . Util::e($this->getId()) . "_errors' class='alert alert-danger laf-form-errors' role='alert'>"
+            . "\n\t\t\t<ul class='mb-0'>" . $items . "\n\t\t\t</ul>\n\t\t</div>\n";
+    }
+
+    /**
      * Draws the components; the form's draw mode is applied only to components without one of their own
      * (same rule as the containers), so an element set to DrawMode::VIEW stays read-only in an update form.
+     * Messages recorded on the form are handed to the elements first.
      */
     protected function drawComponents(): string
     {
+        if ($this->hasErrors()) {
+            $this->pushErrorsToElements(false);
+        }
         $html = '';
         foreach ($this->getComponents() as $component) {
             if ((string)$component->getDrawMode() === '') {
@@ -544,16 +674,14 @@ class Form implements ComponentInterface
     }
 
     /**
-     * Vanilla-JS click handler of the Previous / Next tab buttons
+     * Vanilla-JS click handler of the Previous / Next tab buttons; targets the first
+     * TabContainer among the components, else "{form id}_tab_links".
      * @param string $direction 'previous' or 'next'
      */
     protected function tabNavigationScript(string $direction): string
     {
-        $sibling = $direction === 'next' ? 'nextElementSibling' : 'previousElementSibling';
-        $id = $this->getId();
-        return "(function(){var a=document.querySelector('#{$id}_tab_links > .nav-item > .active');"
-            . "var li=a?a.closest('li'):null;var s=li?li.{$sibling}:null;var t=s?s.querySelector('a'):null;"
-            . "if(t){t.click();window.scroll({top:0,left:0,behavior:'smooth'});}})();";
+        $container = $this->findTabContainer($this->getComponents());
+        return TabContainer::navigationScript($container !== null ? $container->getId() : $this->getId(), $direction);
     }
 
     public function getId(): string
@@ -761,6 +889,15 @@ class Form implements ComponentInterface
     }
 
     /**
+     * Every field-bound element among the components, recursively through containers
+     * @return FormElementInterface[]
+     */
+    public function getFieldElements(): array
+    {
+        return $this->collectFieldElements($this->getComponents());
+    }
+
+    /**
      * Names of the fields whose elements are on the form (searched recursively through containers)
      * @return string[]
      */
@@ -770,6 +907,23 @@ class Form implements ComponentInterface
         foreach ($this->collectFieldElements($this->getComponents()) as $element) {
             $field = $element->getField();
             if ($field !== null) {
+                $names[] = $field->getName();
+            }
+        }
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * Names of the fields whose elements are on the form and post a value: not disabled, not excluded
+     * and not drawn in VIEW mode (their own mode, or the form's after a draw)
+     * @return string[]
+     */
+    public function getEditableFieldNames(): array
+    {
+        $names = [];
+        foreach ($this->collectFieldElements($this->getComponents()) as $element) {
+            $field = $element->getField();
+            if ($field !== null && $this->isEditableElement($element)) {
                 $names[] = $field->getName();
             }
         }
@@ -921,14 +1075,136 @@ class Form implements ComponentInterface
         return hash_equals($sessionToken, $submittedToken);
     }
 
+    /* ───────────── field list ───────────── */
+
+    /**
+     * Name of the hidden input that carries the signed list of the editable elements the form was drawn with
+     */
+    public function getFieldListInputName(): string
+    {
+        return $this->getName() . '_fields';
+    }
+
+    /**
+     * The value of the field-list input for the given rot13 field names: "name,name|hmac",
+     * signed with a per-session secret the browser never sees, so a list cannot be forged or
+     * moved to another form.
+     * @param string[] $fieldKeys rot13 names
+     */
+    public function signedFieldList(array $fieldKeys): string
+    {
+        $list = join(',', $fieldKeys);
+        return $list . '|' . hash_hmac('sha256', $this->getName() . '|' . $list, $this->signingKey());
+    }
+
+    /**
+     * The rot13 names from the request's field list when its signature is valid, null when the
+     * request carries no list or a tampered one.
+     * @return string[]|null
+     */
+    protected function verifiedFieldList(): ?array
+    {
+        $raw = $this->getRequestData()[$this->getFieldListInputName()] ?? null;
+        if (!is_string($raw) || strpos($raw, '|') === false) {
+            return null;
+        }
+        [$list, $mac] = explode('|', $raw, 2);
+        if (!preg_match('/^[A-Za-z0-9_,]*$/', $list)) {
+            return null;
+        }
+        $expected = hash_hmac('sha256', $this->getName() . '|' . $list, $this->signingKey());
+        if (!hash_equals($expected, $mac)) {
+            return null;
+        }
+        return $list === '' ? [] : explode(',', $list);
+    }
+
+    /**
+     * Field names that count as drawn editable for this request: those of a verified field list,
+     * else the editable elements among the components.
+     * @param string[]|null $fieldKeys rot13 names from verifiedFieldList()
+     * @return string[]
+     */
+    protected function editableFieldNamesFor(?array $fieldKeys): array
+    {
+        if ($fieldKeys === null) {
+            return $this->getEditableFieldNames();
+        }
+        $names = [];
+        foreach ($this->getObject()->getTable()->getFields() as $field) {
+            if (in_array($field->getNameRot13(), $fieldKeys, true)) {
+                $names[] = $field->getName();
+            }
+        }
+        return $names;
+    }
+
+    /**
+     * rot13 names of the editable elements, for the field list of a drawn form
+     * @return string[]
+     */
+    protected function editableFieldKeys(): array
+    {
+        $keys = [];
+        foreach ($this->collectFieldElements($this->getComponents()) as $element) {
+            $field = $element->getField();
+            if ($field !== null && $this->isEditableElement($element)) {
+                $keys[] = $field->getNameRot13();
+            }
+        }
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * An element posts a value unless it is disabled, excluded or drawn read-only
+     */
+    protected function isEditableElement(FormElementInterface $element): bool
+    {
+        if ((string)$element->getDrawMode() === DrawMode::VIEW) {
+            return false;
+        }
+        if (method_exists($element, 'isDisabled') && $element->isDisabled()) {
+            return false;
+        }
+        if (method_exists($element, 'isExcluded') && $element->isExcluded()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * The per-session secret that signs field lists, created on first use
+     */
+    private function signingKey(): string
+    {
+        $this->ensureSession();
+        $key = $_SESSION[self::SIGNING_KEY_SESSION_KEY] ?? null;
+        if (!is_string($key) || strlen($key) !== 64) {
+            $key = bin2hex(random_bytes(32));
+            $_SESSION[self::SIGNING_KEY_SESSION_KEY] = $key;
+        }
+        return $key;
+    }
+
     /* ───────────── internals ───────────── */
 
     /**
-     * The request array the form reads from, by method
+     * The request array the form reads from: setRequest() data, else the superglobal of the form's method
      */
     protected function getRequestData(): array
     {
+        if ($this->requestData !== null) {
+            return $this->requestData;
+        }
         return $this->getMethod() === self::METHOD_GET ? $_GET : $_POST;
+    }
+
+    /**
+     * The uploaded files: setRequest() files, else $_FILES
+     */
+    protected function getRequestFiles(): array
+    {
+        return $this->requestFiles ?? $_FILES;
     }
 
     /**
@@ -949,7 +1225,7 @@ class Form implements ComponentInterface
     protected function applyUploadedDocument(Field $field, ?string $documentHandlerClass): void
     {
         $key = $field->getNameRot13();
-        $upload = $_FILES[$key] ?? [];
+        $upload = $this->getRequestFiles()[$key] ?? [];
         if (!is_array($upload) || $upload === [] || (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             return;
         }
@@ -967,6 +1243,29 @@ class Form implements ComponentInterface
     }
 
     /**
+     * A write refused by the object (missing required value, duplicate unique value) as a
+     * validation exception carrying one message per field, so the form shows it like any other error.
+     */
+    protected function validationExceptionFromWrite(\Exception $ex): FormValidationException
+    {
+        $errors = [];
+        $names = method_exists($ex, 'getFieldNames') ? $ex->getFieldNames() : [];
+        $table = $this->getObject()->getTable();
+        foreach ($names as $name) {
+            $name = (string)$name;
+            $label = $table->hasField($name) ? ($table->getField($name)->getLabel() ?: $name) : $name;
+            $errors[$name][] = $ex instanceof UniqueFieldDuplicateValueException
+                ? sprintf('%s: this value is already in use', $label)
+                : sprintf('%s is required', $label);
+        }
+        if ($errors === []) {
+            $errors[self::FORM_ERROR_KEY][] = $ex->getMessage();
+        }
+        $this->setErrors($errors);
+        return new FormValidationException($errors, $ex->getMessage(), 0, $ex);
+    }
+
+    /**
      * Whether a File input is among the components (then the form needs multipart encoding)
      */
     protected function containsFileInput(): bool
@@ -981,16 +1280,31 @@ class Form implements ComponentInterface
 
     /**
      * Hands the collected messages to the elements on the form
+     * @param bool $clearOthers also empty the messages of elements whose field has none here
      */
-    protected function pushErrorsToElements(): void
+    protected function pushErrorsToElements(bool $clearOthers = true): void
     {
         foreach ($this->collectFieldElements($this->getComponents()) as $element) {
             $field = $element->getField();
             if ($field === null) {
                 continue;
             }
-            $element->setErrors($this->errors[$field->getName()] ?? []);
+            $messages = $this->errors[$field->getName()] ?? [];
+            if ($messages !== [] || $clearOthers) {
+                $element->setErrors($messages);
+            }
         }
+    }
+
+    /**
+     * The element bound to a field: the field's cached element, else the one among the components
+     */
+    protected function elementOf(Field $field): ?FormElementInterface
+    {
+        if ($field->hasFormElement()) {
+            return $field->getFormElement();
+        }
+        return $this->getFieldElement($field->getName());
     }
 
     /**
@@ -1019,6 +1333,24 @@ class Form implements ComponentInterface
         return $elements;
     }
 
+    /**
+     * The first TabContainer among the components, recursively
+     * @param ComponentInterface[] $components
+     */
+    protected function findTabContainer(array $components): ?TabContainer
+    {
+        foreach ($components as $component) {
+            if ($component instanceof TabContainer) {
+                return $component;
+            }
+            $found = $this->findTabContainer($component->getComponents());
+            if ($found !== null) {
+                return $found;
+            }
+        }
+        return null;
+    }
+
     private function ensureSession(): void
     {
         if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
@@ -1027,5 +1359,18 @@ class Form implements ComponentInterface
         if (!isset($_SESSION)) {
             $_SESSION = [];
         }
+    }
+
+    /**
+     * A boolean Settings flag, false when the key is missing
+     */
+    private static function settingFlag(string $key): bool
+    {
+        try {
+            $value = Settings::get($key);
+        } catch (\Throwable $ex) {
+            return false;
+        }
+        return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) === true;
     }
 }

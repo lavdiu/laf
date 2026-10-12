@@ -8,6 +8,7 @@ use Laf\Exception;
 use Laf\Database\Table;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
+use Laf\UI\Form\Input\Text;
 use Laf\Util\Settings;
 use Laf\Util\Util;
 
@@ -109,7 +110,7 @@ class Field
 	private $attributes = [];
 
 	/**
-	 * @var FormElementInterface
+	 * @var FormElementInterface|null
 	 */
 	protected $formElement = null;
 
@@ -286,6 +287,7 @@ class Field
 			$this->value = $tmpVal;
 			$this->setUpdatedOnTs();
 		}
+		$this->syncFormElementValue();
 		return $this;
 	}
 
@@ -303,6 +305,7 @@ class Field
 		$this->value = $converted;
 		$this->oldValue = $converted;
 		$this->setLoadedOnTs(time());
+		$this->syncFormElementValue();
 		return $this;
 	}
 
@@ -334,6 +337,7 @@ class Field
 			$this->value = $value;
 			$this->setUpdatedOnTs();
 		}
+		$this->syncFormElementValue();
 		return $this;
 	}
 
@@ -349,7 +353,19 @@ class Field
 			#@TODO $this->value = $this->sanitizeHTML($value);
 			$this->setUpdatedOnTs();
 		}
+		$this->syncFormElementValue();
 		return $this;
+	}
+
+	/**
+	 * Mirrors the current value into the cached form element, so a form drawn after
+	 * the value changed (a submission, a setter, a reload) shows the current value.
+	 */
+	private function syncFormElementValue(): void
+	{
+		if ($this->formElement !== null && method_exists($this->formElement, 'setValue')) {
+			$this->formElement->setValue(Text::valueToString($this->value));
+		}
 	}
 
 	/**
@@ -850,6 +866,14 @@ class Field
 			$this->formElement->setField($this);
 		}
 		return $this->formElement;
+	}
+
+	/**
+	 * Whether a form element is bound to this field (getFormElement() was called or an override set)
+	 */
+	public function hasFormElement(): bool
+	{
+		return $this->formElement !== null;
 	}
 
 	/**

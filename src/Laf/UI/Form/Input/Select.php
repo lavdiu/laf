@@ -291,10 +291,8 @@ class Select extends Text implements FormElementInterface
             . ' WHERE 1=1' . $where
             . ' ORDER BY ' . Identifier::quote($display) . ' ASC';
 
-        $stmt = Db::getInstance()->prepare($sql);
-        $stmt->execute($params);
         $options = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+        foreach (Db::getInstance()->fetchAllNum($sql, $params) as $row) {
             $options[static::valueToString($row[0]) ?? ''] = static::valueToString($row[1]) ?? '';
         }
         return $options;
