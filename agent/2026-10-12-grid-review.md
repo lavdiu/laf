@@ -77,7 +77,7 @@ the LAF sample; asm: an older one without `Grid.autoInit`).
 - grid.js: lean class with event delegation, `<button>` controls with ARIA, `URLSearchParams`, numeric right-align,
   "1–10 of 57 · Page 1 of 6", clear-filters button, Escape clears a field, `Grid.searchDebounceMs`, client exports
   with labels and only visible + exportable columns (server fallback without SheetJS), `{column}` placeholders in
-  button attributes, empty-state row, `Grid.debug`.
+  button attributes (not in `on*` handlers: row data never lands in script), empty-state row, `Grid.debug`.
 
 # Behaviour changes to know about
 

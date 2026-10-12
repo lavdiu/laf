@@ -92,7 +92,7 @@ if ($broken) {
 }
 $grid->addActionButton(new ActionButton('View', '?module=demo&action=view&id={id}', 'fa fa-eye'));
 $grid->addActionButton((new ActionButton('Edit', '?module=demo&action=update&id={id}', 'fa fa-edit'))->setJsCallback('demoEditButton'));
-$grid->addActionButton((new ActionButton('Delete', '?module=demo&action=delete&id={id}', 'fa fa-trash'))->addAttribute('onclick', 'return confirm("Delete record {id}?")'));
+$grid->addActionButton((new ActionButton('Delete', '?module=demo&action=delete&id={id}', 'fa fa-trash'))->addAttribute('data-record', '{id}')->addAttribute('onclick', 'return confirm("Delete record " + this.dataset.record + "?")'));
 $grid->addActionButton((new ActionButton('Odd rows only', '?module=demo&action=odd&id={id}'))->setJsCallback('demoOddButton'));
 if ($grid->isReadyToHandleRequests()) {
     $grid->bootstrap();
