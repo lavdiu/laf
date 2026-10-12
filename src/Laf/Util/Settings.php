@@ -7,32 +7,22 @@ use Laf\Exception\MissingConfigParamException;
 /**
  * Process-wide configuration: a flat key => value map (keys like 'database.hostname').
  *
- * get() throws MissingConfigParamException for an unknown key; has() and getBool()
- * are the forgiving readers for optional keys.
+ * get() throws MissingConfigParamException for an unknown key; has(), getBool(), getString() and
+ * getInt() are the forgiving readers for optional keys. load() / loadFromFile() take a nested
+ * array (['database' => ['hostname' => 'x']] becomes 'database.hostname'); a list stays one
+ * value. saveToFile() writes the current map as a PHP or JSON file loadFromFile() reads back.
  */
 class Settings
 {
-    /**
-     * @var Settings|null
-     */
-    private static $instance;
-    /**
-     * @var array
-     */
-    private $properties = [];
+    private static ?Settings $instance = null;
 
-    /**
-     * Settings Class constructor.
-     */
+    /** @var array<string, mixed> */
+    private array $properties = [];
+
     private function __construct()
     {
-
     }
 
-    /**
-     * Get Settings class instance
-     * @return Settings
-     */
     public static function getInstance(): Settings
     {
         if (self::$instance === null) {
@@ -41,68 +31,104 @@ class Settings
         return self::$instance;
     }
 
-    /**
-     * Set property
-     * @param $key
-     * @param $value
-     * @return void
-     */
-    public function setProperty($key, $value): void
+    public function setProperty(string $key, mixed $value): void
     {
         $this->properties[$key] = $value;
     }
 
     /**
-     * Get property
-     * @param $key
-     * @return mixed
-     * @throws MissingConfigParamException
+     * @throws MissingConfigParamException for an unknown key
      */
-    public function getProperty($key)
+    public function getProperty(string $key): mixed
     {
         if ($this->propertyExists($key)) {
             return $this->properties[$key];
-        } else {
-            throw new MissingConfigParamException(sprintf("Error: Setting %s doesnt exist", $key));
         }
+        throw new MissingConfigParamException(sprintf("Error: Setting %s doesnt exist", $key));
     }
 
-    /**
-     * @param $key
-     * @return bool
-     */
-    public function propertyExists($key)
+    /** Whether the key is configured (a null value counts as configured) */
+    public function propertyExists(string $key): bool
     {
         return array_key_exists($key, $this->properties);
     }
 
-    /**
-     * Save settings to file
-     * @return bool
-     */
-    public function saveToFile()
+    public function removeProperty(string $key): void
     {
-        #@TODO implement storing to ini/php files
-        return false;
+        unset($this->properties[$key]);
     }
 
     /**
-     * Load settings from file
-     * @param $file
-     * @return bool
+     * Every setting, keyed by its dotted name.
+     * @return array<string, mixed>
      */
-    public function loadFromFile($file)
+    public function getProperties(): array
     {
-        #@TODO implement parsing from ini/php files
-        return false;
+        return $this->properties;
     }
 
     /**
-     * @param $key
-     * @return mixed
-     * @throws MissingConfigParamException
+     * Load a (nested) array: string-keyed arrays are flattened with dots, lists are kept as values.
+     * @param array<string, mixed> $values
      */
-    public static function get($key)
+    public function loadFromArray(array $values, string $prefix = ''): void
+    {
+        foreach ($values as $key => $value) {
+            $name = $prefix === '' ? (string)$key : $prefix . '.' . $key;
+            if (is_array($value) && $value !== [] && !self::isList($value)) {
+                $this->loadFromArray($value, $name);
+            } else {
+                $this->properties[$name] = $value;
+            }
+        }
+    }
+
+    /**
+     * Load settings from a file: a .php file returning an array, a .json file holding an object,
+     * or a .ini file (sections become prefixes). Returns false when the file is missing, unreadable
+     * or does not hold an array; nothing is loaded then.
+     */
+    public function loadFromFile(?string $file): bool
+    {
+        if ($file === null || $file === '' || !is_file($file) || !is_readable($file)) {
+            return false;
+        }
+        $values = self::readFile($file);
+        if (!is_array($values)) {
+            return false;
+        }
+        $this->loadFromArray($values);
+        return true;
+    }
+
+    /**
+     * Save every setting to a .php file (returning the array) or a .json file. Returns false
+     * without a file name, for another extension, or when the file cannot be written.
+     */
+    public function saveToFile(?string $file = null): bool
+    {
+        if ($file === null || $file === '') {
+            return false;
+        }
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($extension === 'php') {
+            $content = "<?php\n\nreturn " . var_export($this->properties, true) . ";\n";
+        } elseif ($extension === 'json') {
+            $encoded = json_encode($this->properties, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($encoded === false) {
+                return false;
+            }
+            $content = $encoded . "\n";
+        } else {
+            return false;
+        }
+        return @file_put_contents($file, $content) !== false;
+    }
+
+    /**
+     * @throws MissingConfigParamException for an unknown key
+     */
+    public static function get(string $key): mixed
     {
         return self::getInstance()->getProperty($key);
     }
@@ -136,11 +162,84 @@ class Settings
     }
 
     /**
-     * @param string $key
-     * @param mixed $value
+     * A string setting; $default when the key is missing or the value is not a scalar.
      */
-    public static function set(string $key, $value): void
+    public static function getString(string $key, string $default = ''): string
+    {
+        if (!self::has($key)) {
+            return $default;
+        }
+        $value = self::getInstance()->getProperty($key);
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        return is_scalar($value) ? (string)$value : $default;
+    }
+
+    /**
+     * An integer setting; $default when the key is missing or the value is not a whole number.
+     */
+    public static function getInt(string $key, int $default = 0): int
+    {
+        if (!self::has($key)) {
+            return $default;
+        }
+        $value = self::getInstance()->getProperty($key);
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_bool($value)) {
+            return $value ? 1 : 0;
+        }
+        if ((is_string($value) || is_float($value)) && preg_match('/^\s*[+-]?\d+\s*$/', (string)$value)) {
+            return (int)$value;
+        }
+        return $default;
+    }
+
+    public static function set(string $key, mixed $value): void
     {
         self::getInstance()->setProperty($key, $value);
+    }
+
+    public static function remove(string $key): void
+    {
+        self::getInstance()->removeProperty($key);
+    }
+
+    /**
+     * Load a (nested) array of settings, see loadFromArray().
+     * @param array<string, mixed> $values
+     */
+    public static function load(array $values, string $prefix = ''): void
+    {
+        self::getInstance()->loadFromArray($values, $prefix);
+    }
+
+    /** @return mixed the file's content: an array for a valid settings file */
+    private static function readFile(string $file): mixed
+    {
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($extension === 'php') {
+            return include $file;
+        }
+        $content = file_get_contents($file);
+        if ($content === false) {
+            return null;
+        }
+        if ($extension === 'json') {
+            return json_decode($content, true);
+        }
+        if ($extension === 'ini') {
+            $parsed = parse_ini_string($content, true, INI_SCANNER_TYPED);
+            return $parsed === false ? null : $parsed;
+        }
+        return null;
+    }
+
+    /** @param array<mixed> $value */
+    private static function isList(array $value): bool
+    {
+        return array_keys($value) === range(0, count($value) - 1);
     }
 }
