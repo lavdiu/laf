@@ -158,6 +158,11 @@ URL structure: `/module/submodule/action/id`
 
 Generated pages use switch statements to route actions.
 
+`UrlParser::getId()` is an int, a lower-cased UUID or null; `getRawId()` is the segment as written. Link builders
+(`getViewLink($id)`, `getUpdateLink($id)`, `getDeleteLink($id)`, `getListLink()`, `getNewLink()`, generic
+`getLink($action, $id, $withId)`) accept a number or a UUID and fall back to the route's id; module and submodule are
+URL-encoded. `UrlParser::reset()` re-reads the request (tests, CLI).
+
 ### Application Bootstrap Pattern
 
 ```php
@@ -297,6 +302,9 @@ The `Settings` singleton stores all configuration. Common keys:
 - `project.package_name`: Root namespace for generated classes
 - `settings.use_pretty_url`: Enable/disable pretty URLs (default: true)
 - `settings.label.translations`: UI label translations
+- Readers: `Settings::get($key)` throws `MissingConfigParamException`; `has()`, `getBool()`, `getString()`, `getInt()` take a
+  default. `Settings::load([...])` / `loadFromFile('config.php'|'.json'|'.ini')` flatten nested arrays to dotted keys
+  (lists stay values); `saveToFile('.php'|'.json')` writes the map back; `remove()`, `getProperties()`.
 
 ## Audit Logging
 

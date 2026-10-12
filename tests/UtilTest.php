@@ -70,13 +70,11 @@ class UtilTest extends TestCase
 	}
 
 	/** @test */
-	public function format_date_for_db_invalid_crashes()
+	public function format_date_for_db_invalid_is_null()
 	{
-		// Bug: formatDateForDb checks $dt !== null but DateTime::createFromFormat
-		// returns false on failure (not null), so invalid input causes a fatal error.
-		// Fix: change !== null to !== false in Util::formatDateForDb()
-		$this->expectException(\Error::class);
-		Util::formatDateForDb('invalid');
+		// formatDateForDb used to compare DateTime::createFromFormat() with null instead of false
+		// and crashed on invalid input (fixed 2026-10-12, Util review)
+		$this->assertNull(Util::formatDateForDb('invalid'));
 	}
 
 	// ── uuid ──

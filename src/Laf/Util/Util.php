@@ -2,6 +2,11 @@
 
 namespace Laf\Util;
 
+/**
+ * Small static helpers: output escaping (e(), attr()), the name conversions the generator and
+ * the models share (table_name → ClassName, field_name → Label / MethodName), JSON and number
+ * parsing, UUIDs and a relative-time formatter.
+ */
 class Util
 {
     /**
@@ -40,75 +45,75 @@ class Util
         return htmlspecialchars((string)$value, ENT_COMPAT | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8', false);
     }
 
-    public static function isJSON($string)
+    /**
+     * Whether the value is a JSON object or array (a bare JSON scalar such as "1" or "\"x\"" is not).
+     */
+    public static function isJSON(mixed $string): bool
     {
-        return is_string($string) && is_array(json_decode($string, true)) && (json_last_error() === JSON_ERROR_NONE);
+        return is_string($string) && is_array(json_decode($string, true)) && json_last_error() === JSON_ERROR_NONE;
     }
 
     /**
-     * Convert table name to class name
-     * Example: school_instructor -> SchoolInstructor
-     * @param string $name
-     * @return string
+     * Table name to class name: school_instructor → SchoolInstructor
      */
-    public static function tableNameToClassName($name)
+    public static function tableNameToClassName(?string $name): string
     {
-        return str_replace('_', '', ucwords($name, '_'));
+        return str_replace('_', '', ucwords((string)$name, '_'));
     }
 
     /**
-     * Convert table field name to label
-     * Example: instructor_name -> Instructor Name
-     * @param string $name
-     * @return string
+     * Column name to label: instructor_name → Instructor Name, department_id → Department
      */
-    public static function tableFieldNameToLabel($name)
+    public static function tableFieldNameToLabel(?string $name): string
     {
         // only a trailing _id is a foreign key marker (user_identity stays "User Identity")
         $name = preg_replace('/_id$/', '', (string)$name);
-        return str_replace('_', ' ', ucwords($name, '_'));
+        return str_replace('_', ' ', ucwords((string)$name, '_'));
     }
 
     /**
-     * Convert table field name to label
-     * Example: instructor_name -> InstructorName
-     * @param string $name
-     * @return string
+     * Column name to method name part: instructor_name → InstructorName
      */
-    public static function tableFieldNameToMethodName($name)
+    public static function tableFieldNameToMethodName(?string $name): string
     {
-        return str_replace('_', '', ucwords($name, '_'));
+        return str_replace('_', '', ucwords((string)$name, '_'));
     }
 
     /**
-     * Formats date from F d, Y to Y-m-d
-     * @param $date
-     * @return string
+     * A date typed in the locale display format (Locale::dateFormat(), 'F d, Y' by default) as
+     * 'Y-m-d'; a date already in 'Y-m-d' is returned as is; null when it is neither.
      */
-    public static function formatDateForDb($date)
+    public static function formatDateForDb(?string $date): ?string
     {
-        $dt = \DateTime::createFromFormat('F d, Y', $date);
-        if ($dt !== null) {
-            return $dt->format('Y-m-d');
-        } else {
+        if ($date === null || trim($date) === '') {
             return null;
         }
+        $parsed = Locale::parseDate($date, [Locale::dateFormat(), Locale::ISO_DATE]);
+        return $parsed === null ? null : $parsed->format(Locale::ISO_DATE);
     }
 
-    public static function uuid()
+    /**
+     * A random version 4 UUID (xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx).
+     */
+    public static function uuid(): string
     {
-        $data = openssl_random_pseudo_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // set version to 0100
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // set bits 6-7 to 10
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // version 4
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // variant 10xx
 
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    public static function coalesce()
+    /**
+     * The first argument that is not empty; 0 and "0" count as values, an array always does.
+     * @param mixed ...$values
+     * @return mixed null when every argument is empty
+     */
+    public static function coalesce(mixed ...$values): mixed
     {
-        foreach (func_get_args() as $arg) {
-            if (!(empty($arg) && !is_array($arg)) || $arg === 0 || $arg === '0') { // allow zero as string or int
-                return $arg;
+        foreach ($values as $value) {
+            if (is_array($value) || !empty($value) || $value === 0 || $value === '0') {
+                return $value;
             }
         }
         return null;
@@ -116,8 +121,6 @@ class Util
 
     /**
      * Returns a scrambled field name
-     * @param string $name
-     * @return string
      */
     public static function scrambleFieldOrTableName(string $name): string
     {
@@ -125,8 +128,8 @@ class Util
     }
 
     /**
-     * @param string $number
-     * @return float
+     * A number typed with either separator convention ("1,234.56", "1.234,56", "234,56") as a float;
+     * the right-most separator is the decimal point, everything else is grouping.
      */
     public static function toFloat(string $number): float
     {
@@ -146,33 +149,23 @@ class Util
     }
 
     /**
-     * @param \DateTime $dt
-     * @return string
-     * Takes a DateTime and outputs seconds, minutes, hours, days, months or years ago
+     * "5 seconds ago", "3 minutes ago", ... "2 years ago" for a past DateTime.
      */
-    public static function timeAgo(\DateTime $dt): string
+    public static function timeAgo(\DateTimeInterface $dt): string
     {
-        $timestamp = $dt->getTimestamp();
-        $currentTime = time();
-        $timeDifference = $currentTime - $timestamp;
+        $timeDifference = time() - $dt->getTimestamp();
 
         if ($timeDifference < 60) {
             return $timeDifference . ' seconds ago';
         } elseif ($timeDifference < 3600) {
-            $minutes = floor($timeDifference / 60);
-            return $minutes . ' minutes ago';
+            return floor($timeDifference / 60) . ' minutes ago';
         } elseif ($timeDifference < 86400) {
-            $hours = floor($timeDifference / 3600);
-            return $hours . ' hours ago';
+            return floor($timeDifference / 3600) . ' hours ago';
         } elseif ($timeDifference < 2592000) {
-            $days = floor($timeDifference / 86400);
-            return $days . ' days ago';
+            return floor($timeDifference / 86400) . ' days ago';
         } elseif ($timeDifference < 31536000) {
-            $months = floor($timeDifference / 2592000);
-            return $months . ' months ago';
-        } else {
-            $years = floor($timeDifference / 31536000);
-            return $years . ' years ago';
+            return floor($timeDifference / 2592000) . ' months ago';
         }
+        return floor($timeDifference / 31536000) . ' years ago';
     }
 }
