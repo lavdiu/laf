@@ -14,10 +14,9 @@ use Laf\Database\Field\Field;
 class PrimaryKey
 {
     /** @var Field[] */
-    private $fields = [];
+    private array $fields;
 
-    /** @var Table|null */
-    private $table = null;
+    private ?Table $table = null;
 
     /**
      * @param Field[]|null $fields
@@ -31,7 +30,7 @@ class PrimaryKey
         }
     }
 
-    public function addField(Field $field): PrimaryKey
+    public function addField(Field $field): static
     {
         $this->fields[] = $field;
         return $this;
@@ -129,12 +128,12 @@ class PrimaryKey
      * validation (setValueRaw) because a key is an address, not user input.
      * @param mixed $values
      */
-    public function setValues($values): PrimaryKey
+    public function setValues($values): static
     {
         if (!is_array($values)) {
             $first = $this->getFirstField();
             if ($first !== null) {
-                $first->setValueRaw($first->getType() ? $first->getType()->normalize($values) : $values);
+                $first->setValueRaw($first->hasType() ? $first->getType()->normalize($values) : $values);
             }
             return $this;
         }
@@ -147,7 +146,7 @@ class PrimaryKey
             } else {
                 continue;
             }
-            $f->setValueRaw($f->getType() ? $f->getType()->normalize($v) : $v);
+            $f->setValueRaw($f->hasType() ? $f->getType()->normalize($v) : $v);
         }
         return $this;
     }
@@ -176,8 +175,7 @@ class PrimaryKey
         $values = $useOldValues ? $this->getOldValues() : $this->getValues();
         foreach ($this->fields as $f) {
             $value = $values[$f->getName()] ?? null;
-            $type = $f->getType();
-            $bindings[':' . $placeholderPrefix . Identifier::sanitize($f->getName())] = $type ? $type->toDb($value) : [$value, \PDO::PARAM_STR];
+            $bindings[':' . $placeholderPrefix . Identifier::sanitize($f->getName())] = $f->hasType() ? $f->getType()->toDb($value) : [$value, \PDO::PARAM_STR];
         }
         return $bindings;
     }

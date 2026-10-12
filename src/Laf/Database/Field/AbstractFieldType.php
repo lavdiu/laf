@@ -43,7 +43,7 @@ abstract class AbstractFieldType implements FieldType
         $hasTable = $field->hasTable();
         if ($hasTable && $field->isForeignKey()) {
             $element = $field->isDocumentField() ? new File() : new Select();
-        } else if ($hasTable && $field->getTable()->getPrimaryKey() instanceof \Laf\Database\PrimaryKey && $field->isPrimaryKey() && $field->isAutoIncrement()) {
+        } else if ($hasTable && $field->getTable()->getPrimaryKey() !== null && $field->isPrimaryKey() && $field->isAutoIncrement()) {
             $element = new Hidden();
         } else {
             $element = $this->createFormElement($field);

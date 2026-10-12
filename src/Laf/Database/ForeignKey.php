@@ -19,26 +19,26 @@ use Laf\Util\Util;
  */
 class ForeignKey
 {
-    /** @var string|null */
-    private $keyName;
+    /** constraint name */
+    private ?string $keyName;
 
-    /** @var Table|null table that owns the FK column */
-    private $table;
+    /** table that owns the FK column */
+    private ?Table $table;
 
-    /** @var Field|null the FK column */
-    private $field;
+    /** the FK column */
+    private ?Field $field;
 
-    /** @var string|null the referenced (parent) table name */
-    private $referencingTable;
+    /** the referenced (parent) table name */
+    private ?string $referencingTable;
 
-    /** @var string|null the referenced column; usually the parent's primary key */
-    private $referencingField;
+    /** the referenced column; usually the parent's primary key */
+    private ?string $referencingField;
 
-    /** @var string|null ON DELETE rule as reported by information_schema (CASCADE, SET NULL, RESTRICT, NO ACTION) */
-    private $onDelete = null;
+    /** ON DELETE rule as reported by information_schema (CASCADE, SET NULL, RESTRICT, NO ACTION) */
+    private ?string $onDelete = null;
 
-    /** @var string|null ON UPDATE rule */
-    private $onUpdate = null;
+    /** ON UPDATE rule */
+    private ?string $onUpdate = null;
 
     /**
      * Per-request memo of positive validations: [table][column][value] => true.
@@ -46,10 +46,10 @@ class ForeignKey
      * later in the same request, so negatives are always re-checked.
      * @var array<string, array<string, array<string, bool>>>
      */
-    private static $validationCache = [];
+    private static array $validationCache = [];
 
     /** @var array<string, Table> referenced-table metadata per table name */
-    private static $metaCache = [];
+    private static array $metaCache = [];
 
     /**
      * @param string|null $keyName constraint name
@@ -69,14 +69,12 @@ class ForeignKey
 
     /* ───────────── legacy API (used by generated code) ───────────── */
 
-    /** @return string|null */
-    public function getKeyName()
+    public function getKeyName(): ?string
     {
         return $this->keyName;
     }
 
-    /** @param string|null $keyName */
-    public function setKeyName($keyName): ForeignKey
+    public function setKeyName(?string $keyName): static
     {
         $this->keyName = $keyName;
         return $this;
@@ -87,7 +85,7 @@ class ForeignKey
         return $this->table;
     }
 
-    public function setTable(Table $table): ForeignKey
+    public function setTable(Table $table): static
     {
         $this->table = $table;
         return $this;
@@ -98,32 +96,31 @@ class ForeignKey
         return $this->field;
     }
 
-    public function setField(Field $field): ForeignKey
+    public function setField(Field $field): static
     {
         $this->field = $field;
         return $this;
     }
 
-    /** @return string|null the referenced (parent) table name */
-    public function getReferencingTable()
+    /** The referenced (parent) table name */
+    public function getReferencingTable(): ?string
     {
         return $this->referencingTable;
     }
 
-    public function setReferencingTable(string $referencingTable): ForeignKey
+    public function setReferencingTable(string $referencingTable): static
     {
         $this->referencingTable = $referencingTable;
         return $this;
     }
 
-    /** @return string|null the referenced column name */
-    public function getReferencingField()
+    /** The referenced column name */
+    public function getReferencingField(): ?string
     {
         return $this->referencingField;
     }
 
-    /** @param string|null $referencingField */
-    public function setReferencingField($referencingField): ForeignKey
+    public function setReferencingField(?string $referencingField): static
     {
         $this->referencingField = $referencingField;
         return $this;
@@ -136,7 +133,7 @@ class ForeignKey
         return $this->referencingTable;
     }
 
-    public function setReferencedTable(string $table): ForeignKey
+    public function setReferencedTable(string $table): static
     {
         return $this->setReferencingTable($table);
     }
@@ -146,7 +143,7 @@ class ForeignKey
         return $this->referencingField;
     }
 
-    public function setReferencedField(?string $field): ForeignKey
+    public function setReferencedField(?string $field): static
     {
         return $this->setReferencingField($field);
     }
@@ -158,7 +155,7 @@ class ForeignKey
         return $this->onDelete;
     }
 
-    public function setOnDelete(?string $rule): ForeignKey
+    public function setOnDelete(?string $rule): static
     {
         $this->onDelete = $rule === null ? null : strtoupper(trim($rule));
         return $this;
@@ -169,7 +166,7 @@ class ForeignKey
         return $this->onUpdate;
     }
 
-    public function setOnUpdate(?string $rule): ForeignKey
+    public function setOnUpdate(?string $rule): static
     {
         $this->onUpdate = $rule === null ? null : strtoupper(trim($rule));
         return $this;

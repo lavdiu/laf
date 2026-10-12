@@ -6,39 +6,28 @@ use Laf\Util\Util;
 use Laf\Database\Field\Field;
 
 /**
- * Class Table
+ * Metadata of one database table: its fields, primary key, foreign keys, unique fields and
+ * the display field (the column that stands for a row in selects and links).
+ *
+ * A generated Base class builds one in its constructor; BaseObject::getTable() hands it out.
+ * Cloning deep-copies the fields so two objects never share state.
  */
 class Table
 {
-    /**
-     * @var string
-     */
-    private $name;
+    private ?string $name;
 
-    /**
-     * @var array<string, Field> keyed by field name
-     */
-    private $fields = [];
+    /** @var array<string, Field> keyed by field name */
+    private array $fields;
 
-    /**
-     * @var PrimaryKey|null
-     */
-    private $primaryKey = null;
+    private ?PrimaryKey $primaryKey;
 
-    /**
-     * @var array<string, ForeignKey> keyed by the FK column name
-     */
-    private $foreignKey = [];
+    /** @var array<string, ForeignKey> keyed by the FK column name */
+    private array $foreignKey;
 
-    /**
-     * @var Field[]
-     */
-    private $uniqueFields = [];
+    /** @var Field[] */
+    private array $uniqueFields = [];
 
-    /**
-     * @var Field|null
-     */
-    private $displayField = null;
+    private ?Field $displayField;
 
     /**
      * Table constructor.
@@ -59,44 +48,44 @@ class Table
 
     /**
      * Set Table Name
-     * @param mixed $name
-     * @return Table
+     * @param string|null $name
+     * @return static
      */
-    public function setName($name): Table
+    public function setName(?string $name): static
     {
         $this->name = $name;
         return $this;
     }
 
     /**
-     * Get Table Name
-     * @return string
+     * Table name
      */
-    public function getName()
+    public function getName(): ?string
     {
         return $this->name;
     }
 
     /**
-     * Get Table name in Rot13
-     * @return string
+     * The name a form uses as its id and marker input for this table. Despite its name it is
+     * the plain table name: forms, page scripts and the request contract depend on that, so it stays.
      */
-    public function getNameRot13()
+    public function getNameRot13(): string
     {
-        return ($this->getName());
+        return (string)$this->getName();
     }
 
-    public function getNameAsClassname()
+    /** `school_instructor` gives `SchoolInstructor` */
+    public function getNameAsClassname(): string
     {
-        return Util::tableNameToClassName($this->getName());
+        return Util::tableNameToClassName((string)$this->getName());
     }
 
     /**
      * Add Field to the table
      * @param Field $field
-     * @return Table
+     * @return static
      */
-    public function addField(Field $field)
+    public function addField(Field $field): static
     {
         $this->setField($field);
         return $this;
@@ -105,9 +94,9 @@ class Table
     /**
      * Set a specific field in the table
      * @param Field $field
-     * @return Table
+     * @return static
      */
-    public function setField(Field $field): Table
+    public function setField(Field $field): static
     {
         $field->setTable($this);
         $this->fields[$field->getName()] = $field;
@@ -119,13 +108,12 @@ class Table
      * @param string $fieldName
      * @return Field|null
      */
-    public function getField(?string $fieldName)
+    public function getField(?string $fieldName): ?Field
     {
-        if (isset($this->fields[$fieldName])) {
-            return $this->fields[$fieldName];
-        } else {
+        if ($fieldName === null) {
             return null;
         }
+        return $this->fields[$fieldName] ?? null;
     }
 
     /**
@@ -133,20 +121,16 @@ class Table
      * @param string $fieldName
      * @return bool
      */
-    public function hasField(string $fieldName)
+    public function hasField(string $fieldName): bool
     {
-        if (isset($this->fields[$fieldName])) {
-            return true;
-        } else {
-            return false;
-        }
+        return isset($this->fields[$fieldName]);
     }
 
     /**
      * Get all table fields
      * @return Field[]
      */
-    public function getFields()
+    public function getFields(): array
     {
         return $this->fields;
     }
@@ -155,17 +139,17 @@ class Table
      * Returns number of fields per table
      * @return int
      */
-    public function getFieldCount()
+    public function getFieldCount(): int
     {
-        return sizeof($this->fields);
+        return count($this->fields);
     }
 
     /**
      * Set primary key
      * @param PrimaryKey $key
-     * @return Table
+     * @return static
      */
-    public function setPrimaryKey(PrimaryKey $key): Table
+    public function setPrimaryKey(PrimaryKey $key): static
     {
         $key->setTable($this);
         $this->primaryKey = $key;
@@ -173,10 +157,9 @@ class Table
     }
 
     /**
-     * Get table Primary Key
-     * @return PrimaryKey
+     * The primary key, null when none was set
      */
-    public function getPrimaryKey()
+    public function getPrimaryKey(): ?PrimaryKey
     {
         return $this->primaryKey;
     }
@@ -185,34 +168,32 @@ class Table
      * Return number of primary keys per table
      * @return int
      */
-    public function getPrimaryKeyCount()
+    public function getPrimaryKeyCount(): int
     {
-        return sizeof($this->getPrimaryKey()->getFields());
+        $primaryKey = $this->getPrimaryKey();
+        return $primaryKey === null ? 0 : $primaryKey->getFieldCount();
     }
 
     /**
      * Check by fieldname is a field is primary key
-     * @param $fieldName
+     * @param string $fieldName
      * @return bool
      */
-    public function isPrimaryKey($fieldName)
+    public function isPrimaryKey(string $fieldName): bool
     {
-        if ($this->getPrimaryKey()->hasField($fieldName)) {
-            return true;
-        } else {
-            return false;
-        }
+        $primaryKey = $this->getPrimaryKey();
+        return $primaryKey !== null && $primaryKey->hasField($fieldName);
     }
 
     /**
      * Add Table Foreign Key
      * @param ForeignKey $key
-     * @return Table
+     * @return static
      */
-    public function addForeignKey(ForeignKey $key)
+    public function addForeignKey(ForeignKey $key): static
     {
         $key->setTable($this);
-        $this->foreignKey[$key->getField()->getName()] = $key;
+        $this->foreignKey[(string)$key->getField()->getName()] = $key;
         return $this;
     }
 
@@ -221,13 +202,9 @@ class Table
      * @param string $name
      * @return ForeignKey|null
      */
-    public function getForeignKey(string $name)
+    public function getForeignKey(string $name): ?ForeignKey
     {
-        if (isset($this->foreignKey[$name])) {
-            return $this->foreignKey[$name];
-        } else {
-            return null;
-        }
+        return $this->foreignKey[$name] ?? null;
     }
 
     /**
@@ -235,16 +212,16 @@ class Table
      * @param string $name
      * @return bool
      */
-    public function isForeignKey(string $name)
+    public function isForeignKey(string $name): bool
     {
         return isset($this->foreignKey[$name]);
     }
 
     /**
      * Get all foreign keys
-     * @return array
+     * @return array<string, ForeignKey> keyed by the FK column name
      */
-    public function getForeignKeys()
+    public function getForeignKeys(): array
     {
         return $this->foreignKey;
     }
@@ -252,9 +229,9 @@ class Table
     /**
      * Set display field name
      * @param Field $displayField
-     * @return Table
+     * @return static
      */
-    public function setDisplayField(?Field $displayField): Table
+    public function setDisplayField(?Field $displayField): static
     {
         $this->displayField = $displayField;
         return $this;
@@ -284,19 +261,16 @@ class Table
         return null;
     }
 
-    /**
-     * @return string
-     */
-    public function __toString()
+    public function __toString(): string
     {
-        return $this->getName();
+        return (string)$this->getName();
     }
 
     /**
      * Deep copy: fields, primary key, foreign keys, unique and display fields
      * all point at the new Field instances, so two objects never share state.
      */
-    public function __clone()
+    public function __clone(): void
     {
         $fields = [];
         foreach ($this->fields as $name => $field) {
@@ -350,9 +324,9 @@ class Table
 
     /**
      * @param Field[] $uniqueFields
-     * @return Table
+     * @return static
      */
-    public function setUniqueFields(array $uniqueFields): Table
+    public function setUniqueFields(array $uniqueFields): static
     {
         $this->uniqueFields = $uniqueFields;
         return $this;
@@ -360,9 +334,9 @@ class Table
 
     /**
      * @param Field $field
-     * @return Table
+     * @return static
      */
-    public function addUniqueField(Field $field): Table
+    public function addUniqueField(Field $field): static
     {
         $this->uniqueFields[] = $field;
         return $this;
