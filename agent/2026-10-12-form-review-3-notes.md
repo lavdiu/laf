@@ -84,3 +84,17 @@ elements, no `for=''` on a label without an id, a File edit control shows the st
 - The form's default submit button is still drawn with a wrapper and an empty label column (`id='_container'`);
   layouts in the apps rely on that placement, so it was left alone.
 - `Modal` has its own `<form>` without CSRF; `Document::upload()` trusts the client MIME type.
+
+# Follow-up: `src/Laf/UI/Traits` (same day)
+
+`ComponentTrait` (used by every UI component) and `FormElementTrait` (inputs, controls, Link, Image, Dropdown)
+were modernised too: typed properties (no class in LAF or the apps redeclares them, checked by grep), strict
+comparisons (`in_array`/`===` instead of loose), css classes unique on the wrapper as well, `removeAttribute()` /
+`removeWrapperAttribute()` / `removeCssStyle()` now remove a key whose value is '' (before they silently kept it),
+`getCssStyleForHtml()` / `getWrapperCssStyleForHtml()` leave out null and empty items (before: `color:`),
+`getDrawMode()` returns `$drawMode ?? ''` instead of `Util::coalesce()`, `isAutofocus(): bool`,
+`getValueForHtml(): string` (Text narrowed to match), protected `*ForHtml()` helpers typed, docblocks with the
+rules; additive `addCssClasses(...)`, `addAttributes(array)`, `hasComponents()`. `ComponentInterface` docblocks
+fixed (`@return mixed` / `ComponentTrait`). `tests/UITraitsTest.php` (5 tests). PHPStan level 5 clean on
+ComponentInterface, Traits, Container, Form, Page and Link; Unit 623 tests / 2,316 assertions; MariaDB
+integration 151 / 685. Rendered output unchanged except the dropped empty style items and duplicate wrapper classes.

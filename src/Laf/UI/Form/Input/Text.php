@@ -216,7 +216,7 @@ class Text implements FormElementInterface
     /**
      * Kept for compatibility: same as getDisplayValueForHtml().
      */
-    public function getValueForHtml(): ?string
+    public function getValueForHtml(): string
     {
         return $this->getDisplayValueForHtml();
     }
