@@ -142,7 +142,7 @@ class FieldTypeFactory
                 return ['class' => TypeEnum::class, 'args' => [array_values($options), $short === 'set']];
 
             default:
-                return ['class' => self::CLASSES[$short] ?? TypeText::class, 'args' => []];
+                return ['class' => self::CLASSES[$short], 'args' => []];
         }
     }
 

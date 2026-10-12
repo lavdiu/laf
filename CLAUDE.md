@@ -95,7 +95,10 @@ Base/Base[TableName].php (auto-generated from schema)
 
 **Key Classes**:
 - `Table`: Metadata representation of database tables
-- `Field`: Column definitions with validation rules and type information
+- `Field`: Column definitions with validation rules and type information (typed since 2026-10-12: getters for an
+  unset label/hint/placeholder/attribute return null, `getPrimaryKey()` null without a key, `getLoadedOnTs()` /
+  `getUpdatedOnTs()`, `isValidValue()` = `validate()` empty; `Table::getNameRot13()` is the plain table name on purpose,
+  forms use it as id and marker)
 - `FieldType`: Strong typing system (TypeInteger, TypeVarchar, TypeDate, TypeBool, etc.)
 - `ForeignKey`: Manages relationships between tables
 - `Query`: single-table fluent finder (where/orderBy/limit, get/first/count/exists), engine-aware quoting, typed bindings

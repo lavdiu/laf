@@ -45,22 +45,22 @@ class AuditLog extends BaseObject
     const SKIPPED_FIELDS = ['created_on', 'created_by', 'updated_on', 'updated_by'];
 
     /** @var string table the audit rows are written to */
-    private static $tableName = 'audit_log';
+    private static string $tableName = 'audit_log';
 
     /** @var bool process-wide switch; per-object switch is BaseObject::auditLogDisable() */
-    private static $enabled = true;
+    private static bool $enabled = true;
 
     /** @var bool when true a failed audit write throws instead of being swallowed */
-    private static $strict = false;
+    private static bool $strict = false;
 
     /** @var int|null longest value kept in the payload (0/null = unlimited); read from Settings 'audit.max_value_length' */
-    private static $maxValueLength = null;
+    private static ?int $maxValueLength = null;
 
     /** @var string|null message of the last failed write */
-    private static $lastError = null;
+    private static ?string $lastError = null;
 
     /** @var array{key:string, statement:\PDOStatement}|null prepared INSERT, reused across writes */
-    private static $statement = null;
+    private static ?array $statement = null;
 
     public function __construct($id = null)
     {
@@ -72,7 +72,7 @@ class AuditLog extends BaseObject
         }
     }
 
-    protected function returnLeafClass()
+    protected function returnLeafClass(): static
     {
         return $this;
     }
@@ -373,7 +373,7 @@ class AuditLog extends BaseObject
      * @param Field|null $field
      * @return mixed
      */
-    public static function normalizeValue($value, ?Field $field = null)
+    public static function normalizeValue(mixed $value, ?Field $field = null): mixed
     {
         if ($value === null || is_bool($value) || is_int($value) || is_float($value)) {
             return $value;
@@ -410,9 +410,9 @@ class AuditLog extends BaseObject
 
     /**
      * Primary key value(s) as the string stored in record_id.
-     * @param int|string|array|null $recordId
+     * @param int|string|bool|array|null $recordId
      */
-    public static function recordIdToString($recordId): string
+    public static function recordIdToString(mixed $recordId): string
     {
         if (is_array($recordId)) {
             return implode(',', array_map(function ($v) {
@@ -550,7 +550,7 @@ class AuditLog extends BaseObject
      * @param array<string, mixed> $row
      * @return static
      */
-    public static function fromRow(array $row)
+    public static function fromRow(array $row): static
     {
         $entry = new static();
         foreach ($row as $column => $value) {
@@ -565,7 +565,7 @@ class AuditLog extends BaseObject
 
     /**
      * The decoded change list of this entry.
-     * @return array<int, array{field:string, old_value:mixed, new_value:mixed}>
+     * @return array<int, array{field:string|null, old_value:mixed, new_value:mixed}>
      */
     public function getChanges(): array
     {
@@ -594,7 +594,7 @@ class AuditLog extends BaseObject
 
     /**
      * The change recorded for one column of this entry, null when the column was not touched.
-     * @return array{field:string, old_value:mixed, new_value:mixed}|null
+     * @return array{field:string|null, old_value:mixed, new_value:mixed}|null
      */
     public function getChangeFor(string $fieldName): ?array
     {
@@ -617,37 +617,37 @@ class AuditLog extends BaseObject
         }, $this->getChanges())));
     }
 
-    public function getIdVal()
+    public function getIdVal(): mixed
     {
         return $this->getFieldValue('id');
     }
 
-    public function getUserIdVal()
+    public function getUserIdVal(): mixed
     {
         return $this->getFieldValue('user_id');
     }
 
-    public function getTableNameVal()
+    public function getTableNameVal(): mixed
     {
         return $this->getFieldValue('table_name');
     }
 
-    public function getRecordIdVal()
+    public function getRecordIdVal(): mixed
     {
         return $this->getFieldValue('record_id');
     }
 
-    public function getActionVal()
+    public function getActionVal(): mixed
     {
         return $this->getFieldValue('action');
     }
 
-    public function getChangesVal()
+    public function getChangesVal(): mixed
     {
         return $this->getFieldValue('changes');
     }
 
-    public function getCreatedOnVal()
+    public function getCreatedOnVal(): mixed
     {
         return $this->getFieldValue('created_on');
     }
@@ -738,7 +738,7 @@ class AuditLog extends BaseObject
      * @param mixed $default
      * @return mixed
      */
-    private static function setting(string $key, $default)
+    private static function setting(string $key, mixed $default): mixed
     {
         try {
             $settings = Settings::getInstance();
