@@ -5,6 +5,9 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
+/**
+ * <input type="url">; the browser validates the URL format.
+ */
 class Url extends Text implements FormElementInterface
 {
     public function drawUpdateMode(): string

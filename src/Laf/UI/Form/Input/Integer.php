@@ -5,6 +5,9 @@ namespace Laf\UI\Form\Input;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\InputType;
 
+/**
+ * <input type="number" step="1"> for integer columns (min/max from the column width).
+ */
 class Integer extends Text implements FormElementInterface
 {
     public function drawUpdateMode(): string

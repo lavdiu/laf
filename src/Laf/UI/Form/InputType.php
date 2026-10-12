@@ -2,6 +2,9 @@
 
 namespace Laf\UI\Form;
 
+/**
+ * Values of the HTML "type" attribute the inputs and controls render.
+ */
 class InputType
 {
     const Button = 'button';
@@ -9,6 +12,7 @@ class InputType
     const Checkbox = 'checkbox';
     const Date = 'date';
     const DatetimeLocal = 'datetime-local';
+    /** @deprecated obsolete in HTML; use DatetimeLocal */
     const Datetime = 'datetime';
     const Email = 'email';
     const File = 'file';

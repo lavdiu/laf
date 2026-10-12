@@ -6,22 +6,28 @@ use Laf\Database\Field\Field;
 use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Form\FormRowDisplayMode;
+use Laf\UI\Form\Input\Text;
 use Laf\UI\Form\InputType;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\UI\Traits\FormElementTrait;
+use Laf\UI\Traits\HtmlAttributeRenderingTrait;
 use Laf\Util\Util;
 
 /**
- * <button>: the value is the caption. By default it is wrapped like an input
- * (container, label column); setWrapInDiv(false) renders the bare button, as
- * modal footers do. A button is not bound to a field: getField() is null.
+ * <button>: the value is the caption, setIcon() puts an icon (css class) before
+ * it. By default it is wrapped like an input (container, label column);
+ * setWrapInDiv(false) renders the bare button, as modal footers do. A button is
+ * not bound to a field: getField() is null.
  */
 class Button implements FormElementInterface
 {
     use ComponentTrait;
     use FormElementTrait;
+    use HtmlAttributeRenderingTrait;
 
     protected bool $wrapInDiv = true;
+
+    protected string $icon = '';
 
     public function __construct()
     {
@@ -33,10 +39,24 @@ class Button implements FormElementInterface
         return $this->wrapInDiv;
     }
 
-    public function setWrapInDiv(bool $wrapInDiv): Button
+    public function setWrapInDiv(bool $wrapInDiv): static
     {
         $this->wrapInDiv = $wrapInDiv;
         return $this;
+    }
+
+    /**
+     * Css class(es) of an icon drawn before the caption, e.g. 'fa fa-save'; '' for none
+     */
+    public function setIcon(string $icon): static
+    {
+        $this->icon = $icon;
+        return $this;
+    }
+
+    public function getIcon(): string
+    {
+        return $this->icon;
     }
 
     /**
@@ -49,42 +69,15 @@ class Button implements FormElementInterface
          */
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $attributes = $this->getAttributes();
-        unset($attributes['class'], $attributes['style'], $attributes['height'], $attributes['width'], $attributes['value']);
-
-        $style = $this->getCssStyles();
-        if ($this->getHeight()) {
-            $style['height'] = $this->getHeight() . 'px';
-        }
-        if ($this->getWidth()) {
-            $style['width'] = $this->getWidth() . 'px';
-        }
-        $styleItems = [];
-        foreach ($style as $property => $value) {
-            if ($value !== null && $value !== '') {
-                $styleItems[] = $property . ':' . $value;
-            }
-        }
-
-        $params = '';
-        foreach ($attributes as $key => $value) {
-            if (is_array($value)) {
-                $value = join(' ', array_map('strval', $value));
-            }
-            if ($value === null || (string)$value === '') {
-                continue;
-            }
-            $params .= "\n\t\t\t\t" . $key . '="' . Util::attr($value) . '"';
-        }
-
         $id = Util::e($this->getId());
         $hasHint = mb_strlen($this->getHint() ?? '') > 0;
+        $caption = ($this->icon !== '' ? "<i class='" . Util::e($this->icon) . "'></i> " : '') . $this->getValueForHtml();
 
-        $button = "\t<button" . $params . "
+        $button = "\t<button" . $this->renderAttributes($this->controlAttributes(['value'])) . "
                     class='" . Util::e($this->getCssClassesForHtml()) . "'
-                    style='" . Util::e(join(';', $styleItems)) . "'"
+                    style='" . Util::e($this->controlStyle()) . "'"
             . ($hasHint ? " aria-describedby='{$id}_hint'" : '') . "
-                >" . $this->getValueForHtml() . "</button>";
+                >" . $caption . "</button>";
 
         if (!$this->getWrapInDiv()) {
             return $button;
@@ -92,12 +85,18 @@ class Button implements FormElementInterface
 
         $isRow = $this->getFormRowDisplayMode() === FormRowDisplayMode::ROW;
         $hidden = ($this->isHidden() || $this->hasCssClass('d-none')) ? ' d-none' : '';
-        $label = Util::e($this->getLabel()) . ($this->isRequired() ? '*' : '');
+        $label = $this->getLabel();
+        $text = '';
+        if ($label !== null && $label !== '') {
+            // the caption carries the action, so no label suffix; the marker follows the inputs' setting
+            $text = Util::e($label) . ($this->isRequired() ? Util::e(Text::getRequiredMarker()) : '');
+        }
+        $for = $id !== '' ? " for='{$id}'" : '';
         $hint = $hasHint ? "\n\t\t\t\t<small id='{$id}_hint' class='form-text text-muted'>" . Util::e($this->getHint()) . "</small>" : '';
 
         return "
         <div id='{$id}_container' class='mb-3 " . Util::e((string)$this->getFormRowDisplayMode()) . $hidden . "'>
-            <label id='{$id}_label' for='{$id}' class='" . ($isRow ? 'col-sm-2 ' : '') . "col-form-label'>{$label}</label>
+            <label id='{$id}_label'{$for} class='" . ($isRow ? 'col-sm-2 ' : '') . "col-form-label'>{$text}</label>
             " . ($isRow ? "<div class='col-sm-10'>" : '') . "
         " . $button . $hint . "
             " . ($isRow ? '</div>' : '') . "

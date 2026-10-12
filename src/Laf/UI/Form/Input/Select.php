@@ -13,11 +13,15 @@ use Laf\Util\Util;
  * filtered by the field's db selection criteria, ordered by the display field.
  * Options are loaded once per element and per request.
  *
- * setMultiple(true) posts the field as an array; Form joins it with commas.
+ * setMultiple(true) posts the field as an array (a hidden empty value first, so
+ * clearing every selection is submitted too); Form joins it with commas.
  */
 class Select extends Text implements FormElementInterface
 {
-    /** attributes that belong to <input> and must not be printed on a <select> or a choice list */
+    /**
+     * @deprecated use inputOnlyAttributesExcept('size', 'autocomplete', 'multiple'); kept for subclasses
+     * attributes that belong to <input> and must not be printed on a <select> or a choice list
+     */
     protected const NON_SELECT_ATTRIBUTES = ['type', 'value', 'placeholder', 'maxlength', 'minlength', 'pattern', 'inputmode', 'step', 'min', 'max', 'accept', 'checked'];
 
     /**
@@ -41,9 +45,9 @@ class Select extends Text implements FormElementInterface
     /**
      * Provide the options directly instead of reading them from the FK table
      * @param array $options value => label
-     * @return $this
+     * @return static
      */
-    public function setOptions(array $options): self
+    public function setOptions(array $options): static
     {
         $this->options = $options;
         $this->loadedOptions = null;
@@ -79,7 +83,7 @@ class Select extends Text implements FormElementInterface
     /**
      * Forget the options read from the referenced table so the next draw reloads them.
      */
-    public function clearOptionsCache(): self
+    public function clearOptionsCache(): static
     {
         $this->loadedOptions = null;
         return $this;
@@ -88,7 +92,7 @@ class Select extends Text implements FormElementInterface
     /**
      * Render (default) or omit the empty first option.
      */
-    public function setEmptyOption(bool $render): self
+    public function setEmptyOption(bool $render): static
     {
         $this->emptyOption = $render;
         return $this;
@@ -102,7 +106,7 @@ class Select extends Text implements FormElementInterface
     /**
      * Text of the empty option, e.g. '-- choose --'; null renders a blank option.
      */
-    public function setEmptyOptionLabel(?string $label): self
+    public function setEmptyOptionLabel(?string $label): static
     {
         $this->emptyOptionLabel = $label;
         return $this;
@@ -113,7 +117,7 @@ class Select extends Text implements FormElementInterface
         return $this->emptyOptionLabel;
     }
 
-    public function setInline(bool $inline): self
+    public function setInline(bool $inline): static
     {
         $this->inline = $inline;
         return $this;
@@ -169,12 +173,20 @@ class Select extends Text implements FormElementInterface
     {
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $attributes = $this->controlAttributes(self::NON_SELECT_ATTRIBUTES);
+        $attributes = $this->controlAttributes($this->inputOnlyAttributesExcept('size', 'autocomplete', 'multiple'));
+        $hidden = '';
         if ($this->isMultiple() && isset($attributes['name'])) {
             $attributes['name'] = $attributes['name'] . '[]';
+            if (!$this->isDisabled()) {
+                /**
+                 * a multiple select with nothing selected posts nothing: the empty value
+                 * tells Form the field was on the form and is now empty
+                 */
+                $hidden = "<input type='hidden' name='" . Util::e($attributes['name']) . "' value='' />\n\t\t\t\t";
+            }
         }
 
-        $control = "<select class='" . Util::e(join(' ', $this->controlClasses('form-control', 'form-select'))) . "' style='" . Util::e($this->controlStyle()) . "'"
+        $control = $hidden . "<select class='" . Util::e(join(' ', $this->controlClasses('form-control', 'form-select'))) . "' style='" . Util::e($this->controlStyle()) . "'"
             . $this->renderAttributes($attributes)
             . $this->describedBy() . ">"
             . $this->renderOptions()
@@ -206,6 +218,9 @@ class Select extends Text implements FormElementInterface
     /**
      * One radio / checkbox per option, Bootstrap "form-check" markup, used by Radio and CheckboxCollection.
      *
+     * "required" stays on radios (one checked satisfies it) and is dropped from a checkbox
+     * list, where the browser would demand every box ticked.
+     *
      * @param string $inputType 'radio' or 'checkbox'
      * @param bool $asList post as name[] and start with an empty hidden value so "nothing selected" is submitted too
      */
@@ -213,7 +228,11 @@ class Select extends Text implements FormElementInterface
     {
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $attributes = $this->controlAttributes(array_merge(self::NON_SELECT_ATTRIBUTES, ['id', 'name', 'multiple', 'size', 'autocomplete']));
+        $drop = array_merge(static::INPUT_ONLY_ATTRIBUTES, ['id', 'name']);
+        if ($asList) {
+            $drop[] = 'required';
+        }
+        $attributes = $this->controlAttributes($drop);
         $classes = join(' ', array_values(array_diff($this->controlClasses('form-check-input'), ['form-control', 'form-select'])));
         $style = $this->controlStyle();
         $selected = $this->getSelectedValues();

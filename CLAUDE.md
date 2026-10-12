@@ -109,7 +109,18 @@ Hierarchical component-based rendering:
 - **Form**: Auto-generates forms from BaseObject fields, processes submissions via `processForm()`
 - **Grid Components**: SimpleTable, PhpGrid for data tables with pagination
 - **Containers**: Div, TabContainer, GenericContainer for layout
-- **Page Components**: GenericPage, AdminPage for full page rendering
+- **Page Components** (`src/Laf/UI/Page/`): `Html` is the document (`setPageTitle()` escaped, `addHeaderComponent()`,
+  `addScript($src, $attrs, $atBodyEnd)` / `addInlineScript()` / `addStylesheet()` / `addInlineStyle()` / `addMeta()` /
+  `addLinkTag()` / `setFavicon()`, `setLanguage()` else Settings `locale.language` else `en`, `setBodyAttributes()` /
+  `addBodyCssClass()`, `setMenu()` raw HTML, `addComponent()`, `addFooterComponent()` / `setFooterHtml()` before the
+  body-end scripts, `draw(true)` stops after the components). `GenericPage` / `AdminPage` is the card every page puts
+  its components into: `setTitle()` and `setSubtitle()` are **raw HTML** (pages pass anchors), `setTitleIcon()`,
+  `addLink()` (Link / Dropdown, right side), `addFooterComponent()` (card footer), `setHeader()` / `setFooter()` raw
+  HTML around the card, `setShowCardHeader(false)`, `setCardCssClasses()` / `setCardHeaderCssClasses()`, the
+  component's attributes land on the wrapper div, `disable()` draws nothing. `Page` is the banner variant
+  (`setBannerImage()`). `HeaderComponent` is one head tag (`::script()`, `::stylesheet()`, `::meta()`, `::link()`,
+  `::inlineScript()`, `::inlineStyle()`; a null attribute value draws a bare attribute such as `defer`; `meta`/`link`/
+  `base` are always void).
 - **Draw Modes**: `DrawMode::VIEW`, `DrawMode::INSERT`, `DrawMode::UPDATE`
 
 All components support fluent interfaces and CSS/attribute management.
@@ -230,6 +241,14 @@ draws an alert above the fields (`setShowErrorSummary(false)`, `drawErrorSummary
 "not on the form"; `Select`/`Radio`/`CheckboxCollection` take `setOptions()` or the FK table; Date/DateTime/Time inputs show
 the locale format (`locale.*.format`) with a picker class, or native inputs with `setNativeInput(true)` / Settings
 `form.native_date_inputs`.
+Every input takes `setPrefix()` / `setSuffix()` (text addons, an input group; `*Html` variants are raw), `setSuggestions()`
+(a `<datalist>`), and the element's `setErrors()` is announced with `aria-describedby` / `aria-invalid`; `Checkbox::setSwitch(true)`
+draws a toggle; a checkbox never carries `required` (the hidden `0` satisfies NOT NULL). Opt-in inputs `Number` (type=number),
+`Tel`, `Range` (column comment `"element":"Number"`). `File::setDocumentUrlBuilder(fn($action, $id))` replaces the default
+`?module=document&submodule=…` links; edit mode shows the stored file (`setShowCurrentFile(false)`). The form footer takes
+`addButton()` (drawn bare, before the submit button), `setCancelLink($href)`, `setSubmitButtonLabel()`; `Button::setIcon()`.
+`FormLayout::html($html, $modes)` puts raw HTML between sections. `Settings::getBool($key, $default)` / `Settings::has()` read
+optional flags.
 
 **Foreign Key Navigation**:
 Generated classes include methods to traverse relationships:

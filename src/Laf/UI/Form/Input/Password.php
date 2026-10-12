@@ -27,7 +27,7 @@ class Password extends Text implements FormElementInterface
             . $this->renderAttributes($this->controlAttributes(['value']))
             . $this->describedBy() . " />";
 
-        return $this->renderWrapper($control);
+        return $this->renderWrapper($control, ['suggestions' => false]);
     }
 
     /**

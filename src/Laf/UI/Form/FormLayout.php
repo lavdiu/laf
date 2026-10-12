@@ -8,13 +8,14 @@ use Laf\Database\Field\Field;
 use Laf\Database\Table;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\Fieldset;
+use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
 
 /**
  * Describes how a Form lays out the fields of its object in each draw mode and
  * builds the components: an ordered list of sections (a plain block, a
- * fieldset or a tab) with a column count and the draw modes they apply to,
+ * fieldset, a tab or a piece of raw HTML) with a column count and the draw modes they apply to,
  * plus per-field options (excluded / read-only / hidden in given modes, the
  * element class). Serialisable with toArray() / fromArray().
  *
@@ -22,6 +23,7 @@ use Laf\UI\Container\TabItem;
  *       ->readOnly(['code'], [DrawMode::UPDATE])   // editable on insert only
  *       ->fieldset('Address', ['street', 'city'], 2)
  *       ->tab('Pricing', ['price', 'currency_id'])
+ *       ->html('<p class="text-muted">Prices are net.</p>', [DrawMode::VIEW])
  *       ->hidden(['record_status_id'])
  *       ->exclude(['internal_note'], [DrawMode::VIEW]);
  *
@@ -45,9 +47,10 @@ final class FormLayout
     public const KIND_FIELDS = 'fields';
     public const KIND_FIELDSET = 'fieldset';
     public const KIND_TAB = 'tab';
+    public const KIND_HTML = 'html';
 
-    public const ALL_MODES = [DrawMode::VIEW, DrawMode::INSERT, DrawMode::UPDATE];
-    public const EDIT_MODES = [DrawMode::INSERT, DrawMode::UPDATE];
+    public const ALL_MODES = DrawMode::ALL;
+    public const EDIT_MODES = DrawMode::EDIT;
 
     /** Columns auto() shows in the "Details" tab of the view form, in this order */
     public const METADATA_FIELDS = ['created_by', 'created_on', 'record_status_id', 'updated_by', 'updated_on'];
@@ -55,7 +58,7 @@ final class FormLayout
     /** Columns auto() leaves out of insert and update forms (filled by BaseObject) */
     public const EDIT_EXCLUDED_FIELDS = ['created_on', 'created_by', 'updated_on', 'updated_by'];
 
-    private const KINDS = [self::KIND_FIELDS, self::KIND_FIELDSET, self::KIND_TAB];
+    private const KINDS = [self::KIND_FIELDS, self::KIND_FIELDSET, self::KIND_TAB, self::KIND_HTML];
     private const MODE_OPTIONS = ['exclude', 'readonly', 'hidden'];
 
     /** @var array<int, array{kind: string, title: string, icon: string, fields: string[], columns: int, modes: string[]|null}> */
@@ -105,6 +108,16 @@ final class FormLayout
     public function tab(string $title, array $names, int $columns = 1, ?array $modes = null, string $icon = ''): self
     {
         return $this->addSection(self::KIND_TAB, $title, $names, $columns, $modes, $icon);
+    }
+
+    /**
+     * Raw HTML at this place among the sections (a note, an alert, a separator); not escaped.
+     * Drawn at the top level, or in the "General" tab when the form has tabs.
+     * @param string[]|null $modes draw modes it appears in; null = all
+     */
+    public function html(string $html, ?array $modes = null): self
+    {
+        return $this->addSection(self::KIND_HTML, $html, [], 1, $modes, '');
     }
 
     /**
@@ -443,6 +456,12 @@ final class FormLayout
         $inline = false;
 
         foreach ($this->getSections($drawMode) as $section) {
+            if ($section['kind'] === self::KIND_HTML) {
+                if ($section['title'] !== '') {
+                    $top[] = new HtmlContainer($section['title']);
+                }
+                continue;
+            }
             $elements = [];
             foreach ($section['fields'] as $name) {
                 if (isset($placed[$name]) || !$table->hasField($name) || $this->isExcluded($name, $drawMode)) {
