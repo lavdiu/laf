@@ -703,6 +703,39 @@ class FormTest extends TestCase
     }
 
     /** @test */
+    public function build_request_produces_a_submission_the_form_accepts(): void
+    {
+        $form = $this->makeForm('/submit');
+        $request = $form->buildRequest(['varchar_field45' => 'built', 'bool_field' => '1', 'extra_param' => 'kept'], DrawMode::UPDATE);
+
+        $this->assertSame('dummy_table', $request['form_submit']);
+        $this->assertSame('1', $request['dummy_table']);
+        $this->assertSame(DrawMode::UPDATE, $request['dummy_table_draw_mode']);
+        $this->assertSame('built', $request[str_rot13('varchar_field45')]);
+        $this->assertSame('kept', $request['extra_param'], 'unknown names are posted as given');
+        $this->assertArrayHasKey($form->getCsrfSessionKey(), $request);
+        $this->assertSame($form->getCsrfToken(), $request[$form->getCsrfSessionKey()]);
+        $this->assertStringStartsWith(str_rot13('varchar_field45') . ',' . str_rot13('bool_field') . '|', $request[$form->getFieldListInputName()]);
+        $this->assertArrayNotHasKey($form->getCsrfSessionKey(), $form->buildRequest([], DrawMode::INSERT, false));
+
+        $_POST = [];
+        $form->setRequest($request);
+        $this->assertTrue($form->detectSubmission());
+        $this->assertSame(DrawMode::UPDATE, $form->getDrawMode());
+        $form->setRestrictToRenderedFields(true);
+        $form->applySubmittedValues();
+        $object = $form->getObject();
+        $this->assertSame('built', $object->getField('varchar_field45')->getValue());
+        $this->assertTrue($object->getField('bool_field')->getValue());
+
+        // a value outside the signed list is ignored under the mass-assignment guard
+        $tampered = $request;
+        $tampered[str_rot13('text_field')] = 'injected';
+        $form->setRequest($tampered)->applySubmittedValues();
+        $this->assertNull($object->getField('text_field')->getValue());
+    }
+
+    /** @test */
     public function unposted_boolean_is_false_only_when_its_checkbox_was_on_the_form(): void
     {
         $form = $this->makeForm('/submit');

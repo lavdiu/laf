@@ -392,6 +392,71 @@ final class Query
     }
 
     /**
+     * One page of the matching rows plus the total count, for list pages and APIs:
+     *   $page = Customer::query()->orderBy('name')->paginate($_GET['page'] ?? 1, 25);
+     *   $page->items, $page->total, $page->lastPage, $page->hasMore()
+     * A page number past the end gives an empty page (not the last one). Needs the model class
+     * unless $asArrays; the query's own limit/offset are ignored.
+     * @param int|string|null $page 1-based, anything below 1 or non-numeric means 1
+     */
+    public function paginate($page = 1, int $perPage = 25, bool $asArrays = false): Pagination
+    {
+        $pageNo = max(1, (int)$page);
+        $perPage = max(1, $perPage);
+        $total = $this->count();
+        $single = clone $this;
+        $single->limit = $perPage;
+        $single->offset = ($pageNo - 1) * $perPage;
+        $items = $asArrays ? $single->arrays() : $single->get();
+        return new Pagination($items, $total, $pageNo, $perPage);
+    }
+
+    /**
+     * The matching rows one at a time, as objects of the model class (or arrays with $asArrays),
+     * without loading the whole result set into memory on the PHP side:
+     *   foreach (StockMove::query()->where('year', 2026)->cursor() as $move) { ... }
+     * MySQL buffers the result in the driver unless the connection sets
+     * PDO::MYSQL_ATTR_USE_BUFFERED_QUERY to false (database.options); PostgreSQL streams.
+     * @return \Generator<int, BaseObject|array<string, mixed>>
+     */
+    public function cursor(bool $asArrays = false): \Generator
+    {
+        $class = $asArrays ? null : $this->requireObjectClass();
+        $statement = $this->run($this->getSql());
+        while (($row = $statement->fetch(\PDO::FETCH_ASSOC)) !== false) {
+            yield $class === null ? $row : $class::hydrate($row);
+        }
+    }
+
+    /**
+     * The matching rows in batches of $size, each batch given to $callback as an array of
+     * objects (or arrays); the callback returns false to stop. Batches are taken with
+     * LIMIT/OFFSET in the query's order, so give an ORDER BY on a unique column and do not
+     * delete or reorder the rows while iterating (delete through a separate query afterwards).
+     * @param callable(array, int): mixed $callback (batch, 1-based batch number)
+     * @return int rows handed out
+     */
+    public function chunk(int $size, callable $callback, bool $asArrays = false): int
+    {
+        $size = max(1, $size);
+        $handed = 0;
+        for ($batch = 1; ; $batch++) {
+            $single = clone $this;
+            $single->limit = $size;
+            $single->offset = ($batch - 1) * $size;
+            $rows = $asArrays ? $single->arrays() : $single->get();
+            if ($rows === []) {
+                break;
+            }
+            $handed += count($rows);
+            if ($callback($rows, $batch) === false || count($rows) < $size) {
+                break;
+            }
+        }
+        return $handed;
+    }
+
+    /**
      * Delete every matching row; refuses to run without a condition.
      * @return int rows deleted
      */

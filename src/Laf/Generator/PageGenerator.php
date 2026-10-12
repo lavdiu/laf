@@ -111,6 +111,7 @@ use Laf\UI\Container\Div;
 use Laf\UI\Container\HtmlContainer;
 use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabItem;
+use Laf\UI\Flash;
 use Laf\UI\Form\DrawMode;
 use Laf\UI\Form\Form;
 use Laf\UI\Form\FormLayout;
@@ -132,17 +133,15 @@ $page = new AdminPage();
 $page->setTitle("<a href='" . UrlParser::getListLink() . "' class='text-black text-decoration-none'>{title}</a>");
 $page->setTitleIcon('far fa-list-alt');
 
-// Flash message support
-if (isset($_SESSION['flash_message'])) {
-	$page->addComponent(new Alert('', $_SESSION['flash_message'], $_SESSION['flash_type'] ?? Alert::Type_Success));
-	unset($_SESSION['flash_message'], $_SESSION['flash_type']);
+// Messages queued by the previous request (Flash::success() / Flash::error(), drained once)
+foreach (Flash::drain() as $flashAlert) {
+	$page->addComponent($flashAlert);
 }
 
 if ($form->isSubmitted()) {
 {recordStatusDefault}	try {
 		$id = $form->processForm();
-		$_SESSION['flash_message'] = {L:record-saved};
-		$_SESSION['flash_type'] = Alert::Type_Success;
+		Flash::success({L:record-saved});
 		UrlParser::redirectToViewPage($id);
 		exit;
 	} catch (FormValidationException $ex) {
@@ -154,8 +153,7 @@ if ($form->isSubmitted()) {
 switch ($action) {
 	case 'update':
 		if (!${instance}->recordExists()) {
-			$_SESSION['flash_message'] = {L:record-not-found};
-			$_SESSION['flash_type'] = Alert::Type_Danger;
+			Flash::error({L:record-not-found});
 			UrlParser::redirectToListPage();
 			exit;
 		}
@@ -175,8 +173,7 @@ switch ($action) {
 	case 'delete':
 		// the delete links carry the form's CSRF token: a crafted link cannot delete
 		if (!$form->isValidCsrfToken($_GET[$form->getCsrfSessionKey()] ?? null)) {
-			$_SESSION['flash_message'] = {L:record-not-deleted};
-			$_SESSION['flash_type'] = Alert::Type_Danger;
+			Flash::error({L:record-not-deleted});
 			UrlParser::redirectToListPage();
 			exit;
 		}
@@ -186,18 +183,15 @@ switch ($action) {
 			} else {
 				${instance}->hardDelete();
 			}
-			$_SESSION['flash_message'] = {L:record-deleted};
-			$_SESSION['flash_type'] = Alert::Type_Success;
+			Flash::success({L:record-deleted});
 		} else {
-			$_SESSION['flash_message'] = {L:record-not-found};
-			$_SESSION['flash_type'] = Alert::Type_Danger;
+			Flash::error({L:record-not-found});
 		}
 		UrlParser::redirectToListPage();
 		exit;
 	case 'view':
 		if (!${instance}->recordExists()) {
-			$_SESSION['flash_message'] = {L:record-not-found};
-			$_SESSION['flash_type'] = Alert::Type_Danger;
+			Flash::error({L:record-not-found});
 			UrlParser::redirectToListPage();
 			exit;
 		}

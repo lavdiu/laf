@@ -470,6 +470,67 @@ class BaseObjectTest extends TestCase
 		$this->assertCount(1, DummyTable::query()->whereContains('integer_field', '25')->whereStartsWith('unique_field', 'agg')->get(), 'numbers are searchable as text');
 	}
 
+	/** @test */
+	public function orm_query_paginate_cursor_and_chunk_walk_the_rows()
+	{
+		for ($i = 1; $i <= 7; $i++) {
+			$this->newDummy('page-' . $i)->setIntegerFieldVal($i)->store();
+		}
+		$q = fn () => DummyTable::query()->whereStartsWith('unique_field', 'page-')->orderBy('integer_field');
+
+		$page = $q()->paginate(2, 3);
+		$this->assertSame(7, $page->total);
+		$this->assertSame(3, $page->lastPage);
+		$this->assertSame([4, 5, 6], array_map(fn (DummyTable $r) => (int)$r->getIntegerFieldVal(), $page->items));
+		$this->assertSame(4, $page->from);
+		$this->assertTrue($page->hasMore());
+		$this->assertSame(1, count($q()->paginate('3', 3)));
+		$this->assertTrue($q()->paginate(9, 3)->isEmpty(), 'past the end: empty, not the last page');
+		$this->assertSame(1, $q()->paginate('abc', 3)->page);
+		$this->assertSame(1, (int)$q()->paginate(1, 1, true)->items[0]['integer_field'], 'arrays when asked');
+
+		$seen = [];
+		foreach ($q()->cursor() as $row) {
+			$this->assertInstanceOf(DummyTable::class, $row);
+			$seen[] = (int)$row->getIntegerFieldVal();
+		}
+		$this->assertSame([1, 2, 3, 4, 5, 6, 7], $seen);
+		$this->assertSame([1, 2], array_map(fn (array $r) => (int)$r['integer_field'], iterator_to_array($q()->limit(2)->cursor(true), false)));
+
+		$batches = [];
+		$handed = $q()->chunk(3, function (array $rows, int $batch) use (&$batches) {
+			$batches[$batch] = array_map(fn (DummyTable $r) => (int)$r->getIntegerFieldVal(), $rows);
+		});
+		$this->assertSame(7, $handed);
+		$this->assertSame([1 => [1, 2, 3], 2 => [4, 5, 6], 3 => [7]], $batches);
+		$this->assertSame(3, $q()->chunk(3, fn () => false), 'false stops after the first batch');
+	}
+
+	/** @test */
+	public function orm_foreign_key_getter_loads_the_related_object_once_per_key()
+	{
+		$parent = $this->newDummy('memo-parent');
+		$parent->store();
+		$child = $this->newDummy('memo-child');
+		$child->setParentIdVal($parent->getIdVal())->store();
+
+		$first = $child->getParentIdObj();
+		$this->assertSame('memo-parent', $first->getUniqueFieldVal());
+		$this->assertSame($first, $child->getParentIdObj(), 'same object: no second SELECT');
+
+		$fresh = $child->getParentIdObj(true);
+		$this->assertNotSame($first, $fresh, '$fresh reloads');
+		$this->assertSame($fresh, $child->getParentIdObj(), 'and replaces the cached one');
+
+		$other = $this->newDummy('memo-other');
+		$other->store();
+		$child->setParentIdVal($other->getIdVal());
+		$this->assertSame('memo-other', $child->getParentIdObj()->getUniqueFieldVal(), 'a new key value loads the new row');
+
+		$child->setParentIdVal(null);
+		$this->assertFalse($child->getParentIdObj()->isLoaded(), 'an empty key gives an empty object');
+	}
+
 	// ── foreign keys ──
 
 	/** @test */

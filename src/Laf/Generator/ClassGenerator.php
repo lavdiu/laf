@@ -304,16 +304,14 @@ PHP;
             $fkClass = '\\' . $this->getNamespace() . '\\' . Util::tableNameToClassName($fkTable);
             $file .= "
 	/**
-	 * Get " . Util::tableNameToClassName($fkTable) . " Object (empty when the key is not set)
+	 * Get " . Util::tableNameToClassName($fkTable) . " Object (empty when the key is not set; loaded once per key value, \$fresh reloads)
 	 * @return {$fkClass}
 	 */
-	public function get{$method}Obj()
+	public function get{$method}Obj(bool \$fresh = false)
 	{
-		\$value = \$this->get{$method}Val();
-		if (\$value !== null && \$value !== '') {
-			return new {$fkClass}(\$value);
-		}
-		return new {$fkClass}();
+		/** @var {$fkClass} \$object */
+		\$object = \$this->relatedObject({$fkClass}::class, {$literal}, \$fresh);
+		return \$object;
 	}
 ";
         }

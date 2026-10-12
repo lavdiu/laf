@@ -259,8 +259,9 @@ class GeneratorUnitTest extends TestCase
         $this->assertStringContainsString("->setOnDelete('CASCADE')", $source);
         $this->assertStringContainsString('->setReferencingTable("gen_customer")', $source);
         $this->assertStringContainsString('$this->getTable()->setDisplayField($this->getTable()->getField("label_al"));', $source);
-        $this->assertStringContainsString('public function getCustomerIdObj()', $source);
-        $this->assertStringContainsString("if (\$value !== null && \$value !== '')", $source);
+        $this->assertStringContainsString('public function getCustomerIdObj(bool $fresh = false)', $source);
+        $this->assertStringContainsString("relatedObject(\\GenUnit\\GenCustomer::class, \"customer_id\", \$fresh)", $source);
+        $this->assertStringNotContainsString("if (\$value !== null && \$value !== '')", $source, 'the getter delegates to relatedObject()');
         $this->assertStringContainsString('public function getOrderFormElement(', $source);
         $this->assertStringContainsString('public function listAllObjects(): array', $source);
         $this->assertSame([], $generator->getWarnings());
