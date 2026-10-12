@@ -7,250 +7,235 @@ use Laf\UI\ComponentInterface;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\UI\Traits\FormElementTrait;
+use Laf\Util\Util;
 
+/**
+ * An <a> element: the value is the caption (raw HTML, pages pass icons and
+ * badges), setIcon() puts an icon (css class) before it, every attribute of the
+ * bag is rendered (href, target, rel, title, onclick, data-*). Not bound to a
+ * field: getField() is null. setConfirmationMessage() asks before following
+ * the link; setDisabled() renders a Bootstrap disabled link.
+ */
 class Link implements FormElementInterface
 {
     use ComponentTrait;
     use FormElementTrait;
 
-    protected $icon = '';
+    protected string $icon = '';
 
     /**
-     * Link constructor.
-     * @param string $text
-     * @param string $href
-     * @param string $icon
-     * @param array $attributes
-     * @param array $class
+     * @param string|null $text caption, raw HTML
+     * @param string|null $href
+     * @param string|null $icon css class(es) of an icon drawn before the caption
+     * @param array<string, string|null> $attributes
+     * @param string[] $class css classes
      */
-    public function __construct($text = "", $href = '', $icon = '', $attributes = [], $class = [])
+    public function __construct(?string $text = '', ?string $href = '', ?string $icon = '', array $attributes = [], array $class = [])
     {
-        $this->attributes = $attributes;#this needs to be first here
-        $this->setValue($text);
-        $this->setHref($href);
-        $this->setIcon($icon);
+        $this->setAttributes($attributes); // first: the setters below write into the bag
+        $this->setValue($text ?? '');
+        $this->setHref($href ?? '');
+        $this->setIcon($icon ?? '');
         $this->setCssClasses($class);
     }
 
     /**
-     * @param string $value
-     * @return Link
+     * The caption (raw HTML)
      */
-    public function setValue(string $value): Link
+    public function setValue(?string $value): static
     {
         $this->addAttribute('value', $value);
         return $this;
     }
 
-    /**
-     * @param string $value
-     * @return Link
-     */
-    public function setHref(string $value): Link
+    public function setHref(?string $value): static
     {
         $this->addAttribute('href', $value);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getHref(): string
     {
-        return $this->getAttribute('href');
+        return $this->getAttribute('href') ?? '';
     }
 
-    /**
-     * @return string
-     */
     public function getTarget(): string
     {
-        return $this->getAttribute('target');
+        return $this->getAttribute('target') ?? '';
     }
 
     /**
-     * @param string $value
-     * @return Link
+     * @param string $value one of the Target constants, or a frame name
      */
-    public function setTarget(string $value): Link
+    public function setTarget(?string $value): static
     {
         $this->addAttribute('target', $value);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getRel(): string
     {
-        return $this->getAttribute('rel');
+        return $this->getAttribute('rel') ?? '';
     }
 
     /**
-     * @param string $value
-     * @return Link
+     * @param string $value Rel constants, space separated
      */
-    public function setRel(string $value): Link
+    public function setRel(?string $value): static
     {
         $this->addAttribute('rel', $value);
         return $this;
     }
 
-    public function getName()
+    /**
+     * A link has no form name
+     */
+    public function getName(): ?string
     {
         return '';
     }
 
-    /**
-     * @return string
-     */
     public function getId(): string
     {
-        return $this->getAttribute('id');
+        return $this->getAttribute('id') ?? '';
     }
 
-    /**
-     * @param string $value
-     * @return Link
-     */
-    public function setId(string $value): Link
+    public function setId(?string $value): static
     {
         $this->addAttribute('id', $value);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getOnClick(): string
     {
-        return $this->getAttribute('onclick');
+        return $this->getAttribute('onclick') ?? '';
     }
 
-    /**
-     * @param string $value
-     * @return Link
-     */
-    public function setOnClick(string $value): Link
+    public function setOnClick(?string $value): static
     {
         $this->addAttribute('onclick', $value);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getTitle(): string
     {
-        return $this->getAttribute('title');
+        return $this->getAttribute('title') ?? '';
     }
 
-    /**
-     * @param string $value
-     * @return Link
-     */
-    public function setTitle(string $value): Link
+    public function setTitle(?string $value): static
     {
         $this->addAttribute('title', $value);
         return $this;
     }
 
     /**
-     * @param string $message
-     * @return Link
+     * Asks the question before following the link (onclick = return confirm(...));
+     * the text may contain quotes and line breaks.
      */
-    public function setConfirmationMessage($message = ''): Link
+    public function setConfirmationMessage(string $message = ''): static
     {
-        $this->addAttribute('onclick', "return confirm('{$message}')");
+        $js = strtr($message, ['\\' => '\\\\', "'" => "\\'", "\r\n" => '\\n', "\n" => '\\n', "\r" => '\\n', '</' => '<\\/']);
+        $this->addAttribute('onclick', "return confirm('" . $js . "')");
         return $this;
     }
 
     /**
-     * @return string
+     * A disabled link (Bootstrap: class "disabled", aria-disabled, no tab stop); the href stays
      */
-    public function __toString()
+    public function setDisabled(bool $value): ComponentInterface
+    {
+        if ($value) {
+            $this->addCssClass('disabled');
+            $this->addAttribute('aria-disabled', 'true');
+            $this->addAttribute('tabindex', '-1');
+        } else {
+            $this->removeCssClass('disabled');
+            $this->removeAttribute('aria-disabled');
+            $this->removeAttribute('tabindex');
+        }
+        return $this;
+    }
+
+    public function isDisabled(): bool
+    {
+        return $this->hasCssClass('disabled') || $this->getAttribute('aria-disabled') === 'true';
+    }
+
+    public function __toString(): string
     {
         return $this->draw();
     }
 
-    /**
-     * @return string
-     */
     public function draw(): string
     {
         $this->addCssClass(static::getComponentCssControlClass());
 
-        $this->addAttribute('class', '');
-        $this->addAttribute('style', '');
-
         $params = '';
-        foreach ($this->getAttributes() as $key => $value)
-            if (mb_strlen($value) > 0 && $key != 'value')
-                $params .= "\n\t" . $key . '="' . \Laf\Util\Util::attr($value) . '" ';
-
-        $value = $this->getValue();
-        if ($this->getIcon() != '') {
-            $value = "<i class='{$this->getIcon()}'></i> " . $value;
+        foreach ($this->getAttributes() as $key => $value) {
+            $key = (string)$key;
+            if ($value === null || $value === '' || in_array($key, ['value', 'class', 'style'], true) || !preg_match('/^[A-Za-z_:][A-Za-z0-9_:.\-]*$/', $key)) {
+                continue;
+            }
+            $params .= "\n\t" . $key . '="' . Util::attr($value) . '" ';
         }
-        $output = "\n<a {$params} style=\"{$this->getCssStyleForHtml()}\" \nclass=\"{$this->getCssClassesForHtml()}\"\n>{$value}</a>\n";
-        return $output;
+
+        $value = (string)$this->getValue();
+        if ($this->icon !== '') {
+            $value = "<i class='" . Util::e($this->icon) . "'></i> " . $value;
+        }
+        return "\n<a {$params} style=\"" . Util::attr($this->getCssStyleForHtml()) . "\" \nclass=\"" . Util::attr($this->getCssClassesForHtml()) . "\"\n>{$value}</a>\n";
     }
 
-
-    /**
-     * @return string
-     */
     public function getIcon(): string
     {
         return $this->icon;
     }
 
     /**
-     * @param string $icon
-     * @return Link
+     * Css class(es) of an icon drawn before the caption, '' for none
      */
-    public function setIcon(string $icon): Link
+    public function setIcon(?string $icon): static
     {
-        $this->icon = $icon;
+        $this->icon = $icon ?? '';
         return $this;
     }
 
-
     /**
-     * Not bound to a field
-     * @param Field $field
-     * @return ComponentInterface
-     * @throws \Exception always
+     * A link is not bound to a field
+     * @throws \LogicException always
      */
     public function setField(Field $field): ComponentInterface
     {
-        throw new \Exception('Invalid method call');
+        throw new \LogicException('Invalid call: a link is not bound to a field');
     }
 
     /**
-     * Not bound to a field
-     * @return Field|null
-     * @throws \Exception always
+     * A link is not bound to a field
      */
     public function getField(): ?Field
     {
-        throw new \Exception('Invalid method call');
+        return null;
     }
 
     /**
      * Returns the CSS class unique to the UI component
-     * @return string
      */
     public function getComponentCssControlClass(): string
     {
         return str_replace('\\', '-', static::class);
     }
 
+    /**
+     * A link has no hint
+     */
     public function getHint(): ?string
     {
-        return "";
+        return '';
     }
 
+    /**
+     * A link has no hint; the value is ignored
+     */
     public function setHint(?string $value): ComponentInterface
     {
         return $this;
