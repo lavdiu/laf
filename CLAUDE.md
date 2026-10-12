@@ -10,23 +10,29 @@ LAF (Lulzim Application Framework) is a PHP 8+ rapid application development fra
 
 ### Testing
 ```bash
-# Run all tests
-./vendor/bin/phpunit
+# Unit suite: no database needed (run under E_ALL, the code must stay warning-free on PHP 8.5)
+php -d error_reporting=E_ALL vendor/bin/phpunit --testsuite Unit
 
-# Run specific test
-./vendor/bin/phpunit tests/BaseObjectTest.php
+# Integration suite against MariaDB or PostgreSQL (tests/bootstrap.php reads LAF_DB_*)
+LAF_DB_ENGINE=mysql LAF_DB_HOST=127.0.0.1 LAF_DB_PORT=3306 LAF_DB_NAME=laf_test LAF_DB_USER=root LAF_DB_PASS= \
+    php -d error_reporting=E_ALL vendor/bin/phpunit --testsuite Integration
+LAF_DB_ENGINE=postgres LAF_DB_PORT=5432 LAF_DB_USER=postgres LAF_DB_PASS=postgres \
+    php -d error_reporting=E_ALL vendor/bin/phpunit --testsuite Integration
 
-# Tests require app/config/config.php for database configuration
+# One test file
+vendor/bin/phpunit tests/BaseObjectTest.php
 ```
+`docker-compose up -d` provides both databases (MariaDB on 3307, PostgreSQL on 5433).
 
 ### Code Quality
 ```bash
-# Static analysis
-./vendor/bin/phpstan analyze
+# Static analysis: phpstan.neon = level 5 on src/, PHP 8.0 floor, src/Laf/UI/Grid excluded until it is reviewed; must stay at 0 errors
+vendor/bin/phpstan analyse
 
-# Code refactoring/modernization
-./vendor/bin/rector process
+# Rector is advisory only: rector.php = PHP 8.0 set + dead-code + code-quality on src/ and tests/, apply suggestions by hand
+vendor/bin/rector process --dry-run
 ```
+Both write their caches to `var/` (ignored).
 
 ### Code Generation
 ```bash
@@ -410,7 +416,12 @@ Each type provides:
 
 ## Testing Notes
 
-- Tests use PHPUnit 9.5
-- Require database connection via `app/config/config.php`
-- `BaseObjectTest` creates temporary test tables
-- Tests cover CRUD operations, field types, validation, relationships
+- PHPUnit 9.6; `phpunit.xml` defines the `Unit` suite (everything under `tests/` except the database tests) and the
+  `Integration` suite (`DbTest`, `BaseObjectTest`, `PhpGridTest`, `GeneratorTest`, `DocumentIntegrationTest`)
+- `tests/bootstrap.php` configures Settings from the `LAF_DB_*` environment variables; integration tests skip
+  themselves when no connection can be made, and create their own tables (`dummy_table`, `code_table`, `link_table`,
+  `status_table`, `audit_log`, `document`)
+- `tests/Fixtures/LafShell/` holds hand-kept models in the generated shape (`DummyTable`, `CodeTable`, `LinkTable`,
+  `Document`) so the unit suite can exercise BaseObject, forms and Document without a database
+- CI (`.github/workflows/ci.yml`): unit suite on PHP 8.1–8.5, PHPStan, integration suite on MariaDB and PostgreSQL
+  (PHP 8.1 and 8.5); `Dockerfile` is `php:8.5-cli`
