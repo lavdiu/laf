@@ -4,6 +4,11 @@ namespace Laf\UI;
 
 use Laf\UI\Traits\ComponentTrait;
 
+/**
+ * What every UI component offers: css classes and inline style, an attribute bag, a wrapper
+ * (classes, style, attributes), child components, a draw mode and a form row display mode,
+ * and draw(). ComponentTrait implements all of it; see its docblock for the rules.
+ */
 interface ComponentInterface
 {
 
@@ -108,13 +113,13 @@ interface ComponentInterface
     /**
      * @param string $key
      * @param string $value
-     * @return mixed
+     * @return ComponentInterface
      */
     public function addAttribute(string $key, ?string $value): ComponentInterface;
 
     /**
      * @param array $attributes
-     * @return mixed
+     * @return ComponentInterface
      */
     public function setAttributes(array $attributes): ComponentInterface;
 
@@ -209,7 +214,7 @@ interface ComponentInterface
 
     /**
      * @param array $attributes
-     * @return mixed
+     * @return ComponentInterface
      */
     public function setWrapperAttributes(array $attributes): ComponentInterface;
 
@@ -232,7 +237,7 @@ interface ComponentInterface
 
     /**
      * @param string $mode FormRowDisplayMode::
-     * @return mixed
+     * @return ComponentInterface
      */
     public function setFormRowDisplayMode(string $mode);
 
@@ -249,13 +254,13 @@ interface ComponentInterface
 
     /**
      * @param string $attribute
-     * @return ComponentTrait
+     * @return ComponentInterface
      */
     public function removeAttribute(string $attribute): ComponentInterface;
 
     /**
      * @param string $attribute
-     * @return ComponentTrait
+     * @return ComponentInterface
      */
     public function removeWrapperAttribute(string $attribute): ComponentInterface;
 }

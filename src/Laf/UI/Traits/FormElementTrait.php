@@ -3,6 +3,7 @@
 namespace Laf\UI\Traits;
 
 use Laf\UI\ComponentInterface;
+use Laf\Util\Util;
 
 /**
  * Attribute-backed accessors shared by form inputs and controls.
@@ -14,11 +15,11 @@ use Laf\UI\ComponentInterface;
  */
 trait FormElementTrait
 {
-    /** @var bool */
-    protected $excluded = false;
+    /** Excluded from the form's processing and from the signed field list */
+    protected bool $excluded = false;
 
     /** @var string[] validation messages shown next to the control in update mode */
-    protected $errors = [];
+    protected array $errors = [];
 
     public function setType(?string $value): ComponentInterface
     {
@@ -53,18 +54,12 @@ trait FormElementTrait
         return $this->getAttribute('id');
     }
 
-    /**
-     * @param int|float|string|null $value
-     */
     public function setMin(int|float|string|null $value): ComponentInterface
     {
         $this->addAttribute('min', $value === null ? null : (string)$value);
         return $this;
     }
 
-    /**
-     * @param int|float|string|null $value
-     */
     public function setMax(int|float|string|null $value): ComponentInterface
     {
         $this->addAttribute('max', $value === null ? null : (string)$value);
@@ -86,13 +81,11 @@ trait FormElementTrait
         return $this->numericAttribute('min');
     }
 
-    /** @return int|float|string|null */
     public function getMax(): int|float|string|null
     {
         return $this->numericAttribute('max');
     }
 
-    /** @return int|float|string|null */
     public function getStep(): int|float|string|null
     {
         return $this->numericAttribute('step');
@@ -144,54 +137,54 @@ trait FormElementTrait
 
     public function isDisabled(): bool
     {
-        return $this->getAttribute('disabled') == 'disabled';
+        return $this->getAttribute('disabled') === 'disabled';
     }
 
     public function setDisabled(bool $value): ComponentInterface
     {
-        $this->addAttribute('disabled', ($value ? 'disabled' : ''));
+        $this->addAttribute('disabled', $value ? 'disabled' : '');
         return $this;
     }
 
     public function isReadonly(): bool
     {
-        return $this->getAttribute('readonly') == 'readonly';
+        return $this->getAttribute('readonly') === 'readonly';
     }
 
     public function setReadonly(bool $readonly): ComponentInterface
     {
-        $this->addAttribute('readonly', ($readonly ? 'readonly' : ''));
+        $this->addAttribute('readonly', $readonly ? 'readonly' : '');
         return $this;
     }
 
     public function setHidden(bool $value): ComponentInterface
     {
-        $this->addAttribute('hidden', ($value ? 'hidden' : ''));
+        $this->addAttribute('hidden', $value ? 'hidden' : '');
         return $this;
     }
 
     public function isHidden(): bool
     {
-        return $this->getAttribute('hidden') == 'hidden';
+        return $this->getAttribute('hidden') === 'hidden';
     }
 
     public function isRequired(): bool
     {
-        return $this->getAttribute('required') == 'required';
+        return $this->getAttribute('required') === 'required';
     }
 
     public function setRequired(bool $value): ComponentInterface
     {
-        $this->addAttribute('required', ($value ? 'required' : ''));
+        $this->addAttribute('required', $value ? 'required' : '');
         return $this;
     }
 
     /**
-     * The value, escaped for HTML output with line breaks kept.
+     * The value, escaped for HTML output with line breaks kept ('' when there is none)
      */
-    public function getValueForHtml(): ?string
+    public function getValueForHtml(): string
     {
-        return nl2br(\Laf\Util\Util::e($this->getAttribute('value') ?? ''));
+        return nl2br(Util::e($this->getAttribute('value') ?? ''));
     }
 
     public function isExcluded(): bool
@@ -218,12 +211,12 @@ trait FormElementTrait
 
     public function isMultiple(): bool
     {
-        return $this->getAttribute('multiple') == 'multiple';
+        return $this->getAttribute('multiple') === 'multiple';
     }
 
     public function setMultiple(bool $multiple): ComponentInterface
     {
-        $this->addAttribute('multiple', ($multiple ? 'multiple' : ''));
+        $this->addAttribute('multiple', $multiple ? 'multiple' : '');
         return $this;
     }
 
@@ -249,20 +242,19 @@ trait FormElementTrait
         return $this;
     }
 
-    public function isAutofocus(): ?bool
+    public function isAutofocus(): bool
     {
-        return $this->getAttribute('autofocus') == 'autofocus';
+        return $this->getAttribute('autofocus') === 'autofocus';
     }
 
     public function setAutofocus(bool $value): ComponentInterface
     {
-        $this->addAttribute('autofocus', ($value ? 'autofocus' : ''));
+        $this->addAttribute('autofocus', $value ? 'autofocus' : '');
         return $this;
     }
 
     /**
      * HTML autocomplete: true/false map to 'on'/'off'; a string is used as the token ('email', 'new-password', …).
-     * @param bool|string|null $value
      */
     public function setAutocomplete(bool|string|null $value): ComponentInterface
     {
@@ -404,7 +396,7 @@ trait FormElementTrait
 
     public function hasErrors(): bool
     {
-        return count($this->errors) > 0;
+        return $this->errors !== [];
     }
 
     public function clearErrors(): ComponentInterface
@@ -422,7 +414,6 @@ trait FormElementTrait
 
     /**
      * Attribute as int (whole number within PHP's range), float (other numbers) or the string itself
-     * @return int|float|string|null
      */
     private function numericAttribute(string $key): int|float|string|null
     {
