@@ -363,6 +363,239 @@ class DbTest extends TestCase
 		$this->assertSame('', $db->fetchAssoc("SELECT note FROM db_test WHERE name = 'a'")['note']);
 		$db->disconnect();
 	}
+
+	// ── transactions: error log, savepoints ──
+
+	/** @test */
+	public function error_log_entries_raised_inside_a_transaction_are_written_after_it_ends()
+	{
+		$db = Db::getInstance();
+		$log = new DbTestErrorLog('db_test');
+		$db->setSqlErrorLogger($log);
+
+		$db->beginTransaction();
+		try {
+			$db->statement("SELECT * FROM no_such_table_xyz");
+		} catch (\PDOException $ex) {
+		}
+		$this->assertSame([], $log->entries, 'nothing is written while the transaction is open');
+		$this->assertSame(1, $db->getPendingErrorLogCount());
+		$db->rollBack();
+		$this->assertSame(0, $db->getPendingErrorLogCount());
+		$this->assertCount(1, $log->entries);
+		$this->assertSame("SELECT * FROM no_such_table_xyz", $log->entries[0]['sql']);
+
+		// the application's own transaction on the raw PDO (routerarena style)
+		$pdo = $db->getConnection();
+		$pdo->beginTransaction();
+		try {
+			$db->execute("UPDATE no_such_table_xyz SET a = 1");
+		} catch (\PDOException $ex) {
+		}
+		$pdo->rollBack();
+		$this->assertCount(1, $log->entries, 'nothing knows about the raw rollback yet');
+		$this->assertSame('3', Db::getOne("SELECT COUNT(*) FROM db_test"));
+		$this->assertCount(2, $log->entries, 'the next statement flushes the entry');
+		$this->assertSame("UPDATE no_such_table_xyz SET a = 1", $log->entries[1]['sql']);
+
+		// a failure caught inside transaction() is written once the commit went through
+		$db->transaction(function (Db $inner) {
+			try {
+				$inner->transaction(function (Db $innermost) {
+					$innermost->statement("SELECT * FROM no_such_table_xyz");
+				});
+			} catch (\PDOException $ex) {
+			}
+			$this->assertSame(1, $inner->getPendingErrorLogCount());
+		});
+		$this->assertFalse($db->inTransaction());
+		$this->assertCount(3, $log->entries);
+		$this->assertSame(0, $db->getPendingErrorLogCount());
+	}
+
+	/** @test */
+	public function nested_transactions_use_savepoints()
+	{
+		$db = Db::getInstance();
+		$db->transaction(function (Db $outer) {
+			$outer->statement("INSERT INTO db_test (name) VALUES (?)", ['d']);
+			try {
+				$outer->transaction(function (Db $inner) {
+					$inner->statement("INSERT INTO db_test (name) VALUES (?)", ['e']);
+					throw new \RuntimeException('inner abort');
+				});
+				$this->fail('the inner exception must reach the outer closure');
+			} catch (\RuntimeException $ex) {
+				$this->assertSame('inner abort', $ex->getMessage());
+			}
+			$this->assertTrue($outer->inTransaction(), 'the outer transaction is still open and usable');
+			$outer->statement("INSERT INTO db_test (name) VALUES (?)", ['f']);
+		});
+		$this->assertFalse($db->inTransaction());
+		$this->assertSame(['a', 'b', 'c', 'd', 'f'], Db::getColumn("SELECT name FROM db_test ORDER BY name"), 'only the inner work was undone');
+
+		// an inner statement failure (not just a PHP exception) leaves the transaction usable on PostgreSQL too
+		$db->transaction(function (Db $outer) {
+			try {
+				$outer->transaction(function (Db $inner) {
+					$inner->statement("INSERT INTO no_such_table_xyz (name) VALUES (?)", ['x']);
+				});
+			} catch (\PDOException $ex) {
+			}
+			$outer->statement("INSERT INTO db_test (name) VALUES (?)", ['g']);
+		});
+		$this->assertSame('6', Db::getOne("SELECT COUNT(*) FROM db_test"));
+
+		// the application opened the transaction on the raw PDO: transaction() still nests with a savepoint
+		$pdo = $db->getConnection();
+		$pdo->beginTransaction();
+		try {
+			$db->transaction(function (Db $inner) {
+				$inner->statement("INSERT INTO db_test (name) VALUES (?)", ['h']);
+				throw new \RuntimeException('abort');
+			});
+		} catch (\RuntimeException $ex) {
+		}
+		$db->statement("INSERT INTO db_test (name) VALUES (?)", ['i']);
+		$pdo->commit();
+		$this->assertSame(['a', 'b', 'c', 'd', 'f', 'g', 'i'], Db::getColumn("SELECT name FROM db_test ORDER BY name"));
+
+		// the outermost transaction() still rolls everything back
+		try {
+			$db->transaction(function (Db $outer) {
+				$outer->statement("INSERT INTO db_test (name) VALUES (?)", ['j']);
+				$outer->transaction(function (Db $inner) {
+					$inner->statement("INSERT INTO db_test (name) VALUES (?)", ['k']);
+				});
+				throw new \RuntimeException('outer abort');
+			});
+		} catch (\RuntimeException $ex) {
+		}
+		$this->assertSame('7', Db::getOne("SELECT COUNT(*) FROM db_test"));
+	}
+
+	// ── lost connections ──
+
+	private function killConnection(Db $victim): void
+	{
+		$killer = Db::fromSettings()->setReconnectOnLoss(false);
+		$killer->connect();
+		if (self::$engine === 'postgres') {
+			$pid = (int)$victim->fetchOne("SELECT pg_backend_pid()");
+			$killer->fetchOne("SELECT pg_terminate_backend(?)", [$pid]);
+		} else {
+			$id = (int)$victim->fetchOne("SELECT CONNECTION_ID()");
+			$killer->execute("KILL " . $id);
+		}
+		$killer->disconnect();
+		usleep(200000);
+	}
+
+	/** @test */
+	public function a_lost_connection_is_reopened_and_the_statement_retried_once()
+	{
+		$db = Db::getInstance();
+		$memory = new DbTestMemoryLogger();
+		$db->setLogger($memory);
+		$this->assertTrue($db->isReconnectOnLoss());
+		$before = $db->getQueryCount();
+
+		$this->killConnection($db);
+		$this->assertSame('3', Db::getOne("SELECT COUNT(*) FROM db_test"), 'the statement succeeds on a fresh connection');
+		$this->assertTrue($db->isConnected());
+		$this->assertTrue($db->ping());
+		$this->assertSame($before + 2, $db->getQueryCount(), 'the pid/id lookup and the retried statement are counted once each');
+		$warnings = array_values(array_filter($memory->records, fn(array $r) => $r[0] === 'warning'));
+		$this->assertCount(1, $warnings);
+		$this->assertStringContainsString('reconnecting', $warnings[0][1]);
+		$this->assertFalse($db->hasError(), 'a successful retry is not an error');
+
+		// switched off: the driver's exception reaches the caller
+		$db->setReconnectOnLoss(false);
+		$this->killConnection($db);
+		try {
+			Db::getOne("SELECT COUNT(*) FROM db_test");
+			$this->fail('expected PDOException');
+		} catch (\PDOException $ex) {
+			$this->assertTrue(Db::isLostConnection($ex));
+		}
+		$this->assertTrue($db->hasError());
+		$db->setReconnectOnLoss(true);
+		$db->reconnect();
+		$db->clearError();
+
+		// never inside a transaction: the work is gone, the caller has to start over
+		$db->beginTransaction();
+		$db->statement("INSERT INTO db_test (name) VALUES (?)", ['d']);
+		$this->killConnection($db);
+		try {
+			$db->statement("INSERT INTO db_test (name) VALUES (?)", ['e']);
+			$this->fail('expected PDOException');
+		} catch (\PDOException $ex) {
+			$this->assertTrue(Db::isLostConnection($ex));
+		}
+		$db->reconnect();
+		$this->assertSame('3', Db::getOne("SELECT COUNT(*) FROM db_test"), 'nothing of the transaction survived');
+	}
+
+	// ── write helpers, keyed fetch, schema information ──
+
+	/** @test */
+	public function insert_update_delete_helpers()
+	{
+		$db = Db::getInstance();
+		$this->assertSame(1, $db->insert('db_test', ['name' => 'd', 'flag' => true, 'amount' => ['4.50', \PDO::PARAM_STR], 'note' => null]));
+		$row = $db->fetchAssoc("SELECT * FROM db_test WHERE name = 'd'");
+		$this->assertEquals(1, $row['flag']);
+		$this->assertEquals(4.5, $row['amount']);
+		$this->assertNull($row['note']);
+
+		$id = $db->insertGetId('db_test', ['name' => 'e', 'amount' => 5]);
+		$this->assertMatchesRegularExpression('/^[1-9]\d*$/', $id);
+		$this->assertSame('e', $db->fetchOne("SELECT name FROM db_test WHERE id = ?", [(int)$id]));
+
+		$this->assertSame(2, $db->update('db_test', ['note' => 'u'], ['name' => ['a', 'b']]), 'a list is IN (...)');
+		$this->assertSame(['u', 'u'], $db->fetchColumn("SELECT note FROM db_test WHERE name IN ('a', 'b') ORDER BY name"));
+		$this->assertSame(1, $db->update('db_test', ['note' => 'n', 'amount' => 7], ['flag' => null, 'name' => 'c']), 'null is IS NULL, several keys are ANDed');
+		$this->assertSame(0, $db->update('db_test', ['note' => 'never'], ['id' => []]), 'an empty list matches nothing');
+		$this->assertSame(1, $db->delete('db_test', ['name' => 'd']));
+		$this->assertSame(0, $db->delete('db_test', ['name' => 'zzz']));
+		$this->assertSame(['a', 'b', 'c', 'e'], $db->fetchColumn("SELECT name FROM db_test ORDER BY name"));
+
+		try {
+			$db->insert('db_test', ['no_such_column' => 1]);
+			$this->fail('expected PDOException');
+		} catch (\PDOException $ex) {
+			$this->assertStringContainsString('no_such_column', $ex->getMessage());
+		}
+	}
+
+	/** @test */
+	public function keyed_fetch_and_schema_information()
+	{
+		$db = Db::getInstance();
+		$rows = Db::getAllKeyed("SELECT name, amount FROM db_test ORDER BY name");
+		$this->assertSame(['a', 'b', 'c'], array_keys($rows));
+		$this->assertSame('b', $rows['b']['name'], 'the key column stays in the row');
+		$this->assertEquals(2.25, $rows['b']['amount']);
+		$byId = $db->fetchAllKeyed("SELECT id, name FROM db_test", [], 'name');
+		$this->assertSame(['a', 'b', 'c'], array_keys($byId));
+		$this->assertSame([], $db->fetchAllKeyed("SELECT id, name FROM db_test WHERE 1 = 0"));
+		try {
+			$db->fetchAllKeyed("SELECT id, name FROM db_test", [], 'nope');
+			$this->fail('expected InvalidArgumentException');
+		} catch (\InvalidArgumentException $ex) {
+		}
+
+		$this->assertTrue($db->columnExists('db_test', 'name'));
+		$this->assertFalse($db->columnExists('db_test', 'nope'));
+		$this->assertFalse($db->columnExists('no_such_table_xyz', 'name'));
+		$this->assertContains('db_test', $db->getTableNames());
+		$this->assertInstanceOf(\PDO::class, $db->getConnection());
+		if (class_exists('Pdo\\Mysql') && class_exists('Pdo\\Pgsql')) {
+			$this->assertInstanceOf(self::$engine === 'postgres' ? 'Pdo\\Pgsql' : 'Pdo\\Mysql', $db->getConnection(), 'PHP 8.4+ hands out the driver subclass');
+		}
+	}
 }
 
 /** In-memory SqlErrorLoggerInterface: what the apps' SqlError model does, without a table write. */

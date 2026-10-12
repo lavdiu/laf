@@ -17,9 +17,16 @@ final class Identifier
     public const MYSQL = 'mysql';
     public const POSTGRES = 'postgres';
 
-    /** Normalised engine name from Settings 'database.engine' ('mysql' when unset or unknown). */
+    /**
+     * Normalised engine name: the registered default connection's engine when
+     * there is one (never connects), else Settings 'database.engine' ('mysql'
+     * when unset or unknown).
+     */
     public static function engine(): string
     {
+        if (Db::hasInstance()) {
+            return Db::getInstance()->getEngine() === self::POSTGRES ? self::POSTGRES : self::MYSQL;
+        }
         $engine = '';
         try {
             $engine = strtolower(trim((string)Settings::get('database.engine')));

@@ -234,4 +234,145 @@ class DbUnitTest extends TestCase
         $this->assertSame('service_order', Db::convertClassNameToTableName('ServiceOrder'));
         $this->assertSame('name', Db::getFieldNameFromHash(Db::encodeFieldNameToHash('name')));
     }
+
+    /** @test */
+    public function set_engine_re_defaults_a_port_that_was_not_given()
+    {
+        $db = new Db('h', 'd', 'u', 'p');
+        $this->assertSame(3306, $db->getPort());
+        $db->setEngine('postgres');
+        $this->assertSame(5432, $db->getPort(), 'the default follows the engine');
+        $this->assertSame('pgsql:dbname=d;host=h;port=5432', $db->getDsn());
+        $db->setPort('5433')->setEngine('mysql');
+        $this->assertSame(5433, $db->getPort(), 'an explicit port is kept across engines');
+        $db->setPort(null);
+        $this->assertSame(3306, $db->getPort());
+    }
+
+    /** @test */
+    public function lost_connection_detection()
+    {
+        $gone = new \PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away');
+        $gone->errorInfo = ['HY000', 2006, 'MySQL server has gone away'];
+        $this->assertTrue(Db::isLostConnection($gone));
+
+        $lost = new \PDOException('SQLSTATE[HY000]: General error: 2013 Lost connection to MySQL server during query');
+        $lost->errorInfo = ['HY000', 2013, 'Lost connection to MySQL server during query'];
+        $this->assertTrue(Db::isLostConnection($lost));
+
+        $terminated = new \PDOException('SQLSTATE[57P01]: Admin shutdown: 7 FATAL: terminating connection due to administrator command');
+        $terminated->errorInfo = ['57P01', 7, 'FATAL:  terminating connection due to administrator command'];
+        $this->assertTrue(Db::isLostConnection($terminated));
+
+        $closed = new \PDOException('SQLSTATE[HY000]: General error: 7 server closed the connection unexpectedly');
+        $this->assertTrue(Db::isLostConnection($closed), 'recognised by message when the driver gives no SQLSTATE');
+
+        $missingTable = new \PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'x.y' doesn't exist");
+        $missingTable->errorInfo = ['42S02', 1146, "Table 'x.y' doesn't exist"];
+        $this->assertFalse(Db::isLostConnection($missingTable));
+        $this->assertFalse(Db::isLostConnection(new \PDOException('SQLSTATE[23000]: Integrity constraint violation')));
+    }
+
+    /** @test */
+    public function session_commands_quote_schema_lists_and_values()
+    {
+        $pg = new Db('h', 'd', 'u', 'p', null, 'postgres');
+        $this->assertSame([], $pg->getSessionCommands());
+        $pg->setSchema('app, public')->setTimezone('UTC')->setCharset('UTF8')->setInitCommands(['SET statement_timeout = 1000']);
+        $this->assertSame(
+            ["SET NAMES 'UTF8'", 'SET search_path TO "app", "public"', "SET TIME ZONE 'UTC'", 'SET statement_timeout = 1000'],
+            $pg->getSessionCommands()
+        );
+        $pg->setSchema('"public", DROP SCHEMA x');
+        $this->assertSame('SET search_path TO "public", "DROPSCHEMAx"', $pg->getSessionCommands()[1], 'names are whitelisted, never injected');
+
+        $mysql = new Db('h', 'd', 'u', 'p');
+        $mysql->setSchema('ignored')->setTimezone("+00:00")->setInitCommands(['SET sql_mode = STRICT_ALL_TABLES']);
+        $this->assertSame(["SET time_zone = '+00:00'", 'SET sql_mode = STRICT_ALL_TABLES'], $mysql->getSessionCommands());
+    }
+
+    /** @test */
+    public function identifier_engine_follows_the_registered_default_instance()
+    {
+        $hadInstance = Db::hasInstance();
+        $previous = $hadInstance ? Db::getInstance() : null;
+        $savedEngine = Settings::getInstance()->propertyExists('database.engine') ? Settings::get('database.engine') : null;
+        try {
+            Db::resetInstance(Db::DEFAULT_INSTANCE);
+            Settings::set('database.engine', 'mysql');
+            $this->assertSame(Identifier::MYSQL, Identifier::engine(), 'no instance: Settings decide');
+
+            Db::setInstance(new Db('h', 'd', 'u', 'p', null, 'postgres'));
+            $this->assertSame(Identifier::POSTGRES, Identifier::engine(), 'the registered connection wins over Settings');
+            $this->assertSame('"name"', Identifier::quote('name'));
+
+            Db::setInstance(new Db('h', 'd', 'u', 'p', null, 'oracle'));
+            $this->assertSame(Identifier::MYSQL, Identifier::engine(), 'an unsupported engine quotes like MySQL, as before');
+        } finally {
+            Db::resetInstance(Db::DEFAULT_INSTANCE);
+            if ($previous !== null) {
+                Db::setInstance($previous);
+            }
+            Settings::set('database.engine', $savedEngine ?? 'mysql');
+        }
+    }
+
+    /** @test */
+    public function write_helpers_refuse_empty_where_and_unsafe_identifiers()
+    {
+        $db = new Db('h', 'd', 'u', 'p', null, 'postgres');
+        $this->assertSame('"order_line"', $db->identifier('order_line'));
+        try {
+            $db->identifier('order line; DROP');
+            $this->fail('expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $ex) {
+            $this->assertStringContainsString('not a plain SQL identifier', $ex->getMessage());
+        }
+        try {
+            $db->update('t', ['a' => 1], []);
+            $this->fail('an empty where must be refused before any connection attempt');
+        } catch (\InvalidArgumentException $ex) {
+            $this->assertStringContainsString('non-empty where', $ex->getMessage());
+        }
+        try {
+            $db->delete('t', []);
+            $this->fail('an empty where must be refused');
+        } catch (\InvalidArgumentException $ex) {
+        }
+        try {
+            $db->insert('t', []);
+            $this->fail('an empty row must be refused');
+        } catch (\InvalidArgumentException $ex) {
+        }
+        $this->expectException(\InvalidArgumentException::class);
+        $db->update('t', ['a' => 1], ['b c' => 2]);
+    }
+
+    /** @test */
+    public function connect_exception_keeps_the_driver_code_and_error_info()
+    {
+        $driver = new \PDOException('SQLSTATE[08006] [7] could not connect to server');
+        $driver->errorInfo = ['08006', 7, 'could not connect to server'];
+        $ex = DbConnectException::fromPdo($driver, 'pgsql:dbname=d;host=h;port=5432');
+        $this->assertSame($driver, $ex->getPrevious());
+        $this->assertSame($driver->getCode(), $ex->getCode());
+        $this->assertSame(['08006', 7, 'could not connect to server'], $ex->errorInfo);
+        $this->assertStringContainsString('pgsql:dbname=d;host=h;port=5432', $ex->getMessage());
+        $this->assertStringNotContainsString('password', $ex->getMessage());
+    }
+
+    /** @test */
+    public function from_settings_reads_reconnect_on_loss()
+    {
+        $settings = Settings::getInstance();
+        foreach (['hostname' => 'h', 'database_name' => 'd', 'username' => 'u', 'reconnect_on_loss' => false] as $key => $value) {
+            $settings->setProperty('database.noretry.' . $key, $value);
+        }
+        $this->assertFalse(Db::fromSettings('database.noretry')->isReconnectOnLoss());
+        foreach (['hostname' => 'h', 'database_name' => 'd', 'username' => 'u'] as $key => $value) {
+            $settings->setProperty('database.retry.' . $key, $value);
+        }
+        $this->assertTrue(Db::fromSettings('database.retry')->isReconnectOnLoss(), 'on by default');
+        $this->assertTrue((new Db())->isReconnectOnLoss());
+    }
 }

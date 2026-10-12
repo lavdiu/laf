@@ -4,6 +4,7 @@ use Laf\Database\Field\Field;
 use Laf\Database\Field\TypeDecimal;
 use Laf\Database\Field\TypeInteger;
 use Laf\Database\Field\TypeVarchar;
+use Laf\Database\Db;
 use Laf\Database\ForeignKey;
 use Laf\Database\Identifier;
 use Laf\Database\PrimaryKey;
@@ -23,15 +24,23 @@ use PHPUnit\Framework\TestCase;
 class KeysAndTableTest extends TestCase
 {
 	private $savedEngine = null;
+	private ?Db $savedInstance = null;
 
 	protected function setUp(): void
 	{
 		$this->savedEngine = Settings::getInstance()->propertyExists('database.engine') ? Settings::get('database.engine') : null;
+		// Identifier::engine() follows the registered default connection when there is one;
+		// these tests drive it from Settings, so detach any instance another test left behind
+		$this->savedInstance = Db::hasInstance() ? Db::getInstance() : null;
+		Db::resetInstance(Db::DEFAULT_INSTANCE);
 	}
 
 	protected function tearDown(): void
 	{
 		Settings::set('database.engine', $this->savedEngine ?? 'mysql');
+		if ($this->savedInstance !== null) {
+			Db::setInstance($this->savedInstance);
+		}
 	}
 
 	private function makeTable(): Table
