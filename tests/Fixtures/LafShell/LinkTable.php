@@ -19,8 +19,8 @@ class LinkTable extends Base\BaseLinkTable
 		return parent::bOfindOne($keyValuePairs);
 	}
 
-	public static function find(array $keyValuePairs = []): array
+	public static function find(array $keyValuePairs = [], array $orderBy = [], ?int $limit = null, int $offset = 0): array
 	{
-		return parent::bOfind($keyValuePairs);
+		return parent::bOfind($keyValuePairs, $orderBy, $limit, $offset);
 	}
 }

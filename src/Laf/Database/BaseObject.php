@@ -857,7 +857,8 @@ class BaseObject implements \JsonSerializable
     /**
      * Deletes the loaded row. This action cannot be undone.
      * Does not open a transaction, so it can run inside the caller's.
-     * @return bool false when no row is loaded or the key is empty
+     * @return bool false when no row is loaded, the key is empty, or the row was already gone
+     *              (deleted by someone else since it was loaded: nothing was deleted, afterDelete() is not called)
      * @throws DatabaseException
      */
     public function hardDelete()
@@ -887,11 +888,14 @@ class BaseObject implements \JsonSerializable
         ForeignKey::clearValidationCache($this->getTable()->getName());
         $this->log('debug', 'DELETE done', ['affected' => $this->affectedRows]);
 
-        // Log the delete once the row is really gone; the object still holds every value for the snapshot
-        if ($this->affectedRows > 0) {
-            $this->logAuditEntry(AuditLog::ACTION_DELETE);
+        if ($this->affectedRows < 1) {
+            $this->log('warning', 'Delete found no row: it was removed since the object was loaded', [$this->recordId]);
             $this->recordSelected = false;
+            return false;
         }
+        // Log the delete once the row is really gone; the object still holds every value for the snapshot
+        $this->logAuditEntry(AuditLog::ACTION_DELETE);
+        $this->recordSelected = false;
         $this->afterDelete(static::DELETE_HARD);
         return true;
     }
@@ -1549,7 +1553,8 @@ class BaseObject implements \JsonSerializable
                     ORDER BY table_name ASC");
         } else {
             $stmt = $db->prepare("SELECT table_name FROM information_schema.tables
-                    WHERE table_schema = :db_name
+                    WHERE table_type = 'BASE TABLE'
+                    AND table_schema = :db_name
                     ORDER BY table_name ASC");
             $stmt->bindValue(':db_name', $db->getDatabase());
         }

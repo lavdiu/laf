@@ -336,7 +336,8 @@ PHP;
                     $gridId
                 );
             } else {
-                $gridDraw = $this->buildGrid($refTable, $gridVar, ['table_name' => $refTable, 'column_name' => $fkColumn], $gridId);
+                // the rows belong to $refTable: its buttons go to that table's own page (view / update, delete stays there)
+                $gridDraw = $this->buildGrid($refTable, $gridVar, ['table_name' => $refTable, 'column_name' => $fkColumn], $gridId, $this->moduleForTable($refTable));
             }
 
             $file .= $gridDraw;
@@ -507,8 +508,10 @@ PHP;
             . "\t\t\t->setRowsPerPage(10)\n"
             . "\t\t\t->setSqlQuery(" . self::sqlLiteral($sql) . ");\n";
 
-        $file .= $this->renderGridColumns($gridName, $otherDetails, $otherTable);
-        $file .= "\n\n\t\t\${$gridName}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", sprintf('?module=%s&action=view&id={" . $otherDetails['primary_alias'] . "}', UrlParser::getModule()), 'fa fa-eye'));\n"
+        // the rows are $otherTable records: open them on that table's page
+        $module = $this->moduleForTable($otherTable);
+        $file .= $this->renderGridColumns($gridName, $otherDetails, $otherTable, $module);
+        $file .= "\n\n\t\t\${$gridName}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", " . $this->linkExpression('view', $otherDetails['primary_alias'], $module) . ", 'fa fa-eye'));\n"
             . "\n\t\tif (\${$gridName}->isReadyToHandleRequests()) {\n\t\t\t\${$gridName}->bootstrap();\n\t\t}\n";
         return $file;
     }
@@ -517,8 +520,11 @@ PHP;
      * The list grid of a table with view / update / delete buttons
      * @param array<string, string> $filters table_name + column_name restrict the rows to that column = the page's id
      * @param string|null $gridId PhpGrid name; default "{table}_list"
+     * @param string|null $targetModule the module whose page shows the rows; null = the current page (its own list).
+     *                                  Another module gets view / update buttons only: deleting is that page's job,
+     *                                  with its own CSRF token
      */
-    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = [], ?string $gridId = null): string
+    public function buildGrid(string $table_name, string $grid_name = 'grid', array $filters = [], ?string $gridId = null, ?string $targetModule = null): string
     {
         $tableDetails = $this->getDbTableDetails($table_name, $filters);
         $labels = $this->getLabels();
@@ -532,28 +538,60 @@ PHP;
             . "\t\t\t->setRowsPerPage(10)\n"
             . "\t\t\t->setSqlQuery(" . self::sqlLiteral($tableDetails['sql']) . ");\n";
 
-        $file .= $this->renderGridColumns($grid_name, $tableDetails, $table_name);
+        $file .= $this->renderGridColumns($grid_name, $tableDetails, $table_name, $targetModule);
 
-        $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", sprintf('?module=%s&action=view&id={{$primaryAlias}}', UrlParser::getModule()), 'fa fa-eye'));\n"
-            . "\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['update']) . ", sprintf('?module=%s&action=update&id={{$primaryAlias}}', UrlParser::getModule()), 'fa fa-edit'));\n"
-            . "\t\t\$deleteLink = new ActionButton(" . self::lit($labels['delete']) . ", \$form->withCsrfToken(sprintf('?module=%s&action=delete&id={{$primaryAlias}}', UrlParser::getModule())), 'fa fa-trash');\n"
-            . "\t\t\$deleteLink->addAttribute('onclick', " . self::lit($confirm) . ");\n"
-            . "\t\t\${$grid_name}->addActionButton(\$deleteLink);\n"
-            . "\n\t\tif (\${$grid_name}->isReadyToHandleRequests()) {\n\t\t\t\${$grid_name}->bootstrap();\n\t\t}\n";
+        $file .= "\n\n\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['view']) . ", " . $this->linkExpression('view', $primaryAlias, $targetModule) . ", 'fa fa-eye'));\n"
+            . "\t\t\${$grid_name}->addActionButton(new ActionButton(" . self::lit($labels['update']) . ", " . $this->linkExpression('update', $primaryAlias, $targetModule) . ", 'fa fa-edit'));\n";
+        if ($targetModule === null) {
+            $file .= "\t\t\$deleteLink = new ActionButton(" . self::lit($labels['delete']) . ", \$form->withCsrfToken(" . $this->linkExpression('delete', $primaryAlias, null) . "), 'fa fa-trash');\n"
+                . "\t\t\$deleteLink->addAttribute('onclick', " . self::lit($confirm) . ");\n"
+                . "\t\t\${$grid_name}->addActionButton(\$deleteLink);\n";
+        }
+        $file .= "\n\t\tif (\${$grid_name}->isReadyToHandleRequests()) {\n\t\t\t\${$grid_name}->bootstrap();\n\t\t}\n";
         return $file;
+    }
+
+    /**
+     * The module whose page shows a table's records: config "module_for_table"
+     * (table => module, or a callable taking the table name), else the table name,
+     * which is what --install-pages names the page file after
+     */
+    public function moduleForTable(string $table): string
+    {
+        $map = $this->getConfig()['module_for_table'] ?? null;
+        if (is_callable($map)) {
+            return (string)$map($table);
+        }
+        if (is_array($map) && isset($map[$table])) {
+            return (string)$map[$table];
+        }
+        return $table;
+    }
+
+    /**
+     * PHP source of a grid link: the current module is read at runtime
+     * (sprintf with UrlParser::getModule()), another module is a literal
+     * @param string $idAlias the grid column holding the key, used as a {placeholder}
+     */
+    private function linkExpression(string $action, string $idAlias, ?string $module): string
+    {
+        if ($module === null) {
+            return "sprintf('?module=%s&action={$action}&id={{$idAlias}}', UrlParser::getModule())";
+        }
+        return self::lit('?module=' . $module . '&action=' . $action . '&id={' . $idAlias . '}');
     }
 
     /**
      * The addColumn() lines of a grid: the primary key as a link to the view page, the rest as given
      * @param array{columns: array<string, array{0: string, 1: string, 2: string, 3: bool}>, primary: string} $details
      */
-    private function renderGridColumns(string $gridName, array $details, string $tableName): string
+    private function renderGridColumns(string $gridName, array $details, string $tableName, ?string $targetModule = null): string
     {
         $file = '';
         foreach ($details['columns'] as $alias => $column) {
             $label = Util::tableFieldNameToLabel($column[2]);
             if ($column[0] === $tableName && $column[1] === $details['primary']) {
-                $file .= "\n\t\t\${$gridName}->addColumn(((new Column(" . self::lit((string)$alias) . ", " . self::lit($label) . ", true, true, sprintf('?module=%s&action=view&id={{$alias}}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
+                $file .= "\n\t\t\${$gridName}->addColumn(((new Column(" . self::lit((string)$alias) . ", " . self::lit($label) . ", true, true, " . $this->linkExpression('view', (string)$alias, $targetModule) . "))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));";
             } else {
                 if (!$column[3]) {
                     $label .= ' Id';

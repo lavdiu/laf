@@ -416,12 +416,13 @@ class {class} extends Base\Base{class}
 
 	/**
 	 * @param array $keyValuePairs
+	 * @param array $orderBy field => ASC|DESC
 	 * @return {class}[]
 	 * @throws \Exception
 	 */
-	public static function find(array $keyValuePairs = []) : array
+	public static function find(array $keyValuePairs = [], array $orderBy = [], ?int $limit = null, int $offset = 0) : array
 	{
-		return parent::bOfind($keyValuePairs);
+		return parent::bOfind($keyValuePairs, $orderBy, $limit, $offset);
 	}
 
 	/**

@@ -12,7 +12,7 @@ namespace Laf\Util;
  * Settings keys:
  *   locale.date.format        display/parse format for DATE columns       (default 'F d, Y')
  *   locale.datetime.format    display/parse format for DATETIME columns   (default 'F d, Y H:i')
- *   locale.time.format        display/parse format for TIME columns       (default 'H:i A')
+ *   locale.time.format        display/parse format for TIME columns       (default 'g:i A')
  *   locale.decimal_separator  character users type as the decimal point   (default '.')
  *   locale.thousands_separator character users type as a grouping mark    (default ',')
  *   locale.language           the lang attribute of the HTML document   (default 'en')

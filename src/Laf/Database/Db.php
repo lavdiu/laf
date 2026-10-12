@@ -1657,18 +1657,39 @@ class Db
                 }
                 return;
             }
-            $logger->setCustomMessage($customMessage);
-            $logger->setSqlQuery($sqlQuery);
-            $logger->setErrorMessage($ex->getMessage());
-            $logger->setFile($ex->getFile());
-            $logger->setLineNumber((string)$ex->getLine());
-            $logger->setTraceAsString($ex->getTraceAsString());
-            $logger->storeLogEntry();
+            $entry = $this->freshErrorLogger($logger);
+            $entry->setCustomMessage($customMessage);
+            $entry->setSqlQuery($sqlQuery);
+            $entry->setErrorMessage($ex->getMessage());
+            $entry->setFile($ex->getFile());
+            $entry->setLineNumber((string)$ex->getLine());
+            $entry->setTraceAsString($ex->getTraceAsString());
+            $entry->storeLogEntry();
         } catch (\Throwable $loggingFailure) {
             $this->log('warning', 'Writing the SQL error log failed', ['error' => $loggingFailure->getMessage()]);
         } finally {
             $this->loggingError = false;
         }
+    }
+
+    /**
+     * A new logger object for one entry. The registered logger is usually an
+     * Active Record model (the apps' SqlError): writing a second entry through
+     * the same instance would turn its store() into an UPDATE of the first row.
+     * A class that needs constructor arguments is reused as registered.
+     */
+    private function freshErrorLogger(SqlErrorLoggerInterface $logger): SqlErrorLoggerInterface
+    {
+        $class = get_class($logger);
+        try {
+            $constructor = (new \ReflectionClass($class))->getConstructor();
+            if ($constructor === null || $constructor->getNumberOfRequiredParameters() === 0) {
+                return new $class();
+            }
+        } catch (\Throwable $ex) {
+            // fall through: reuse the registered instance
+        }
+        return $logger;
     }
 
     /* ------------------------------------------------------------------ */

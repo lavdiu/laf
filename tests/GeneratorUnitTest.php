@@ -344,6 +344,28 @@ class GeneratorUnitTest extends TestCase
         $this->assertStringContainsString('INNER JOIN `gen_item_tag` jt ON l1.`gen_tag_id` = jt.`tag_id` WHERE jt.`item_id` = ', $source);
         $this->assertStringContainsString("->setIdPrefix('gen_item_related_tabs')", $source);
         $this->assertSame([], $generator->getWarnings());
+
+        // the page's own list acts on the current module; a related tab's rows belong to the other table,
+        // so its buttons open that table's page (no delete: that page owns its CSRF token)
+        $this->assertStringContainsString("sprintf('?module=%s&action=delete&id={gen_item_id}', UrlParser::getModule())", $source);
+        $this->assertStringContainsString("new ActionButton('View', '?module=gen_line&action=view&id={gen_line_id}', 'fa fa-eye')", $source);
+        $this->assertStringContainsString("new ActionButton('Update', '?module=gen_line&action=update&id={gen_line_id}', 'fa fa-edit')", $source);
+        $this->assertStringContainsString("new Column('gen_line_id', 'Id', true, true, '?module=gen_line&action=view&id={gen_line_id}')", $source);
+        $this->assertStringContainsString("new ActionButton('View', '?module=gen_tag&action=view&id={gen_tag_id}', 'fa fa-eye')", $source);
+        $this->assertStringNotContainsString("action=delete&id={gen_line_id}", $source);
+        $this->assertStringNotContainsString("action=delete&id={gen_tag_id}", $source);
+        $this->assertStringNotContainsString("sprintf('?module=%s&action=view&id={gen_line_id}'", $source);
+    }
+
+    /** @test */
+    public function the_module_of_a_related_table_is_configurable(): void
+    {
+        $inspector = new FakeTableInspector('gen_item', [['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI']]);
+        $generator = new PageGenerator(new Table('gen_item'), ['namespace' => 'GenUnit', 'module_for_table' => ['gen_line' => 'lines']], [], $inspector);
+        $this->assertSame('lines', $generator->moduleForTable('gen_line'));
+        $this->assertSame('gen_tag', $generator->moduleForTable('gen_tag'), 'default: the table name, as --install-pages names the page');
+        $generator->setConfig(['namespace' => 'GenUnit', 'module_for_table' => fn (string $t): string => 'm_' . $t]);
+        $this->assertSame('m_gen_tag', $generator->moduleForTable('gen_tag'));
     }
 
     /** @test */

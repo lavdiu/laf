@@ -119,6 +119,24 @@ class UrlParserTest extends TestCase
 	}
 
 	/** @test */
+	public function pretty_url_setting_is_read_as_a_boolean_string_false_counts_as_off()
+	{
+		Settings::set('settings.use_pretty_url', 'false');
+		$_GET['module'] = 'admin';
+		$_GET['action'] = 'view';
+		$_GET['id'] = '7';
+		unset($_GET['uriRewrite']);
+		UrlParser::reset();
+
+		$this->assertSame('admin', UrlParser::getModule(), '"false" from an ini or env file is off, not (bool)"false" = true');
+		$this->assertSame(7, UrlParser::getId());
+		$this->assertStringStartsWith('?module=admin', UrlParser::getViewLink(7));
+
+		Settings::set('settings.use_pretty_url', true);
+		UrlParser::reset();
+	}
+
+	/** @test */
 	public function non_pretty_url_mode()
 	{
 		Settings::set('settings.use_pretty_url', false);

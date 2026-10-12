@@ -158,6 +158,24 @@ class DbTest extends TestCase
 	}
 
 	/** @test */
+	public function sql_error_logger_gets_a_fresh_instance_per_entry_so_a_model_logger_inserts_every_time()
+	{
+		$db = Db::getInstance();
+		DbTestFreshErrorLog::$stored = [];
+		$db->setSqlErrorLogger(new DbTestFreshErrorLog());
+		foreach (["SELECT nope FROM db_test", "SELECT nope2 FROM db_test"] as $sql) {
+			try {
+				Db::getAllAssoc($sql);
+			} catch (\PDOException $ex) {
+			}
+		}
+		$this->assertCount(2, DbTestFreshErrorLog::$stored, 'one entry per failure');
+		$this->assertNotSame(DbTestFreshErrorLog::$stored[0], DbTestFreshErrorLog::$stored[1], 'a new logger object each time: the apps\' SqlError model would otherwise UPDATE its first row');
+		$this->assertSame("SELECT nope2 FROM db_test", DbTestFreshErrorLog::$stored[1]->getSqlQuery());
+		$db->setSqlErrorLogger(null);
+	}
+
+	/** @test */
 	public function sql_error_logger_with_a_missing_table_is_switched_off_without_hiding_the_error()
 	{
 		$db = Db::getInstance();
@@ -636,6 +654,24 @@ class DbTestErrorLog implements SqlErrorLoggerInterface
 			throw new \RuntimeException('log table is broken');
 		}
 		$this->entries[] = ['sql' => $this->sql, 'message' => $this->message, 'file' => $this->file, 'line' => $this->line, 'trace' => $this->trace];
+		return true;
+	}
+}
+
+/** A logger constructible without arguments, like the apps' SqlError model: Db must create one object per entry. */
+class DbTestFreshErrorLog extends DbTestErrorLog
+{
+	/** @var DbTestFreshErrorLog[] */
+	public static array $stored = [];
+
+	public function __construct()
+	{
+		parent::__construct('db_test');
+	}
+
+	public function storeLogEntry(): bool
+	{
+		self::$stored[] = $this;
 		return true;
 	}
 }
