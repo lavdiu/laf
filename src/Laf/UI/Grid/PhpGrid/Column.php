@@ -2,372 +2,444 @@
 
 namespace Laf\UI\Grid\PhpGrid;
 
-class Column
+use JsonSerializable;
+
+/**
+ * One column of a PhpGrid: which field of the grid SQL it shows, how grid.js renders it and how the
+ * server searches and sorts it. The public properties are the JSON contract with grid.js
+ * (see jsonSerialize()); the typed setters are the API for PHP code.
+ */
+class Column implements JsonSerializable
 {
-    public $index = 0;
-    public $fieldName = "";
-    public $label = "";
-    public $format = "";
-    public $href = "";
-    public $target = "";
-    public $innerElementCssStyle = "";
-    public $innerElementCssClass = "";
-    public $outerElementCssStyle = "";
-    public $outerElementCssClass = "";
-    public $visible = true;
-    public $exportable = true;
-    public $innerElementAttributes = "";
-    public $outerElementAttributes = "";
-    // Optional per-column behavior tuning
-    public $caseInsensitive = null;       // if true/1, force case-insensitive filtering
-    public $caseInsensitiveSort = null;   // if true/1, force case-insensitive sort
-    public $searchOperator = null;        // override default operator (like, eq, etc.)
-    public $wildcardMode = null;          // for LIKE searches: contains (default), startswith, endswith
-    public ?string $jsCallback = null;      // JS callback function name for per-cell rendering (supports dot-notation)
+    public int $index = 0;
+    public string $fieldName = '';
+    public string $label = '';
+    /** Detected from the result set when empty: integer, float, boolean, date, time, datetime, string */
+    public string $format = '';
+    /** Link template, {column} and [query_param] are replaced by grid.js; null = plain text */
+    public ?string $href = null;
+    public ?string $target = null;
+    public string $innerElementCssStyle = '';
+    public string $innerElementCssClass = '';
+    public string $outerElementCssStyle = '';
+    public string $outerElementCssClass = '';
+    public bool $visible = true;
+    public bool $exportable = true;
+    /** Extra attributes for the cell content, as a JSON object string: '{"data-x":"1"}' */
+    public string $innerElementAttributes = '';
+    /** Extra attributes for the td, as a JSON object string */
+    public string $outerElementAttributes = '';
+    /** Draw a search input for this column and accept filters on it */
+    public bool $searchable = true;
+    /** Draw a sort button for this column and accept sort requests on it */
+    public bool $sortable = true;
+    // Optional per-column search tuning
+    /** Force a case-insensitive comparison for = and != (LIKE is always case-insensitive) */
+    public ?bool $caseInsensitive = null;
+    /** Force a case-insensitive sort (PostgreSQL; MySQL collations already are) */
+    public ?bool $caseInsensitiveSort = null;
+    /** Override the operator sent by the client (like, eq, gt, in, between, ...) */
+    public ?string $searchOperator = null;
+    /** LIKE wildcard placement: contains (default when wildcard search is on), startswith, endswith */
+    public ?string $wildcardMode = null;
+    /** JS function name called per cell (dot-notation allowed): fn(cellValue, row, columnDef) */
+    public ?string $jsCallback = null;
+
+    public const FORMAT_INTEGER = 'integer';
+    public const FORMAT_FLOAT = 'float';
+    public const FORMAT_BOOLEAN = 'boolean';
+    public const FORMAT_DATE = 'date';
+    public const FORMAT_TIME = 'time';
+    public const FORMAT_DATETIME = 'datetime';
+    public const FORMAT_STRING = 'string';
+
+    public const WILDCARD_CONTAINS = 'contains';
+    public const WILDCARD_STARTS_WITH = 'startswith';
+    public const WILDCARD_ENDS_WITH = 'endswith';
+
+    /** The JSON keys, in output order (grid.js reads them by name) */
+    private const JSON_KEYS = [
+        'index', 'fieldName', 'label', 'format', 'href', 'target',
+        'innerElementCssStyle', 'innerElementCssClass', 'outerElementCssStyle', 'outerElementCssClass',
+        'visible', 'exportable', 'innerElementAttributes', 'outerElementAttributes',
+        'caseInsensitive', 'caseInsensitiveSort', 'searchOperator', 'wildcardMode', 'jsCallback',
+        'searchable', 'sortable',
+    ];
+
+    private const BOOL_PROPERTIES = ['visible', 'exportable', 'searchable', 'sortable'];
+    private const NULLABLE_BOOL_PROPERTIES = ['caseInsensitive', 'caseInsensitiveSort'];
+    private const NULLABLE_STRING_PROPERTIES = ['href', 'target', 'searchOperator', 'wildcardMode', 'jsCallback'];
 
     /**
-     * Column constructor.
-     * @param string $fieldName
-     * @param string $label
-     * @param bool $visible
-     * @param bool $exportable
-     * @param string $href
-     * @param string $target
-     * @param string $innerElementCssStyle
-     * @param string $innerElementCssClass
-     * @param string $outerElementCssStyle
-     * @param string $outerElementCssClass
-     * @param string $innerElementAttributes
-     * @param string $outerElementAttributes
+     * The positional signature is the one the generated pages and the applications use:
+     * new Column('name', 'Label', $visible, $exportable, $href, $target, $innerStyle, $innerClass, $outerStyle, ...)
      */
-    public function __construct(?string $fieldName = null, ?string $label = null, bool $visible = true, bool $exportable = true, ?string $href = null, ?string $target = null, ?string $innerElementCssStyle = null, ?string $innerElementCssClass = null, ?string $outerElementCssStyle = null, ?string $outerElementCssClass = null, ?string $innerElementAttributes = null, ?string $outerElementAttributes = null)
-    {
-        $this->fieldName = trim($fieldName);
-        $this->label = $label;
+    public function __construct(
+        ?string $fieldName = null,
+        ?string $label = null,
+        bool    $visible = true,
+        bool    $exportable = true,
+        ?string $href = null,
+        ?string $target = null,
+        ?string $innerElementCssStyle = null,
+        ?string $innerElementCssClass = null,
+        ?string $outerElementCssStyle = null,
+        ?string $outerElementCssClass = null,
+        ?string $innerElementAttributes = null,
+        ?string $outerElementAttributes = null
+    ) {
+        $this->fieldName = trim($fieldName ?? '');
+        $this->label = $label ?? '';
         $this->href = $href;
         $this->target = $target;
-        $this->innerElementCssStyle = $innerElementCssStyle;
-        $this->innerElementCssClass = $innerElementCssClass;
-        $this->outerElementCssStyle = $outerElementCssStyle;
-        $this->outerElementCssClass = $outerElementCssClass;
+        $this->innerElementCssStyle = $innerElementCssStyle ?? '';
+        $this->innerElementCssClass = $innerElementCssClass ?? '';
+        $this->outerElementCssStyle = $outerElementCssStyle ?? '';
+        $this->outerElementCssClass = $outerElementCssClass ?? '';
         $this->visible = $visible;
         $this->exportable = $exportable;
-        $this->innerElementAttributes = $innerElementAttributes;
-        $this->outerElementAttributes = $outerElementAttributes;
+        $this->innerElementAttributes = $innerElementAttributes ?? '';
+        $this->outerElementAttributes = $outerElementAttributes ?? '';
     }
 
-
     /**
-     *
-     * INSERT INTO `grid` (`id`, `grid_name`, `title`, `params_list`, `expected_params_count`, `sql_query`, `settings`, `rows_per_page`, `created_by`, `created_on`, `updated_by`, `updated_on`, `column_list`) VALUES
-     * (1, 'test', 'My First Grid', NULL, 0, 'SELECT  g.grupid as id , g.grupid as label , g.g_grandtotal as page_file , g.g_b as is_default , g.g_b as is_visible , FROM_UNIXTIME(g.g_dataregjistrimit, \'%Y-%m-%d\') as test FROM asm.grup g', '{\"actionButtons\":[{\"label\":\"Edit\",\"href\":\"?modulus=[modulus]&action=[action]&id={id}&edit=1\",\"icon\":null},{\"label\":\"Goog List\",\"href\":\"http://google.com\",\"icon\":\"fa fa-list\"}], \"allowExport\":true}', 10, NULL, NULL, NULL, NULL, '[{\"fieldName\":\"id\",\"label\":\"Id\",\"format\":\"text\",\"href\":\"?module=routing_table&action={label}&view={id}&\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"label\",\"label\":\"Label\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"color:red;\",\"innerElementCssClass\":\"badge\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"page_file\",\"label\":\"Page File\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"is_default\",\"label\":\"Is Default Page\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":false,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"is_visible\",\"label\":\"Is Visible Page\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"font-weight:bold;\",\"outerElementCssClass\":\"label label-danger\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"},{\"fieldName\":\"test\",\"label\":\"Date field\",\"format\":\"text\",\"href\":\"\",\"innerElementCssStyle\":\"\",\"innerElementCssClass\":\"\",\"outerElementCssStyle\":\"\",\"outerElementCssClass\":\"\",\"visible\":true,\"exportable\":true,\"innerElementAttributes\":\"\",\"outerElementAttributes\":\"\"}]');
-     *
+     * Column from its JSON form (the output of json_encode($column))
      */
-
-
-    /**
-     * @param string $json_string
-     * @return Column
-     */
-    public static function createFromJsonString(string $json_string)
+    public static function createFromJsonString(string $json_string): Column
     {
         $settings = json_decode($json_string, true);
-        $object = new self($settings['fieldName']);
+        return self::createFromAssocArray(is_array($settings) ? $settings : []);
+    }
 
+    /**
+     * Column from an array keyed by property name; unknown keys are ignored
+     */
+    public static function createFromAssocArray(array $settings): Column
+    {
+        $object = new self(isset($settings['fieldName']) ? (string)$settings['fieldName'] : '');
         foreach ($settings as $_property => $_value) {
-            $object->setPropertyValue($_property, $_value);
+            $object->setPropertyValue((string)$_property, $_value);
         }
         return $object;
     }
 
     /**
-     * @param array $settings
-     * @return Column
+     * Assign one property by name, casting the value to the property's type (so a decoded JSON
+     * column round-trips); unknown names are ignored.
+     * @param mixed $value
      */
-    public static function createFromAssocArray(array $settings)
+    public function setPropertyValue(string $property, $value): void
     {
-        $object = new self($settings['fieldName']);
-        foreach ($settings as $_property => $_value) {
-            $object->setPropertyValue($_property, $_value);
+        if (!in_array($property, self::JSON_KEYS, true)) {
+            return;
         }
-        return $object;
-    }
-
-    public function setPropertyValue(string $property, string $value)
-    {
-        if (property_exists(self::class, $property)) {
-            $this->$property = $value;
+        if ($property === 'index') {
+            $this->index = (int)$value;
+        } elseif (in_array($property, self::BOOL_PROPERTIES, true)) {
+            $this->$property = self::toBool($value) ?? true;
+        } elseif (in_array($property, self::NULLABLE_BOOL_PROPERTIES, true)) {
+            $this->$property = self::toBool($value);
+        } elseif (in_array($property, self::NULLABLE_STRING_PROPERTIES, true)) {
+            $this->$property = ($value === null || $value === '') ? null : self::toString($value);
+        } else {
+            $this->$property = $value === null ? '' : self::toString($value);
+        }
+        if ($property === 'fieldName') {
+            $this->fieldName = trim($this->fieldName);
         }
     }
 
     /**
-     * @return int
+     * @param mixed $value
      */
+    private static function toBool($value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool)$value;
+        }
+        return (bool)$value;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private static function toString($value): string
+    {
+        if (is_array($value)) {
+            return (string)json_encode($value);
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        return is_scalar($value) ? (string)$value : '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        $out = [];
+        foreach (self::JSON_KEYS as $key) {
+            $out[$key] = $this->$key;
+        }
+        return $out;
+    }
+
     public function getIndex(): int
     {
         return $this->index;
     }
 
-    /**
-     * @param int $index
-     * @return Column
-     */
-    public function setIndex(int $index): Column
+    public function setIndex(int $index): static
     {
         $this->index = $index;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getFieldName(): string
     {
         return $this->fieldName;
     }
 
-    /**
-     * @param string $fieldName
-     * @return Column
-     */
-    public function setFieldName(string $fieldName): Column
+    public function setFieldName(string $fieldName): static
     {
         $this->fieldName = trim($fieldName);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getFormat(): string
     {
         return $this->format;
     }
 
-    /**
-     * @param string $format
-     * @return Column
-     */
-    public function setFormat(string $format): Column
+    public function setFormat(string $format): static
     {
         $this->format = $format;
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getHref(): string
+    public function isNumeric(): bool
+    {
+        return $this->format === self::FORMAT_INTEGER || $this->format === self::FORMAT_FLOAT;
+    }
+
+    public function getHref(): ?string
     {
         return $this->href;
     }
 
-    /**
-     * @param string $href
-     * @return Column
-     */
-    public function setHref(string $href): Column
+    public function setHref(?string $href): static
     {
-        $this->href = $href;
+        $this->href = ($href === '') ? null : $href;
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getTarget(): string
+    public function getTarget(): ?string
     {
         return $this->target;
     }
 
-    /**
-     * @param string $target
-     * @return Column
-     */
-    public function setTarget(string $target): Column
+    public function setTarget(?string $target): static
     {
-        $this->target = $target;
+        $this->target = ($target === '') ? null : $target;
         return $this;
     }
 
-
-    /**
-     * @return string
-     */
     public function getInnerElementCssStyle(): string
     {
         return $this->innerElementCssStyle;
     }
 
-    /**
-     * @param string $innerElementCssStyle
-     * @return Column
-     */
-    public function setInnerElementCssStyle(string $innerElementCssStyle): Column
+    public function setInnerElementCssStyle(string $innerElementCssStyle): static
     {
         $this->innerElementCssStyle = $innerElementCssStyle;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getInnerElementCssClass(): string
     {
         return $this->innerElementCssClass;
     }
 
-    /**
-     * @param string $innerElementCssClass
-     * @return Column
-     */
-    public function setInnerElementCssClass(string $innerElementCssClass): Column
+    public function setInnerElementCssClass(string $innerElementCssClass): static
     {
         $this->innerElementCssClass = $innerElementCssClass;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getOuterElementCssStyle(): string
     {
         return $this->outerElementCssStyle;
     }
 
-    /**
-     * @param string $outerElementCssStyle
-     * @return Column
-     */
-    public function setOuterElementCssStyle(string $outerElementCssStyle): Column
+    public function setOuterElementCssStyle(string $outerElementCssStyle): static
     {
         $this->outerElementCssStyle = $outerElementCssStyle;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getOuterElementCssClass(): string
     {
         return $this->outerElementCssClass;
     }
 
-    /**
-     * @param string $outerElementCssClass
-     * @return Column
-     */
-    public function setOuterElementCssClass(string $outerElementCssClass): Column
+    public function setOuterElementCssClass(string $outerElementCssClass): static
     {
         $this->outerElementCssClass = $outerElementCssClass;
         return $this;
     }
 
-    /**
-     * @return bool
-     */
     public function isVisible(): bool
     {
         return $this->visible;
     }
 
-    /**
-     * @param bool $visible
-     * @return Column
-     */
-    public function setVisible(bool $visible): Column
+    public function setVisible(bool $visible): static
     {
         $this->visible = $visible;
         return $this;
     }
 
-    /**
-     * @return bool
-     */
     public function isExportable(): bool
     {
         return $this->exportable;
     }
 
-    /**
-     * @param bool $exportable
-     * @return Column
-     */
-    public function setExportable(bool $exportable): Column
+    public function setExportable(bool $exportable): static
     {
         $this->exportable = $exportable;
         return $this;
     }
 
-    /**
-     * @return string
-     */
+    public function isSearchable(): bool
+    {
+        return $this->searchable;
+    }
+
+    public function setSearchable(bool $searchable): static
+    {
+        $this->searchable = $searchable;
+        return $this;
+    }
+
+    public function isSortable(): bool
+    {
+        return $this->sortable;
+    }
+
+    public function setSortable(bool $sortable): static
+    {
+        $this->sortable = $sortable;
+        return $this;
+    }
+
     public function getInnerElementAttributes(): string
     {
         return $this->innerElementAttributes;
     }
 
     /**
-     * @param string $innerElementAttributes
-     * @return Column
+     * @param string|array $innerElementAttributes a JSON object string, or an array name => value
      */
-    public function setInnerElementAttributes(string $innerElementAttributes): Column
+    public function setInnerElementAttributes($innerElementAttributes): static
     {
-        $this->innerElementAttributes = $innerElementAttributes;
+        $this->innerElementAttributes = self::toString($innerElementAttributes);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getOuterElementAttributes(): string
     {
         return $this->outerElementAttributes;
     }
 
     /**
-     * @param string $outerElementAttributes
-     * @return Column
+     * @param string|array $outerElementAttributes a JSON object string, or an array name => value
      */
-    public function setOuterElementAttributes(string $outerElementAttributes): Column
+    public function setOuterElementAttributes($outerElementAttributes): static
     {
-        $this->outerElementAttributes = $outerElementAttributes;
+        $this->outerElementAttributes = self::toString($outerElementAttributes);
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getLabel(): string
     {
         return $this->label;
     }
 
-    /**
-     * @param string $label
-     * @return Column
-     */
-    public function setLabel(string $label): Column
+    public function setLabel(string $label): static
     {
         $this->label = $label;
         return $this;
     }
 
-    /**
-     * @return string|null
-     */
     public function getJsCallback(): ?string
     {
         return $this->jsCallback;
     }
 
     /**
-     * @param string $jsCallback JS function name (supports dot-notation, e.g. "MyApp.columns.formatStatus")
-     * @return Column
+     * @param string|null $jsCallback JS function name (dot-notation allowed, e.g. "MyApp.columns.formatStatus")
      */
-    public function setJsCallback(string $jsCallback): Column
+    public function setJsCallback(?string $jsCallback): static
     {
-        $this->jsCallback = $jsCallback;
+        $this->jsCallback = ($jsCallback === '') ? null : $jsCallback;
+        return $this;
+    }
+
+    public function getSearchOperator(): ?string
+    {
+        return $this->searchOperator;
+    }
+
+    /**
+     * @param string|null $operator one of GridRequest::OPERATORS (like, eq, noteq, lt, gt, lteq, gteq, in, between, isnull, notnull, notlike)
+     */
+    public function setSearchOperator(?string $operator): static
+    {
+        $this->searchOperator = ($operator === '') ? null : $operator;
+        return $this;
+    }
+
+    public function getWildcardMode(): ?string
+    {
+        return $this->wildcardMode;
+    }
+
+    /**
+     * @param string|null $mode Column::WILDCARD_CONTAINS, WILDCARD_STARTS_WITH, WILDCARD_ENDS_WITH or null for the grid default
+     */
+    public function setWildcardMode(?string $mode): static
+    {
+        $this->wildcardMode = ($mode === '') ? null : $mode;
+        return $this;
+    }
+
+    public function isCaseInsensitive(): ?bool
+    {
+        return $this->caseInsensitive;
+    }
+
+    public function setCaseInsensitive(?bool $caseInsensitive): static
+    {
+        $this->caseInsensitive = $caseInsensitive;
+        return $this;
+    }
+
+    public function isCaseInsensitiveSort(): ?bool
+    {
+        return $this->caseInsensitiveSort;
+    }
+
+    public function setCaseInsensitiveSort(?bool $caseInsensitiveSort): static
+    {
+        $this->caseInsensitiveSort = $caseInsensitiveSort;
         return $this;
     }
 }

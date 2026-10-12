@@ -29,6 +29,27 @@ class PhpGridColumnActionButtonTest extends TestCase
     }
 
     /** @test */
+    public function column_constructor_defaults_are_null_safe(): void
+    {
+        $col = new Column('x');
+        $this->assertSame('', $col->getLabel());
+        $this->assertNull($col->getHref());
+        $this->assertNull($col->getTarget());
+        $this->assertSame('', $col->getInnerElementCssStyle());
+        $this->assertSame('', $col->getInnerElementCssClass());
+        $this->assertSame('', $col->getOuterElementCssStyle());
+        $this->assertSame('', $col->getOuterElementCssClass());
+        $this->assertSame('', $col->getInnerElementAttributes());
+        $this->assertSame('', $col->getFormat());
+        $this->assertTrue($col->isSearchable());
+        $this->assertTrue($col->isSortable());
+        $this->assertFalse($col->isNumeric());
+
+        $empty = new Column();
+        $this->assertSame('', $empty->getFieldName());
+    }
+
+    /** @test */
     public function column_setters_are_fluent(): void
     {
         $col = new Column('id');
@@ -45,12 +66,19 @@ class PhpGridColumnActionButtonTest extends TestCase
             ->setOuterElementCssStyle('font-weight:bold')
             ->setOuterElementCssClass('col-md-6')
             ->setInnerElementAttributes('data-type="id"')
-            ->setOuterElementAttributes('data-col="1"');
+            ->setOuterElementAttributes('data-col="1"')
+            ->setSearchable(false)
+            ->setSortable(false)
+            ->setSearchOperator('eq')
+            ->setWildcardMode(Column::WILDCARD_STARTS_WITH)
+            ->setCaseInsensitive(true)
+            ->setCaseInsensitiveSort(false);
 
         $this->assertInstanceOf(Column::class, $result);
         $this->assertEquals('new_id', $col->getFieldName());
         $this->assertEquals('New ID', $col->getLabel());
         $this->assertEquals('integer', $col->getFormat());
+        $this->assertTrue($col->isNumeric());
         $this->assertEquals('/item/{id}', $col->getHref());
         $this->assertEquals('_self', $col->getTarget());
         $this->assertFalse($col->isVisible());
@@ -62,6 +90,33 @@ class PhpGridColumnActionButtonTest extends TestCase
         $this->assertEquals('col-md-6', $col->getOuterElementCssClass());
         $this->assertEquals('data-type="id"', $col->getInnerElementAttributes());
         $this->assertEquals('data-col="1"', $col->getOuterElementAttributes());
+        $this->assertFalse($col->isSearchable());
+        $this->assertFalse($col->isSortable());
+        $this->assertSame('eq', $col->getSearchOperator());
+        $this->assertSame('startswith', $col->getWildcardMode());
+        $this->assertTrue($col->isCaseInsensitive());
+        $this->assertFalse($col->isCaseInsensitiveSort());
+    }
+
+    /** @test */
+    public function column_empty_string_setters_mean_unset(): void
+    {
+        $col = new Column('id');
+        $col->setHref('')->setTarget('')->setJsCallback('')->setSearchOperator('')->setWildcardMode('');
+        $this->assertNull($col->getHref());
+        $this->assertNull($col->getTarget());
+        $this->assertNull($col->getJsCallback());
+        $this->assertNull($col->getSearchOperator());
+        $this->assertNull($col->getWildcardMode());
+    }
+
+    /** @test */
+    public function column_attributes_accept_arrays(): void
+    {
+        $col = new Column('id');
+        $col->setInnerElementAttributes(['data-x' => '1'])->setOuterElementAttributes(['title' => 'T']);
+        $this->assertSame('{"data-x":"1"}', $col->getInnerElementAttributes());
+        $this->assertSame('{"title":"T"}', $col->getOuterElementAttributes());
     }
 
     /** @test */
@@ -72,6 +127,55 @@ class PhpGridColumnActionButtonTest extends TestCase
 
         $col->setJsCallback('MyApp.formatStatus');
         $this->assertEquals('MyApp.formatStatus', $col->getJsCallback());
+    }
+
+    /** @test */
+    public function column_json_keys_and_shapes_are_the_grid_js_contract(): void
+    {
+        $col = new Column('name', 'Name');
+        $json = json_decode(json_encode($col), true);
+
+        $this->assertSame([
+            'index', 'fieldName', 'label', 'format', 'href', 'target',
+            'innerElementCssStyle', 'innerElementCssClass', 'outerElementCssStyle', 'outerElementCssClass',
+            'visible', 'exportable', 'innerElementAttributes', 'outerElementAttributes',
+            'caseInsensitive', 'caseInsensitiveSort', 'searchOperator', 'wildcardMode', 'jsCallback',
+            'searchable', 'sortable',
+        ], array_keys($json));
+
+        // grid.js decides "is a link" with href != null and reads visible as a boolean
+        $this->assertNull($json['href']);
+        $this->assertNull($json['target']);
+        $this->assertNull($json['jsCallback']);
+        $this->assertNull($json['caseInsensitive']);
+        $this->assertSame('', $json['innerElementCssClass']);
+        $this->assertTrue($json['visible']);
+        $this->assertTrue($json['exportable']);
+        $this->assertSame(0, $json['index']);
+    }
+
+    /** @test */
+    public function column_round_trips_through_its_own_json(): void
+    {
+        $col = (new Column('salary', 'Salary', false, false, '/x/{id}', '_blank', 'color:red', 'badge', 'w:1', 'c'))
+            ->setIndex(3)
+            ->setFormat('float')
+            ->setJsCallback('fmt')
+            ->setSearchOperator('gteq')
+            ->setWildcardMode('endswith')
+            ->setCaseInsensitive(true)
+            ->setCaseInsensitiveSort(true)
+            ->setSearchable(false)
+            ->setSortable(false)
+            ->setInnerElementAttributes('{"a":"b"}');
+
+        $copy = Column::createFromAssocArray(json_decode(json_encode($col), true));
+        $this->assertSame(json_encode($col), json_encode($copy));
+
+        $copy2 = Column::createFromJsonString(json_encode($col));
+        $this->assertSame(json_encode($col), json_encode($copy2));
+        $this->assertFalse($copy2->isVisible());
+        $this->assertSame(3, $copy2->getIndex());
     }
 
     /** @test */
@@ -92,6 +196,7 @@ class PhpGridColumnActionButtonTest extends TestCase
         $this->assertEquals('Email Address', $col->getLabel());
         $this->assertEquals('text', $col->getFormat());
         $this->assertEquals('mailto:{email}', $col->getHref());
+        $this->assertFalse($col->isExportable());
     }
 
     /** @test */
@@ -110,6 +215,37 @@ class PhpGridColumnActionButtonTest extends TestCase
         $this->assertEquals('age', $col->getFieldName());
         $this->assertEquals('Age', $col->getLabel());
         $this->assertEquals('integer', $col->getFormat());
+        $this->assertFalse($col->isVisible());
+    }
+
+    /** @test */
+    public function column_create_from_array_casts_loose_values(): void
+    {
+        $col = Column::createFromAssocArray([
+            'fieldName' => ' id ',
+            'label' => null,
+            'visible' => '0',
+            'exportable' => 'true',
+            'caseInsensitive' => 1,
+            'caseInsensitiveSort' => '',
+            'index' => '7',
+            'href' => null,
+            'innerElementAttributes' => ['data-a' => 1],
+        ]);
+        $this->assertSame('id', $col->getFieldName());
+        $this->assertSame('', $col->getLabel());
+        $this->assertFalse($col->isVisible());
+        $this->assertTrue($col->isExportable());
+        $this->assertTrue($col->isCaseInsensitive());
+        $this->assertNull($col->isCaseInsensitiveSort());
+        $this->assertSame(7, $col->getIndex());
+        $this->assertNull($col->getHref());
+        $this->assertSame('{"data-a":1}', $col->getInnerElementAttributes());
+
+        $noName = Column::createFromAssocArray(['label' => 'x']);
+        $this->assertSame('', $noName->getFieldName());
+        $bad = Column::createFromJsonString('not json');
+        $this->assertSame('', $bad->getFieldName());
     }
 
     /** @test */
@@ -122,7 +258,7 @@ class PhpGridColumnActionButtonTest extends TestCase
 
         $col = Column::createFromAssocArray($settings);
         $this->assertEquals('test', $col->getFieldName());
-        // Should not throw, unknown prop is silently ignored
+        $this->assertArrayNotHasKey('unknownProp', json_decode(json_encode($col), true));
     }
 
     /** @test */
@@ -188,6 +324,7 @@ class PhpGridColumnActionButtonTest extends TestCase
         $this->assertEquals('/delete/{id}', $btn->getHref());
         // icon property is null when not provided
         $this->assertNull($btn->icon);
+        $this->assertNull($btn->getIcon());
     }
 
     /** @test */
@@ -196,12 +333,17 @@ class PhpGridColumnActionButtonTest extends TestCase
         $btn = new ActionButton('View', '/view');
         $result = $btn->setLabel('Details')
             ->setHref('/details/{id}')
-            ->setIcon('fa fa-eye');
+            ->setIcon('fa fa-eye')
+            ->setCssClass('text-danger');
 
         $this->assertInstanceOf(ActionButton::class, $result);
         $this->assertEquals('Details', $btn->getLabel());
         $this->assertEquals('/details/{id}', $btn->getHref());
         $this->assertEquals('fa fa-eye', $btn->getIcon());
+        $this->assertEquals('text-danger', $btn->getCssClass());
+        $btn->setIcon('')->setCssClass('');
+        $this->assertNull($btn->getIcon());
+        $this->assertNull($btn->getCssClass());
     }
 
     /** @test */
@@ -238,5 +380,46 @@ class PhpGridColumnActionButtonTest extends TestCase
 
         $btn->setJsCallbackk('MyApp.buttons.check');
         $this->assertEquals('MyApp.buttons.check', $btn->getJsCallback());
+
+        $btn->setJsCallback('MyApp.other');
+        $this->assertEquals('MyApp.other', $btn->getJsCallback());
+        $btn->setJsCallback(null);
+        $this->assertNull($btn->getJsCallback());
+    }
+
+    /** @test */
+    public function action_button_json_keeps_icon_key_when_null_and_attributes_as_object(): void
+    {
+        $btn = new ActionButton('Delete', '?action=delete&id={id}');
+        $json = json_decode(json_encode($btn), true);
+        $this->assertSame(['label', 'href', 'icon', 'attributeList', 'jsCallback', 'cssClass'], array_keys($json));
+        $this->assertArrayHasKey('icon', $json);
+        $this->assertNull($json['icon']);
+        $this->assertSame('[]', json_encode($btn->getAttributes()));
+
+        $btn->addAttribute('onclick', 'return confirm("x")');
+        $this->assertSame('{"onclick":"return confirm(\"x\")"}', json_encode(json_decode(json_encode($btn), true)['attributeList']));
+    }
+
+    /** @test */
+    public function action_button_from_assoc_array(): void
+    {
+        $btn = ActionButton::createFromAssocArray([
+            'label' => 'Edit',
+            'href' => '/e/{id}',
+            'icon' => null,
+            'attributeList' => ['target' => '_blank'],
+            'jsCallback' => 'cb',
+            'cssClass' => 'x',
+            'unknown' => 1,
+        ]);
+        $this->assertSame('Edit', $btn->getLabel());
+        $this->assertNull($btn->getIcon());
+        $this->assertSame(['target' => '_blank'], $btn->getAttributes());
+        $this->assertSame('cb', $btn->getJsCallback());
+        $this->assertSame('x', $btn->getCssClass());
+
+        $copy = ActionButton::createFromAssocArray(json_decode(json_encode($btn), true));
+        $this->assertSame(json_encode($btn), json_encode($copy));
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use Laf\Database\Db;
+use Laf\UI\Grid\PhpGrid\ActionButton;
 use Laf\UI\Grid\PhpGrid\Column;
 use Laf\UI\Grid\PhpGrid\PhpGrid;
 use Laf\Util\Settings;
@@ -267,11 +268,10 @@ class PhpGridTest extends TestCase
     }
 
     /** @test */
-    public function validation_fails_with_fewer_than_two_columns(): void
+    public function validation_fails_without_columns(): void
     {
         $grid = new PhpGrid('test_grid', [], []);
         $grid->setSqlQuery("SELECT id FROM phpgrid_test");
-        $grid->addColumn(new Column('id', 'ID'));
 
         $result = $grid->execute();
 
@@ -301,7 +301,7 @@ class PhpGridTest extends TestCase
 
         $this->assertStringContainsString('phpgrid_test', $html);
         $this->assertStringContainsString('<table', $html);
-        $this->assertStringContainsString('data-component-type=\'Grid\'', $html);
+        $this->assertStringContainsString('data-component-type="Grid"', $html);
     }
 
     /** @test */
@@ -655,7 +655,7 @@ class PhpGridTest extends TestCase
 
         $totals = $grid->getColumnTotals();
         $this->assertArrayHasKey('salary', $totals);
-        $this->assertEquals(966002.00, (float)$totals['salary'], '', 0.01);
+        $this->assertEqualsWithDelta(966002.00, (float)$totals['salary'], 0.01);
     }
 
     /** @test */
@@ -671,7 +671,7 @@ class PhpGridTest extends TestCase
         $grid->execute(true);
 
         $totals = $grid->getColumnTotals();
-        $this->assertEquals(202001.00, (float)$totals['salary'], '', 0.01);
+        $this->assertEqualsWithDelta(202001.00, (float)$totals['salary'], 0.01);
     }
 
     /** @test */
@@ -841,6 +841,429 @@ class PhpGridTest extends TestCase
         $data = $this->getGridData($grid);
         $this->assertCount(0, $data);
         $this->assertEquals(0, $grid->getRowCount());
+    }
+
+    // ─── Payload, exports and operators (database required) ───────────────
+
+    private function capture(callable $fn): string
+    {
+        ob_start();
+        try {
+            $fn();
+        } finally {
+            $out = ob_get_clean();
+        }
+        return (string)$out;
+    }
+
+    private function searchParams(array $items): string
+    {
+        return json_encode(array_map(fn(array $i) => (object)$i, $items));
+    }
+
+    /** @test */
+    public function json_payload_keeps_the_grid_js_contract(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['sort' => 'name', 'dir' => 'desc', 'page' => '2']);
+        $grid->setRowsPerPage(5)->setTitle('People');
+        $grid->addActionButton(new ActionButton('View', '?action=view&id={id}', 'fa fa-eye'));
+        $grid->addActionButton(new ActionButton('Delete', '?action=delete&id={id}'));
+
+        $out = $this->capture(fn() => $grid->outputJsonWithHeaders(false, false));
+        $json = json_decode($out, true);
+
+        $this->assertSame([
+            'success', 'id', 'name', 'title', 'columns', 'columnCount', 'actionButtons', 'message', 'sort', 'dir',
+            'errorCode', 'pageCount', 'rowsPerPage', 'rowsPerPageOptions', 'allowExport', 'rowCount',
+            'user_query', 'generated_query', 'generated_counter_query', 'query', 'queryCount', 'bindings', 'metrics',
+            'columnTotals', 'rowLevelJsCallback', 'rows',
+        ], array_keys($json));
+        $this->assertTrue($json['success']);
+        $this->assertSame(200, $grid->getHttpStatus());
+        $this->assertNull($json['errorCode']);
+        $this->assertSame('', $json['message']);
+        $this->assertSame('phpgrid_test', $json['name']);
+        $this->assertSame('People', $json['title']);
+        $this->assertSame('name', $json['sort']);
+        $this->assertSame('desc', $json['dir'], 'the direction is echoed exactly as sent (old grid.js compares lower case)');
+        $this->assertSame(['id', 'name', 'city', 'age', 'salary', 'created_date'], array_keys($json['columns']));
+        $this->assertSame('Name', $json['columns']['name']['label']);
+        $this->assertSame(1, $json['columns']['name']['index']);
+        $this->assertSame(6, $json['columnCount']);
+        $this->assertSame(['View', 'Delete'], array_column($json['actionButtons'], 'label'));
+        $this->assertArrayHasKey('icon', $json['actionButtons'][1]);
+        $this->assertNull($json['actionButtons'][1]['icon']);
+        $this->assertSame([], $json['columnTotals'], 'no totals must serialise as [] (old grid.js checks .length)');
+        $this->assertSame(3, $json['pageCount']);
+        $this->assertSame(5, $json['rowsPerPage']);
+        $this->assertSame([10, 50, 100], $json['rowsPerPageOptions']);
+        $this->assertSame(12, $json['rowCount']);
+        $this->assertTrue($json['allowExport']);
+        $this->assertNull($json['query']);
+        $this->assertNull($json['metrics']);
+        $this->assertNull($json['rowLevelJsCallback']);
+        $this->assertCount(5, $json['rows']);
+        $this->assertSame(['Grace', 'Frank', 'Eve', 'Diana', 'Charlie'], array_column($json['rows'], 'name'));
+    }
+
+    /** @test */
+    public function debug_payload_carries_sql_bindings_and_metrics(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'eq', 'value' => 'Boston']])]);
+        $grid->setDebug(true);
+        $grid->execute();
+        $json = $grid->toArray();
+
+        $this->assertStringContainsString('phpgrid_test', $json['query']);
+        $this->assertStringContainsString('COUNT(*)', $json['queryCount']);
+        $this->assertStringContainsString('COUNT(*)', $json['generated_counter_query']);
+        $this->assertSame([':f0' => 'Boston'], $json['bindings']);
+        $this->assertArrayHasKey('execMs', $json['metrics']);
+        $this->assertSame(3, $json['rowCount']);
+    }
+
+    /** @test */
+    public function formats_are_detected_from_the_result_set_unless_set(): void
+    {
+        $this->requireDatabase();
+
+        $big = self::$engine === 'postgres' ? 'CAST(age AS BIGINT) AS big' : 'CAST(age AS SIGNED) AS big';
+        $grid = new PhpGrid('phpgrid_test', [], []);
+        $grid->setSqlQuery("SELECT id, name, city, age, salary, created_date, {$big} FROM phpgrid_test");
+        foreach (['id', 'name', 'city', 'age', 'salary', 'created_date', 'big'] as $name) {
+            $grid->addColumn(new Column($name, ucfirst($name)));
+        }
+        $grid->getColumn('salary')->setFormat('money');
+        $this->assertTrue($grid->execute(true));
+
+        $this->assertSame('integer', $grid->getColumn('id')->getFormat());
+        $this->assertSame('integer', $grid->getColumn('age')->getFormat());
+        $this->assertSame('integer', $grid->getColumn('big')->getFormat());
+        $this->assertSame('money', $grid->getColumn('salary')->getFormat(), 'a format set by the developer is kept');
+        $this->assertSame('string', $grid->getColumn('name')->getFormat());
+        $this->assertSame('date', $grid->getColumn('created_date')->getFormat());
+        $this->assertTrue($grid->getColumn('age')->isNumeric());
+    }
+
+    /** @test */
+    public function csv_export_streams_labels_and_exportable_columns_only(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['sort' => 'id', 'dir' => 'asc', 'page' => '2']);
+        $grid->setRowsPerPage(3);
+        $grid->getColumn('city')->setExportable(false);
+
+        $out = $this->capture(fn() => $grid->exportToCsv(false));
+        $lines = explode("\n", trim($out));
+        $this->assertSame('ID,Name,Age,Salary,"Created Date"', $lines[0]);
+        $this->assertCount(13, $lines, 'every row, not only the current page');
+        $this->assertStringStartsWith('1,Alice,30,75000.00,2023-01-15', $lines[1]);
+        $this->assertStringNotContainsString("\xEF\xBB\xBF", $out);
+        $this->assertSame(200, $grid->getHttpStatus());
+
+        $grid->setCsvBom(true);
+        $out = $this->capture(fn() => $grid->exportToCsv(false));
+        $this->assertStringStartsWith("\xEF\xBB\xBF" . 'ID,Name', $out);
+    }
+
+    /** @test */
+    public function xlsx_export_writes_a_workbook(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid();
+        $out = $this->capture(fn() => $grid->exportToXlsx(false));
+        $this->assertStringStartsWith('PK', $out, 'an xlsx file is a zip archive');
+        $this->assertGreaterThan(1000, strlen($out));
+
+        // the deprecated names still export
+        $out = $this->capture(fn() => $grid->exportToExcelPhpExcel(false));
+        $this->assertStringStartsWith('PK', $out);
+        $out = $this->capture(fn() => $grid->exportToExcelSpout(false));
+        $this->assertStringStartsWith('PK', $out);
+    }
+
+    /** @test */
+    public function export_on_a_failed_query_answers_an_error_not_a_file(): void
+    {
+        $this->requireDatabase();
+
+        $grid = new PhpGrid('broken_grid', [], []);
+        $grid->setSqlQuery("SELECT nonexistent_column FROM phpgrid_test");
+        $grid->addColumn(new Column('nonexistent_column', 'X'));
+
+        $out = $this->capture(fn() => $grid->exportToCsv(false));
+        $this->assertSame(500, $grid->getHttpStatus());
+        $this->assertSame(PhpGrid::ERR_RUNTIME, $grid->getErrorCode());
+        $this->assertStringNotContainsString('X', $out);
+        $this->assertStringContainsString('An error has occurred', $out);
+
+        $out = $this->capture(fn() => $grid->exportToXlsx(false));
+        $this->assertStringStartsWith('An error has occurred', $out);
+    }
+
+    /** @test */
+    public function export_is_refused_when_the_grid_does_not_allow_it(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['export_grid_to_csv' => '1']);
+        $grid->setAllowExport(false);
+
+        $out = $this->capture(fn() => $grid->bootstrap(false));
+        $json = json_decode($out, true);
+        $this->assertFalse($json['success']);
+        $this->assertSame(PhpGrid::ERR_FORBIDDEN, $json['errorCode']);
+        $this->assertSame(403, $grid->getHttpStatus());
+    }
+
+    /** @test */
+    public function bootstrap_dispatches_on_the_export_parameters(): void
+    {
+        $this->requireDatabase();
+
+        $out = $this->capture(fn() => $this->buildGrid(['export_grid_to_csv' => ''])->bootstrap(false));
+        $this->assertStringStartsWith('ID,Name,City', $out);
+
+        $out = $this->capture(fn() => $this->buildGrid(['export_grid_to_excel' => '1'])->bootstrap(false));
+        $this->assertStringStartsWith('PK', $out);
+
+        $out = $this->capture(fn() => $this->buildGrid(['export_grid_to_excel' => '2'])->bootstrap(false));
+        $this->assertStringStartsWith('PK', $out);
+
+        $out = $this->capture(fn() => $this->buildGrid(['load_grid_by_name' => 'phpgrid_test'])->bootstrap(false));
+        $this->assertStringStartsWith('{"success":true', $out);
+    }
+
+    /** @test */
+    public function execute_reports_a_runtime_error_and_the_json_says_so(): void
+    {
+        $this->requireDatabase();
+
+        $grid = new PhpGrid('broken_grid', [], []);
+        $grid->setSqlQuery("SELECT nonexistent_column FROM phpgrid_test");
+        $grid->addColumn(new Column('nonexistent_column', 'X'));
+
+        $this->assertFalse($grid->execute());
+        $this->assertSame('An error has occurred while generating grid data.', $grid->getErrorMessage());
+        $this->assertSame(PhpGrid::ERR_RUNTIME, $grid->getErrorCode());
+        $this->assertSame(500, $grid->getHttpStatus());
+
+        $out = $this->capture(fn() => $grid->outputJsonWithHeaders(false, false));
+        $json = json_decode($out, true);
+        $this->assertFalse($json['success']);
+        $this->assertSame('ERR_RUNTIME', $json['errorCode']);
+        $this->assertSame([], $json['rows']);
+
+        $grid->setDebug(true);
+        $grid->execute();
+        $this->assertStringContainsString('nonexistent_column', $grid->getErrorMessage());
+    }
+
+    /** @test */
+    public function validation_errors_answer_400(): void
+    {
+        $grid = new PhpGrid('test_grid', [], []);
+        $grid->addColumn(new Column('id', 'ID'));
+        $this->assertFalse($grid->execute());
+        $this->assertSame(PhpGrid::ERR_VALIDATION, $grid->getErrorCode());
+        $this->assertSame(400, $grid->getHttpStatus());
+        $json = $grid->toArray();
+        $this->assertFalse($json['success']);
+        $this->assertSame('Missing SQL Query', $json['message']);
+    }
+
+    /** @test */
+    public function one_column_grid_is_valid(): void
+    {
+        $this->requireDatabase();
+
+        $grid = new PhpGrid('names', [], []);
+        $grid->setSqlQuery("SELECT name FROM phpgrid_test");
+        $grid->addColumn(new Column('name', 'Name'));
+        $this->assertTrue($grid->execute(true));
+        $this->assertCount(12, $grid->getRows());
+    }
+
+    /** @test */
+    public function in_between_null_and_notlike_operators(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'in', 'value' => ['Boston', 'Chicago']]])]);
+        $grid->execute(true);
+        $this->assertCount(6, $grid->getRows());
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'age', 'operator' => 'between', 'value' => '28..32']])]);
+        $grid->execute(true);
+        $this->assertSame(['Alice', 'Diana', 'Eve', 'Ivy', 'Karen'], $this->sortedNames($grid));
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'isnull']])]);
+        $grid->execute(true);
+        $this->assertCount(0, $grid->getRows());
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'notnull']])]);
+        $grid->execute(true);
+        $this->assertCount(12, $grid->getRows());
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'name', 'operator' => 'notlike', 'value' => 'a']])]);
+        $grid->setEnableWildCardSearch(true);
+        $grid->execute(true);
+        $this->assertSame(['Bob', 'Eve', 'Ivy', 'Leo'], $this->sortedNames($grid));
+    }
+
+    /** @test */
+    public function like_is_case_insensitive_and_works_on_numbers_on_both_engines(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'name', 'operator' => 'like', 'value' => 'alice']])]);
+        $grid->execute(true);
+        $this->assertSame(['Alice'], $this->sortedNames($grid));
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'age', 'operator' => 'like', 'value' => '3']])]);
+        $grid->setEnableWildCardSearch(true);
+        $grid->execute(true);
+        $this->assertSame(['Alice', 'Charlie', 'Eve', 'Hank', 'Karen', 'Leo'], $this->sortedNames($grid));
+
+        // % stays a wildcard inside the value
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'like', 'value' => '%York']])]);
+        $grid->execute(true);
+        $this->assertCount(4, $grid->getRows());
+    }
+
+    /** @test */
+    public function case_insensitive_equality_and_sort_on_a_column(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'eq', 'value' => 'bOSTON']])]);
+        $grid->getColumn('city')->setCaseInsensitive(true);
+        $grid->execute(true);
+        $this->assertCount(3, $grid->getRows());
+
+        $grid = $this->buildGrid(['sort' => 'city', 'dir' => 'asc']);
+        $grid->getColumn('city')->setCaseInsensitiveSort(true);
+        $this->assertTrue($grid->execute(true));
+        $this->assertSame('Boston', $grid->getRows()[0]['city']);
+    }
+
+    /** @test */
+    public function sort_on_a_non_sortable_column_and_filter_on_a_non_searchable_column_are_ignored(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['sort' => 'name', 'dir' => 'asc', 'searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'eq', 'value' => 'Boston']])]);
+        $grid->getColumn('name')->setSortable(false);
+        $grid->getColumn('city')->setSearchable(false);
+        $grid->execute(true);
+        $this->assertCount(12, $grid->getRows());
+        $this->assertSame('id', $grid->getSortDetails()['field']);
+    }
+
+    /** @test */
+    public function reserved_word_column_aliases_work(): void
+    {
+        $this->requireDatabase();
+
+        $sql = self::$engine === 'postgres'
+            ? 'SELECT id, name AS "order", age AS "desc" FROM phpgrid_test'
+            : 'SELECT id, name AS `order`, age AS `desc` FROM phpgrid_test';
+        $grid = new PhpGrid('reserved', [], ['sort' => 'order', 'dir' => 'asc', 'searchParams' => $this->searchParams([['property' => 'order', 'operator' => 'like', 'value' => 'a']])]);
+        $grid->setSqlQuery($sql)->setEnableWildCardSearch(true)->setColumnTotals(['desc']);
+        $grid->addColumn(new Column('id', 'ID'));
+        $grid->addColumn(new Column('order', 'Order'));
+        $grid->addColumn(new Column('desc', 'Desc'));
+
+        $this->assertTrue($grid->execute(), $grid->getErrorMessage());
+        $names = array_column($grid->getRows(), 'order');
+        $this->assertSame('Alice', $names[0]);
+        $this->assertSame(8, $grid->getRowCount());
+        $this->assertEqualsWithDelta(30 + 35 + 28 + 40 + 27 + 33 + 45 + 31, (float)$grid->getColumnTotals()['desc'], 0.01);
+    }
+
+    /** @test */
+    public function developer_sql_with_group_by_and_order_by_goes_through_count_and_totals(): void
+    {
+        $this->requireDatabase();
+
+        $grid = new PhpGrid('by_city', [], ['sort' => 'n', 'dir' => 'desc']);
+        $grid->setSqlQuery("SELECT city, COUNT(*) AS n, SUM(salary) AS total FROM phpgrid_test GROUP BY city ORDER BY city DESC");
+        $grid->addColumn(new Column('city', 'City'));
+        $grid->addColumn(new Column('n', 'Rows'));
+        $grid->addColumn(new Column('total', 'Total'));
+        $grid->setColumnTotals(['total'])->setRowsPerPage(2);
+
+        $this->assertTrue($grid->execute(), $grid->getErrorMessage());
+        $this->assertSame(4, $grid->getRowCount());
+        $this->assertSame(2, $grid->getPageCount());
+        $this->assertCount(2, $grid->getRows());
+        $this->assertSame('New York', $grid->getRows()[0]['city']);
+        $this->assertEqualsWithDelta(966002.00, (float)$grid->getColumnTotals()['total'], 0.01);
+    }
+
+    /** @test */
+    public function page_beyond_the_last_and_limit_zero(): void
+    {
+        $this->requireDatabase();
+
+        $grid = $this->buildGrid(['page' => '99']);
+        $grid->setRowsPerPage(5);
+        $grid->execute();
+        $this->assertCount(0, $grid->getRows());
+        $this->assertSame(12, $grid->getRowCount());
+        $this->assertSame(3, $grid->getPageCount());
+
+        $grid = $this->buildGrid(['limit' => '0']);
+        $grid->execute();
+        $this->assertCount(12, $grid->getRows());
+        $this->assertSame(0, $grid->getRowsPerPage());
+        $this->assertSame(1, $grid->getPageCount());
+
+        $grid = $this->buildGrid(['limit' => '5000']);
+        $grid->setMaxRowsPerPage(4);
+        $grid->execute();
+        $this->assertSame(4, $grid->getRowsPerPage());
+        $this->assertCount(4, $grid->getRows());
+    }
+
+    /** @test */
+    public function search_values_are_not_decoded_twice(): void
+    {
+        $this->requireDatabase();
+
+        Db::run("UPDATE phpgrid_test SET city = 'A+B %25' WHERE name = 'Bob'");
+        $grid = $this->buildGrid(['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'eq', 'value' => 'A+B %25']])]);
+        $grid->execute(true);
+        $this->assertSame(['Bob'], $this->sortedNames($grid));
+    }
+
+    /** @test */
+    public function filter_bindings_do_not_pollute_the_params_list(): void
+    {
+        $this->requireDatabase();
+
+        $grid = new PhpGrid('phpgrid_test', ['min_age' => 30], ['searchParams' => $this->searchParams([['property' => 'city', 'operator' => 'eq', 'value' => 'Boston']])]);
+        $grid->setSqlQuery("SELECT id, name, city FROM phpgrid_test WHERE age >= :min_age");
+        $grid->addColumn(new Column('id', 'ID'));
+        $grid->addColumn(new Column('name', 'Name'));
+        $grid->addColumn(new Column('city', 'City'));
+        $grid->execute(true);
+        $this->assertSame(['Eve'], $this->sortedNames($grid));
+        $this->assertSame(['min_age' => 30], $grid->getParamsList());
+        $this->assertSame([':f0' => 'Boston'], $grid->getGeneratedBindings());
+    }
+
+    private function sortedNames(PhpGrid $grid): array
+    {
+        $names = array_column($grid->getRows(), 'name');
+        sort($names);
+        return $names;
     }
 
     /**

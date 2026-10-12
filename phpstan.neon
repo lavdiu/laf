@@ -4,7 +4,7 @@ parameters:
     paths:
         - src
     excludePaths:
-        # PhpGrid and SimpleTable are not reviewed yet (2026-10-12); analysed separately when they are
-        - src/Laf/UI/Grid
+        # SimpleTable is deprecated and not reviewed (PhpGrid is the grid)
+        - src/Laf/UI/Grid/SimpleTable.php
     tmpDir: var/phpstan
     treatPhpDocTypesAsCertain: false

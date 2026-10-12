@@ -1,182 +1,120 @@
-# PhpGrid Callback System — Examples
+# PhpGrid callbacks (grid.js)
 
-## Overview
-
-Both `Column` and `ActionButton` support a `callback` property — a JS function name
-(or dot-notation path) that is evaluated **per row** during grid rendering.
-The callback receives row data and can override how the cell/button is rendered.
-
-Both use the same `_resolveCallback()` helper which supports:
-- Simple function names: `"formatStatus"`
-- Dot-notation paths: `"MyApp.grid.formatStatus"`
-
----
-
-## Column Callback
-
-### PHP — register the callback
+`Column`, `ActionButton` and the grid itself can name a JavaScript function that grid.js calls while it
+renders a page of rows. The name is a global function or a dot-notation path (`MyApp.grid.formatStatus`),
+resolved on `window` by `Grid.prototype._resolveCallback()`. The PHP property is `jsCallback`:
 
 ```php
-use Laf\UI\Grid\PhpGrid\Column;
-
-$grid->addColumn(
-    (new Column('status', 'Status'))
-        ->setInnerElementCssClass('badge')    // default CSS for all rows
-        ->setJsCallback('formatStatusCell')
-);
+$grid->addColumn((new Column('status', 'Status'))->setJsCallback('formatStatusCell'));
+$grid->addActionButton((new ActionButton('Approve', '?action=approve&id={id}', 'fa fa-check'))->setJsCallback('approveButton'));
+$grid->setRowLevelJsCallback('highlightRow');
 ```
 
-### JS — callback contract
+The functions must exist before the grid loads its data (a `<script>` in the page head, or any script that
+runs before `DOMContentLoaded`).
+
+## Column callback
 
 ```javascript
 /**
- * @param {*}      cellValue  - This cell's raw value
- * @param {Object} rowData    - All column values for this row  { id: 5, status: "active", ... }
- * @param {Object} columnDef  - The column definition object
+ * @param {*}      cellValue  the cell's raw value
+ * @param {Object} row        every column of the row: { id: 5, status: "active", ... }
+ * @param {Object} column     the column definition (fieldName, label, format, href, ...)
  * @returns {null|undefined|true|string|Object}
- *   null / undefined / true  → render normally (column CSS still applies)
- *   string                   → used as display text (column CSS still applies)
- *   object                   → selective overrides (unspecified props keep column defaults):
- *       value                (string)  override display text
- *       innerHTML            (string)  override with raw HTML
- *       href                 (string)  override/add link URL
- *       target               (string)  override link target
- *       innerElementCssStyle (string)  override inner CSS style
- *       innerElementCssClass (string)  override inner CSS class
- *       outerElementCssStyle (string)  override outer CSS style
- *       outerElementCssClass (string)  override outer CSS class
- *       hidden               (bool)   render empty cell
+ *   null / undefined / true  default rendering (the column's href and CSS apply)
+ *   string                   raw HTML for the cell (the column's CSS still applies)
+ *   object                   overrides, unspecified keys keep the column defaults:
+ *       value                (string)  display text (escaped)
+ *       innerHTML            (string)  raw HTML instead of the text
+ *       href                 (string)  link target ({column} and [param] are replaced)
+ *       target               (string)  link target attribute
+ *       innerElementCssStyle (string)  style of the span / link
+ *       innerElementCssClass (string)  class of the span / link
+ *       outerElementCssStyle (string)  style of the td
+ *       outerElementCssClass (string)  class of the td
+ *       hidden               (bool)    render an empty td
  */
-```
-
-### JS — examples
-
-```javascript
-// Simple: return a formatted string (column CSS still applies)
-function formatCurrency(cellValue, rowData, col) {
-    return '$' + parseFloat(cellValue).toFixed(2);
-}
-
-// Object: override CSS per row based on value
-function formatStatusCell(cellValue, rowData, col) {
-    if (cellValue === 'active')
-        return {
-            innerHTML: '<span class="badge bg-success">Active</span>'
-        };
-    if (cellValue === 'overdue')
-        return {
-            value: 'OVERDUE',
-            innerElementCssClass: 'badge bg-danger',
-            outerElementCssStyle: 'font-weight:bold;'
-        };
-    if (cellValue === 'draft')
-        return { hidden: true };   // render empty <td>
-    return true;                    // default rendering
-}
-
-// Cross-column: use another column's value to style this cell
-function highlightHighValue(cellValue, rowData, col) {
-    if (parseFloat(rowData.amount) > 10000) {
-        return {
-            innerElementCssClass: 'text-danger fw-bold',
-            outerElementCssStyle: 'background-color: #fff3cd;'
-        };
+function formatStatusCell(cellValue, row, column) {
+    if (cellValue === 'active') {
+        return '<span class="badge bg-success">Active</span>';
+    }
+    if (cellValue === 'overdue') {
+        return {value: 'OVERDUE', innerElementCssClass: 'badge bg-danger', outerElementCssStyle: 'font-weight:bold;'};
+    }
+    if (cellValue === 'draft') {
+        return {hidden: true};
     }
     return true;
 }
 
-// Dot-notation namespace
+// a link built from another column
+function emailCell(cellValue, row, column) {
+    return cellValue ? {href: 'mailto:' + cellValue, value: cellValue} : {value: '—'};
+}
+
+// namespaced: ->setJsCallback('MyApp.columns.formatDate')
 window.MyApp = window.MyApp || {};
 MyApp.columns = {
-    formatDate: function(cellValue, rowData, col) {
-        if (!cellValue) return '—';
-        return new Date(cellValue).toLocaleDateString();
+    formatDate: function (cellValue, row, column) {
+        return cellValue ? new Date(cellValue).toLocaleDateString() : '—';
     }
 };
-// PHP: ->setCallback('MyApp.columns.formatDate')
 ```
 
-### Backwards Compatibility
+A string result is inserted as HTML (that is what the applications rely on); use the object form with
+`value` when the text comes from user data.
 
-- If no `callback` is set, rendering is identical to before.
-- If callback returns `true`, `undefined`, or `null`, column defaults apply unchanged.
-- Only properties explicitly returned in the object override the column's defaults;
-  unspecified properties keep the column-level CSS/style/href values.
-
----
-
-## ActionButton Callback
-
-### PHP — register the callback
-
-```php
-use Laf\UI\Grid\PhpGrid\ActionButton;
-
-$grid->addActionButton(
-    (new ActionButton('Approve', '?action=approve&id={id}', 'fa fa-check'))
-        ->setCallback('myApproveCallback')
-);
-```
-
-### JS — callback contract
+## Action button callback
 
 ```javascript
 /**
- * @param {Object} rowData   - The row's column values  { id: 5, status: "closed", ... }
- * @param {Object} buttonDef - The original button definition
- * @returns {null|false|true|Object}
- *   null / false             → hide the button for this row (not rendered)
- *   true / undefined         → render normally
- *   object                   → selective overrides (original is never mutated):
- *       label    (string)    override button label text
- *       icon     (string)    override icon class
- *       href     (string)    override href
- *       cssClass (string)    extra CSS classes on the <a>
- *       disabled (bool)      render greyed-out, non-clickable (opacity 0.5, pointer-events none)
- *       hidden   (bool)      same as returning false — hide entirely
+ * @param {Object} row     the row's values
+ * @param {Object} button  the button definition (label, href, icon, cssClass, attributeList)
+ * @returns {null|false|true|undefined|Object}
+ *   null / false             hide the button for this row
+ *   true / undefined         render it as defined
+ *   object                   overrides applied to a copy (the definition is never changed):
+ *       label    (string)    label (HTML)
+ *       icon     (string)    icon class
+ *       href     (string)    link ({column} and [param] are replaced)
+ *       cssClass (string)    extra classes on the link
+ *       disabled (bool)      greyed out, not clickable
+ *       hidden   (bool)      same as returning false
  */
-```
-
-### JS — examples
-
-```javascript
-function myApproveCallback(rowData, btn) {
-    if (rowData.status === 'approved')
-        return { disabled: true, label: 'Already Approved' };
-    if (rowData.status === 'cancelled')
-        return false;   // hide entirely
-    return true;        // show normally
-}
-
-// Conditional icon + label
-function editOrViewCallback(rowData, btn) {
-    if (rowData.is_locked === '1')
-        return { label: 'View', icon: 'fa fa-eye', href: '?action=view&id=' + rowData.id };
-    return true; // default Edit button
-}
-
-// Add extra CSS class for certain rows
-function highlightDeleteButton(rowData, btn) {
-    if (rowData.has_dependents === '1')
-        return { cssClass: 'text-danger', label: 'Force Delete' };
+function approveButton(row, button) {
+    if (row.status === 'approved') {
+        return {disabled: true, label: 'Already approved'};
+    }
+    if (row.status === 'cancelled') {
+        return false;
+    }
     return true;
 }
 ```
 
-### Backwards Compatibility
+Attributes added with `ActionButton::addAttribute()` are set on the link; `{column}` placeholders in their
+values are replaced like in the href, so `addAttribute('onclick', 'return confirm("Delete {name}?")')` works.
 
-- If no `callback` is set, button rendering is identical to before.
-- The original `buttonDef` object is never mutated; overrides are applied to a
-  shallow copy via `Object.assign({}, btnDef, result)`.
-- Other rows always see the original, unmodified button definition.
+## Row callback
 
----
+```javascript
+/**
+ * Called with the <tr> before its cells are added.
+ * @param {HTMLTableRowElement} tr
+ * @param {Object} row
+ */
+function highlightRow(tr, row) {
+    if (parseFloat(row.amount) > 10000) {
+        tr.classList.add('table-warning');
+    }
+}
+```
 
-## Files Involved
+## Other hooks
 
-| File | What changed |
-|------|-------------|
-| `src/Laf/UI/Grid/PhpGrid/Column.php` | Added `callback` property + `getCallback()`/`setCallback()` |
-| `src/Laf/UI/Grid/PhpGrid/ActionButton.php` | Added `callback` property + `getCallback()`/`setCallback()` |
-| `sample_files/grid.js` | Added `_resolveCallback()` helper; modified cell + action button rendering loops |
-| `src/Laf/UI/Grid/PhpGrid/PhpGrid.php` | No changes needed — public properties auto-serialize via `json_encode()` |
+- `Grid.get('grid_name')` returns the instance; `grid.refresh()` reloads it, `grid.filters = {city: 'Boston'}`
+  filters it (values may start with `=`, `!=`, `<`, `>`, `<=`, `>=`), `grid.sort('name', 'desc')`,
+  `grid.setRowsPerPage(50)`, `grid.clearFilters()`.
+- `Grid.searchDebounceMs = 400` searches while typing; the default `0` searches on Enter.
+- `Grid.debug = true` logs every request to the console.
+- A grid drawn with `setInlineScript(false)` is registered by `Grid.autoInitAll()` on `DOMContentLoaded`.
