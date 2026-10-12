@@ -931,10 +931,24 @@ class Form implements ComponentInterface
     }
 
     /**
+     * Lay the form out for a draw mode: $layout, else the object's getFormLayout(), else
+     * FormLayout::auto() from the table. The layout replaces the components with the fields'
+     * cached elements (values, errors and the signed field list keep working) and owns their
+     * draw mode and hidden state.
+     */
+    public function applyLayout(string $drawMode, ?FormLayout $layout = null): static
+    {
+        $layout = $layout ?? $this->getObject()->getFormLayout() ?? FormLayout::auto($this->getObject()->getTable());
+        $layout->apply($this, $drawMode);
+        return $this;
+    }
+
+    /**
      * Add fields from the object's table, supporting grouping and visibility.
      *
      * @param array|null $fields Field objects; every field of the table when null
      * @return $this
+     * @see FormLayout for sections, tabs, columns and per-mode exclusions (prefer it for new code)
      */
     public function addFieldsFromObject(?array $fields = null): self
     {
@@ -968,6 +982,7 @@ class Form implements ComponentInterface
      * @param string $groupLabel
      * @param string[] $fieldNames
      * @return $this
+     * @see FormLayout::fieldset() for a layout the model can declare
      */
     public function groupFields(string $groupLabel, array $fieldNames): self
     {
@@ -1057,6 +1072,26 @@ class Form implements ComponentInterface
             $_SESSION[$key] = $token;
         }
         return $token;
+    }
+
+    /**
+     * The url with this form's CSRF token appended as a query parameter (named like the
+     * hidden input, "_csrf_token_{form}"), for links that trigger a write such as delete
+     */
+    public function withCsrfToken(string $url): string
+    {
+        $separator = strpos($url, '?') === false ? '?' : '&';
+        return $url . $separator . rawurlencode($this->getCsrfSessionKey()) . '=' . rawurlencode($this->getCsrfToken());
+    }
+
+    /**
+     * Whether a token (from a query parameter or a request body) is this form's session token
+     */
+    public function isValidCsrfToken(?string $token): bool
+    {
+        $this->ensureSession();
+        $sessionToken = $_SESSION[$this->getCsrfSessionKey()] ?? null;
+        return is_string($sessionToken) && $sessionToken !== '' && is_string($token) && hash_equals($sessionToken, $token);
     }
 
     /**

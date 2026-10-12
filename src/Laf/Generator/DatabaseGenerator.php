@@ -2,183 +2,272 @@
 
 namespace Laf\Generator;
 
-use Laf\Database\Table;
 use Laf\Database\Db;
+use Laf\Database\Table;
 use Laf\Exception\MissingConfigParamException;
 use Laf\Util\Settings;
+use Psr\Log\LoggerInterface;
 
+/**
+ * Runs ClassGenerator and PageGenerator for the tables of the connected
+ * database (base tables of the current database / schema, views left out).
+ *
+ *   $generator = new DatabaseGenerator(__DIR__ . '/../lib/');
+ *   $generator->setExcludedTables(['audit_log', 'sql_error', 'phinx_*'])
+ *       ->generateEverything($labels);
+ *
+ * Progress lines go to echo (web: flushed) or to the callable given to
+ * setOutput(); getGeneratedFiles() lists what was written.
+ */
 class DatabaseGenerator
 {
-    /**
-     * @var \Psr\Log\LoggerInterface|null  $logger
-     */
-    private $logger = null;
+    private ?LoggerInterface $logger = null;
 
-    public function getLogger(): ?\Psr\Log\LoggerInterface
+    /**
+     * namespace, base_class_dir, class_dir, page_dir, live_page_dir, rewrite_class (no trailing slashes)
+     * @var array<string, mixed>
+     */
+    private array $config = [];
+
+    /**
+     * Label overrides for the pages, e.g. ['add-new' => 'Regjistro'] (see PageGenerator::LABEL_DEFAULTS)
+     * @var array<string, string>
+     */
+    private array $labelTranslations = [];
+
+    /** @var string[] only these tables (patterns with *); empty = every table */
+    private array $tables = [];
+
+    /** @var string[] tables left out (patterns with *) */
+    private array $excludedTables = [];
+
+    /** @var callable|null */
+    private $output = null;
+
+    private bool $generateAutoloader = true;
+
+    /** @var string[] */
+    private array $generatedFiles = [];
+
+    /** @var string[] */
+    private array $warnings = [];
+
+    /**
+     * @param string $library_path relative or absolute path of the folder that receives the namespace folder
+     * @param bool $force_rewrite_class_files true overwrites existing model classes (Base classes are always rewritten)
+     * @throws MissingConfigParamException when project.package_name is not set
+     */
+    public function __construct(string $library_path, bool $force_rewrite_class_files = false)
     {
-        return $this->logger;
-    }
-
-    public function setLogger(?\Psr\Log\LoggerInterface $logger): DatabaseGenerator
-    {
-        $this->logger = $logger;
-        $this->logger->debug("Loading Logger: " . get_class($logger));
-        return $this;
-    }
-
-
-
-    /**
-     * @var string[]
-     *
-     * example
-     * [
-     *  'namespace'         =>  'namespace;',
-     *  'base_class_dir'    =>  '/path/to/write/files,
-     *  'class_dir'         =>  '/path/to/class/dir',
-     *  'rewrite_class'        =>    1
-     * ]
-     * no trailing slashes at the end
-     */
-    private $config = [];
-
-    /**
-     * In case we want to override the labels and translate them;
-     * it looks for the word as the key
-     * ['add-new'=>'Add new', 'delete'=>'Delete', 'update'=>'Update', 'view'='View']
-     * @var array
-     */
-    private $labelTranslations = [];
-
-    /**
-     * DatabaseGenerator constructor.
-     * @param string $library_path Relative or absolute path to the folder you want to write the library and generated classes
-     * @param bool $force_rewrite_class_files Set to true if you want to force rewrite existing class files
-     * @throws MissingConfigParamException
-     */
-    public function __construct($library_path, $force_rewrite_class_files = false)
-    {
-        $settings = Settings::getInstance();
-        $packageName = $settings->getProperty('project.package_name');
-        $ns = $packageName;
+        $ns = (string)Settings::getInstance()->getProperty('project.package_name');
+        $library_path = rtrim($library_path, '/\\');
         $this->config = [
             'namespace' => $ns,
-            'base_class_dir' => $library_path . '/' . $ns . '/' . 'Base',
+            'base_class_dir' => $library_path . '/' . $ns . '/Base',
             'class_dir' => $library_path . '/' . $ns,
-            'page_dir' => $library_path . '/generator_cache/pages/',
-            'live_page_dir' => $library_path . '/pages/',
+            'page_dir' => $library_path . '/generator_cache/pages',
+            'live_page_dir' => $library_path . '/pages',
             'rewrite_class' => $force_rewrite_class_files,
         ];
     }
 
-    /**
-     * Generate classes for tables
-     * @return DatabaseGenerator
-     */
-    public function processTables()
+    /* ───────────── settings ───────────── */
+
+    public function getLogger(): ?LoggerInterface
     {
-        echo "\nStarting to generate Classes";
-        foreach ($this->getTables() as $table) {
-            $tg = new ClassGenerator(new Table($table['table_name']), $this->getConfig());
-            $tg->saveBaseClassToFile()
-                ->saveClassToFile();
-            echo "\nProcessed table: " . $table['table_name'];
-            if (PHP_SAPI != 'cli')
-                ob_flush();
-        }
-        return $this;
+        return $this->logger;
     }
 
-    public function processPages()
+    public function setLogger(?LoggerInterface $logger): DatabaseGenerator
     {
-        echo "\nStarting to generate Pages";
-        foreach ($this->getTables() as $table) {
-            $tg = new PageGenerator(new Table($table['table_name']), $this->getConfig(), $this->labelTranslations);
-            $tg->savePageToFile();
-            echo "\nProcessed page: " . $table['table_name'];
-            if (PHP_SAPI != 'cli')
-                ob_flush();
+        $this->logger = $logger;
+        if ($logger !== null) {
+            $logger->debug('Loading Logger: ' . get_class($logger));
         }
         return $this;
     }
 
     /**
-     * Generates autoloader.php
-     * @return DatabaseGenerator
+     * Generate only these tables (names or patterns with *); empty = every table
+     * @param string[] $tables
      */
-    public function generateAutoLoader()
+    public function setTables(array $tables): static
     {
-        echo "\nGenerating autoload.php";
-        $file = "<?php
-
-spl_autoload_register('{$this->getConfig()['namespace']}Autoloader');
-
-function {$this->getConfig()['namespace']}Autoloader(\$className)
-{
-	\$file = str_replace('\\', DIRECTORY_SEPARATOR, \$className);
-	\$file = __DIR__ . '/../' . \$file . '.php';
-	#echo \"trying to include Class: {\$className}; file: {\$file}\\n<br />\";
-	if (file_exists(\$file) && is_readable(\$file)) {
-		require_once \$file;
-	}
-}";
-        file_put_contents($this->getConfig()['class_dir'] . '/autoload.php', $file);
+        $this->tables = array_values(array_map('strval', $tables));
         return $this;
     }
 
     /**
-     * Creates directory structure for all files
-     * @return DatabaseGenerator
+     * Leave these tables out (names or patterns with *, e.g. 'audit_log', 'phinx_*')
+     * @param string[] $tables
      */
-    public function createDirectoryStructure()
+    public function setExcludedTables(array $tables): static
     {
-        if (!is_dir($this->getConfig()['class_dir'])) {
-            echo "\nCreating directory structure";
-            mkdir($this->getConfig()['class_dir'], 0777, true);
-        }
-
-        if (!is_dir($this->getConfig()['base_class_dir'])) {
-            echo "\nCreating directory structure";
-            mkdir($this->getConfig()['base_class_dir'], 0777, true);
-        }
-
-        if (!is_dir($this->getConfig()['page_dir'])) {
-            echo "\nCreating directory structure";
-            mkdir($this->getConfig()['page_dir'], 0777, true);
-        }
+        $this->excludedTables = array_values(array_map('strval', $tables));
         return $this;
     }
 
     /**
-     * Get tables from database
-     * @return array
+     * @param array<string, string> $labelTranslations
      */
-    public function getTables()
+    public function setLabelTranslations(array $labelTranslations): static
     {
-        $db = Db::getInstance();
-        $sql = "
-        SELECT table_name
-		FROM information_schema.tables
-		WHERE table_schema = '{$db->getDatabase()}'
-		ORDER BY table_name ASC;";
-
-        if(Settings::get('database.engine') == 'postgres'){
-            $sql = "
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_type = 'BASE TABLE'
-            AND table_schema NOT IN ('pg_catalog', 'information_schema')
-            ORDER BY table_name ASC
-            ;
-            ";
-        }
-
-        $q = $db->query($sql);
-        return $q->fetchAll(\PDO::FETCH_ASSOC);
+        $this->labelTranslations = $labelTranslations;
+        return $this;
     }
 
     /**
+     * @return array<string, string>
+     */
+    public function getLabelTranslations(): array
+    {
+        return $this->labelTranslations;
+    }
+
+    /**
+     * Where progress lines go: a callable taking the line, or null for echo
+     */
+    public function setOutput(?callable $output): static
+    {
+        $this->output = $output;
+        return $this;
+    }
+
+    /**
+     * Whether generateEverything() also writes {class_dir}/autoload.php (not needed with Composer)
+     */
+    public function setGenerateAutoloader(bool $generate): static
+    {
+        $this->generateAutoloader = $generate;
+        return $this;
+    }
+
+    /**
+     * The files written so far
      * @return string[]
+     */
+    public function getGeneratedFiles(): array
+    {
+        return $this->generatedFiles;
+    }
+
+    /**
+     * Messages from the generators (skipped tables, unusable comment settings)
+     * @return string[]
+     */
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+
+    /* ───────────── generation ───────────── */
+
+    /**
+     * Generate the Base and model classes of every selected table
+     */
+    public function processTables(): static
+    {
+        $this->write("\nStarting to generate Classes");
+        foreach ($this->getTables() as $table) {
+            $generator = new ClassGenerator(new Table($table['table_name']), $this->getConfig());
+            $generator->saveBaseClassToFile()
+                ->saveClassToFile();
+            $this->generatedFiles[] = $generator->getBaseClassFilePath();
+            $this->generatedFiles[] = $generator->getClassFilePath();
+            foreach ($generator->getWarnings() as $warning) {
+                $this->warn($table['table_name'] . ': ' . $warning);
+            }
+            $this->write("\nProcessed table: " . $table['table_name']);
+        }
+        return $this;
+    }
+
+    /**
+     * Generate the page of every selected table into page_dir
+     */
+    public function processPages(): static
+    {
+        $this->write("\nStarting to generate Pages");
+        foreach ($this->getTables() as $table) {
+            $generator = new PageGenerator(new Table($table['table_name']), $this->getConfig(), $this->labelTranslations);
+            $generator->savePageToFile();
+            $this->generatedFiles[] = $generator->getPageFilePath();
+            foreach ($generator->getWarnings() as $warning) {
+                $this->warn($warning);
+            }
+            $this->write("\nProcessed page: " . $table['table_name']);
+        }
+        return $this;
+    }
+
+    /**
+     * Generates {class_dir}/autoload.php, a PSR-0 style autoloader for the generated namespace
+     */
+    public function generateAutoLoader(): static
+    {
+        $this->write("\nGenerating autoload.php");
+        $namespace = (string)$this->getConfig()['namespace'];
+        $template = <<<'PHP'
+<?php
+
+spl_autoload_register('{ns}Autoloader');
+
+function {ns}Autoloader($className)
+{
+	$file = str_replace('\\', DIRECTORY_SEPARATOR, $className);
+	$file = __DIR__ . '/../' . $file . '.php';
+	if (file_exists($file) && is_readable($file)) {
+		require_once $file;
+	}
+}
+
+PHP;
+        $file = rtrim((string)$this->getConfig()['class_dir'], '/\\') . '/autoload.php';
+        if (file_put_contents($file, strtr($template, ['{ns}' => $namespace])) === false) {
+            throw new \RuntimeException("Failed to write file: {$file}");
+        }
+        $this->generatedFiles[] = $file;
+        return $this;
+    }
+
+    /**
+     * Creates the class, base class and page directories
+     */
+    public function createDirectoryStructure(): static
+    {
+        foreach (['class_dir', 'base_class_dir', 'page_dir'] as $key) {
+            $dir = (string)($this->getConfig()[$key] ?? '');
+            if ($dir !== '' && !is_dir($dir)) {
+                $this->write("\nCreating directory structure");
+                if (!mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    throw new \RuntimeException("Cannot create directory: {$dir}");
+                }
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * The selected base tables of the connected database, as [['table_name' => ...], ...]
+     * @return array<int, array{table_name: string}>
+     */
+    public function getTables(): array
+    {
+        $tables = [];
+        foreach (Db::getInstance()->getTableNames() as $name) {
+            if ($this->tables !== [] && !self::matchesAny($name, $this->tables)) {
+                continue;
+            }
+            if (self::matchesAny($name, $this->excludedTables)) {
+                continue;
+            }
+            $tables[] = ['table_name' => $name];
+        }
+        return $tables;
+    }
+
+    /**
+     * @return array<string, mixed>
      */
     public function getConfig(): array
     {
@@ -186,7 +275,7 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
     }
 
     /**
-     * @param string[] $config
+     * @param array<string, mixed> $config
      */
     public function setConfig(array $config): void
     {
@@ -194,39 +283,79 @@ function {$this->getConfig()['namespace']}Autoloader(\$className)
     }
 
     /**
-     * Checks if config is valid
-     * @return bool
+     * Checks that the config names the directories and the namespace
      */
-    public function checkConfig()
+    public function checkConfig(): bool
     {
-        echo "\nChecking the environment";
-        if (!isset($this->getConfig()['class_dir'])) {
-            echo "Error: Invalid class dir";
-            return false;
-        }
-        if (!isset($this->getConfig()['base_class_dir'])) {
-            echo "Error: Invalid base class dir";
-            return false;
-        }
-        if (!isset($this->getConfig()['namespace'])) {
-            echo "Error: Invalid Namespace";
-            return false;
+        $this->write("\nChecking the environment");
+        foreach (['class_dir' => 'class dir', 'base_class_dir' => 'base class dir', 'namespace' => 'Namespace'] as $key => $label) {
+            if (empty($this->getConfig()[$key])) {
+                $this->write("Error: Invalid {$label}");
+                return false;
+            }
         }
         return true;
     }
 
     /**
-     * Generates everything: autoload, base and class files
-     * @param array $labelTranslations
+     * Generates everything: directories, autoloader (unless switched off), classes and pages
+     * @param array<string, string> $labelTranslations page labels; keeps setLabelTranslations() when empty
+     * @throws MissingConfigParamException when the config is incomplete
      */
-    public function generateEverything(array $labelTranslations = [])
+    public function generateEverything(array $labelTranslations = []): void
     {
-        $this->labelTranslations = $labelTranslations;
-        if ($this->checkConfig()) {
-            $this->createDirectoryStructure()
-                ->generateAutoLoader();
-            $this->processTables()
-                ->processPages();
+        if ($labelTranslations !== []) {
+            $this->labelTranslations = $labelTranslations;
         }
+        if (!$this->checkConfig()) {
+            throw new MissingConfigParamException('DatabaseGenerator: the config needs class_dir, base_class_dir and namespace');
+        }
+        $this->createDirectoryStructure();
+        if ($this->generateAutoloader) {
+            $this->generateAutoLoader();
+        }
+        $this->processTables()
+            ->processPages();
+    }
+
+    /* ───────────── internals ───────────── */
+
+    private function write(string $line): void
+    {
+        if ($this->logger !== null) {
+            $this->logger->info(trim($line));
+        }
+        if ($this->output !== null) {
+            ($this->output)($line);
+            return;
+        }
+        echo $line;
+        if (PHP_SAPI !== 'cli' && ob_get_level() > 0) {
+            ob_flush();
+            flush();
+        }
+    }
+
+    private function warn(string $message): void
+    {
+        $this->warnings[] = $message;
+        if ($this->logger !== null) {
+            $this->logger->warning($message);
+        }
+        $this->write("\nWarning: " . $message);
+    }
+
+    /**
+     * @param string[] $patterns names or patterns with *
+     */
+    private static function matchesAny(string $name, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            $regex = '/^' . str_replace('\*', '.*', preg_quote($pattern, '/')) . '$/i';
+            if (preg_match($regex, $name)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

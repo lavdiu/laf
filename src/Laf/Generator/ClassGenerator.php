@@ -4,79 +4,94 @@ namespace Laf\Generator;
 
 use Laf\Database\Field\FieldTypeFactory;
 use Laf\Database\Table;
-use Laf\Database\Field\Field;
-use Laf\Database\Db;
-use Laf\UI\ComponentInterface;
-use Laf\UI\Form\FormElementInterface;
-use Laf\Util\Settings;
 use Laf\Util\Util;
 
+/**
+ * Generates the two classes of a table: Base/Base{Class}.php (fields, keys,
+ * foreign keys, accessors; rewritten on every run) and {Class}.php (the model
+ * the developer owns; written once unless config 'rewrite_class' is set).
+ *
+ * Config: namespace, base_class_dir, class_dir, rewrite_class (no trailing slashes).
+ * The column metadata comes from a TableInspectorInterface (TableInspectorFactory
+ * by default); JSON column comments add Field setters and form options
+ * (see ColumnComment).
+ */
 class ClassGenerator
 {
+    /** Column types whose CHARACTER_MAXIMUM_LENGTH becomes Field::setMaxLength() */
+    private const CHARACTER_TYPES = ['varchar', 'char', 'character varying', 'character', 'bpchar', 'citext', 'enum', 'set', 'binary', 'varbinary'];
+
+    private Table $table;
+
+    /** @var array<string, mixed> */
+    private array $config;
+
+    private ?TableInspectorInterface $tableInspector;
+
+    private bool $inspected = false;
+
+    private ?string $baseClassFile = null;
+
+    private ?string $classFile = null;
+
+    /** @var array<string, array<string, string|null>> column => foreign key description */
+    private array $foreignKeys = [];
+
+    /** @var string[] */
+    private array $warnings = [];
 
     /**
-     * @var Table $table
+     * @param array<string, mixed> $config namespace, base_class_dir, class_dir, rewrite_class
+     * @param TableInspectorInterface|null $tableInspector inspected lazily; null = TableInspectorFactory::create()
      */
-    private $table;
-
-    /**
-     * @var string
-     */
-    private $baseClassFile = null;
-
-    /**
-     * @var string
-     */
-    private $classFile = null;
-
-    private $foreignKeys = [];
-
-    /**
-     * @var TableInspector
-     */
-    private $tableInspector = null;
-
-    /**
-     * @var string[]
-     *
-     * example
-     * [
-     *  'namespace'         =>  'namespace;',
-     *  'base_class_dir'    =>  '/path/to/write/files,
-     *  'class_dir'         =>  '/path/to/class/dir',
-     *  'rewrite_class'        =>    1
-     * ]
-     * no trailing slashes at the end
-     */
-    private $config = [];
-
-    /**
-     * Table constructor.
-     * @param Table $table
-     * @param string[] $config
-     */
-    public function __construct(Table $table, array $config)
+    public function __construct(Table $table, array $config, ?TableInspectorInterface $tableInspector = null)
     {
         $this->table = $table;
         $this->config = $config;
+        $this->tableInspector = $tableInspector;
+    }
+
+    /* ───────────── base class ───────────── */
+
+    /**
+     * Build the Base class source (getBaseClassFile())
+     */
+    public function processBaseClass(): static
+    {
+        $this->warnings = [];
+        $this->populateForeignKeys();
+
+        $file = $this->renderBaseClassHeader();
+        $file .= $this->generateFields();
+        $file .= $this->generateForeignKeys();
+        $file .= "\n\t}\n";
+        foreach ($this->getTableColumns() as $column) {
+            $file .= $this->renderAccessors((string)$column['COLUMN_NAME']);
+        }
+        $file .= $this->renderListMethods();
+        $file .= "\n}\n";
+
+        $this->setBaseClassFile($file);
+        return $this;
     }
 
     /**
-     * @return ClassGenerator
+     * Build and write the Base class
+     * @throws \RuntimeException when the file cannot be written
      */
-    public function processBaseClass()
+    public function saveBaseClassToFile(): static
     {
-        if(Settings::get('database.engine') == 'postgres'){
-            $this->tableInspector = new PostgresTableInspector($this->getTable()->getName());
-        }else{
-            $this->tableInspector = new TableInspector($this->getTable()->getName());
-        }
-        $this->getTableInspector()->inspect();
-        $this->populateForeignKeys();
+        $this->processBaseClass();
+        self::writeFile($this->getBaseClassFilePath(), (string)$this->getBaseClassFile());
+        return $this;
+    }
 
-        $file = "<?php
+    private function renderBaseClassHeader(): string
+    {
+        $template = <<<'PHP'
+<?php
 
-namespace {$this->config['namespace']}\\Base;
+namespace {ns}\Base;
 
 use Laf\Database;
 use Laf\Database\Table;
@@ -85,386 +100,134 @@ use Laf\Database\PrimaryKey;
 use Laf\Database\ForeignKey;
 use Laf\UI\Form\FormElementInterface;
 use Laf\UI\ComponentInterface;
-use {$this->config['namespace']}\\" . $this->getTable()->getNameAsClassname() . ";
+use {ns}\{class};
 use Laf\Exception\InvalidForeignKeyValue;
 
 /**
- * Class Base{$this->getTable()->getNameAsClassname()}
- * @package {$this->config['namespace']}\Base
- * Base Class for Table {$this->getTable()->getName()}
- * Basic definition of the fields and relationship with the Database Table {$this->getTable()->getName()}
+ * Class Base{class}
+ * @package {ns}\Base
+ * Base Class for Table {table}
+ * Basic definition of the fields and relationship with the Database Table {table}
  * This class will be auto-generated every time there is a schema change
  * Please do not add code here. Instead add your code at the main class one directory above
  */
-class Base{$this->getTable()->getNameAsClassname()} extends Database\BaseObject
+class Base{class} extends Database\BaseObject
 {
 	/**
-	 * Instructors constructor.
-	 * @param int \$id
+	 * Base{class} constructor: binds the table and loads the row when a key is given
+	 * @param int|string|array|null $id primary key value (name => value for a composite key)
 	 */
-	public function __construct(\$id = null)
+	public function __construct($id = null)
 	{
-		parent::__construct(\$id);
-		\$this->buildClass();
-		\$this->setRecordId(\$id);
-		if (\$id != '') {
-			self::select(\$id);
+		parent::__construct($id);
+		$this->buildClass();
+		if ($id !== null && $id !== '') {
+			self::select($id);
 		}
 	}
 
 	/**
 	 * Select the record by primary key
-	 * @param int \$id
+	 * @param int|string|array $id
 	 * @return bool
 	 * @throws \Exception
 	 */
-	public function select(\$id) : bool
+	public function select($id) : bool
 	{
-		\$this->setRecordId(\$id);
-		return parent::select(\$id);
+		$this->setRecordId($id);
+		return parent::select($id);
 	}
 
 	/**
-	 * Build the class  properties and link it to the db table
-	 *
+	 * Build the class properties and link it to the db table
 	 */
 	private function buildClass()
 	{
-		\$this->setTable(new Table('{$this->getTable()->getName()}'));";
-        $file .= $this->generateFields();
-        $file .= $this->generateForeignKeys();
-        $file .= "
-	}
-";
+		$this->setTable(new Table({tableLiteral}));
+PHP;
+        return strtr($template, [
+            '{ns}' => $this->getNamespace(),
+            '{class}' => $this->getTable()->getNameAsClassname(),
+            '{table}' => $this->getTable()->getName(),
+            '{tableLiteral}' => self::stringLiteral($this->getTable()->getName()),
+        ]);
+    }
+
+    /**
+     * The field definitions of buildClass() (public for compatibility; processBaseClass() calls it)
+     */
+    public function generateFields(): string
+    {
+        $tmp = "\n\t\t/**\n\t\t * Generate field data\n\t\t */\n\t\t\$pk = new PrimaryKey();";
+
+        $columnNames = array_map('strval', array_keys($this->getTableColumns()));
+        $displayField = null;
         foreach ($this->getTableColumns() as $column) {
-            $file .= "
-	/**
-	 * Set " . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . " value
-	 * @param mixed \$value
-	 * @return {$this->getTable()->getNameAsClassname()}
-	 * @throws InvalidForeignKeyValue
-	 */
-	public function set" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Val(\$value = null)
-	{
-		\$this->setFieldValue(\"{$column['COLUMN_NAME']}\", \$value);
-		return static::returnLeafClass();
-	}
-
-	/**
-	 * Get " . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . " value
-	 * @return mixed
-	 */
-	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Val()
-	{
-		return \$this->getFieldValue(\"{$column['COLUMN_NAME']}\");
-	}
-
-	/**
-	 * Get " . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . " field reference
-	 * @return Field
-	 */
-	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Fld()
-	{
-		return \$this->getField(\"{$column['COLUMN_NAME']}\");
-	}
-
-	/**
-	 * Get " . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . " form element reference
-	 * @param FormElementInterface|null \$formElementOverride
-	 * @return ComponentInterface
-	 */
-	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "FormElement(?FormElementInterface \$formElementOverride = null) : ComponentInterface
-	{
-		return \$this->getField(\"{$column['COLUMN_NAME']}\")->getFormElement(\$formElementOverride);
-	}
-";
-            if ($this->getFkTable($column['COLUMN_NAME']) != '') {
-                $file .= "
-	/**
-	 * Get " . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . " Object
-	 * @return \\{$this->config['namespace']}\\" . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . "
-	 */
-	public function get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Obj()
-	{
-		if (is_numeric(\$this->get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Val())) {
-			return new \\{$this->config['namespace']}\\" . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . "(\$this->get" . Util::tableFieldNameToMethodName($column['COLUMN_NAME']) . "Val());
-		} else {
-			return new \\{$this->config['namespace']}\\" . Util::tableNameToClassName($this->getFkTable($column['COLUMN_NAME'])) . "();
-		}
-	}
-";
+            $name = (string)$column['COLUMN_NAME'];
+            $comment = isset($column['COLUMN_COMMENT']) ? (string)$column['COLUMN_COMMENT'] : null;
+            $setters = ColumnComment::fieldSetters($comment, $this->warnings);
+            $typeOverride = ColumnComment::typeOverride($comment);
+            $formOptions = ColumnComment::formOptions($comment, $this->warnings);
+            $commentDisplayField = ColumnComment::displayField($comment, $name, $columnNames);
+            if ($commentDisplayField !== null) {
+                if ($displayField !== null && $displayField !== $commentDisplayField) {
+                    $this->warnings[] = sprintf('table %s: several columns name a display field; "%s" wins', $this->getTable()->getName(), $commentDisplayField);
+                }
+                $displayField = $commentDisplayField;
             }
+
+            $tmp .= "\n\t\t\$field = (new Field())\n\t\t\t->setName(" . self::stringLiteral($name) . ")";
+            if (!isset($setters['setLabel'])) {
+                $tmp .= "\n\t\t\t->setLabel(" . self::stringLiteral(Util::tableFieldNameToLabel($name)) . ")";
+            }
+            if (!isset($setters['setPlaceholder'])) {
+                $tmp .= "\n\t\t\t->setPlaceholder(" . self::stringLiteral(Util::tableFieldNameToLabel($name)) . ")";
+            }
+            $tmp .= "\n\t\t\t->setRequired(" . (($column['IS_NULLABLE'] ?? 'YES') == 'NO' ? 'true' : 'false') . ")";
+            // only character columns carry a meaningful limit (text/json report their storage size on MySQL)
+            $maxLength = $column['CHARACTER_MAXIMUM_LENGTH'] ?? null;
+            $isCharacter = in_array(strtolower((string)($column['DATA_TYPE'] ?? '')), self::CHARACTER_TYPES, true);
+            if ($isCharacter && is_numeric($maxLength) && (int)$maxLength > 0) {
+                $tmp .= "\n\t\t\t->setMaxLength(" . (int)$maxLength . ")";
+            }
+            $tmp .= "\n\t\t\t->setAutoIncrement(" . (str_contains(strtolower((string)($column['EXTRA'] ?? '')), 'auto_increment') ? 'true' : 'false') . ")";
+            $tmp .= "\n\t\t\t->setUnique(" . (($column['COLUMN_KEY'] ?? '') == 'UNI' ? 'true' : 'false') . ")";
+            if ($typeOverride !== null) {
+                // {"fields":{"setType":"uuid"}} overrides the schema type, e.g. a MySQL char(36) holding UUIDs
+                $tmp .= "\n\t\t\t->setType(" . FieldTypeFactory::getClassLiteral($typeOverride) . ");";
+            } else {
+                $tmp .= "\n\t\t\t->setType(" . FieldTypeFactory::getClassLiteral((string)($column['DATA_TYPE'] ?? 'text'), $column) . ");";
+            }
+
+            foreach ($setters as $method => $arguments) {
+                $tmp .= "\n\t\t\$field->{$method}({$arguments});";
+            }
+            if ($formOptions !== null && $formOptions !== []) {
+                $tmp .= "\n\t\t\$field->setFormOptions(" . self::exportArray($formOptions) . ");";
+            }
+
+            if (($column['COLUMN_KEY'] ?? '') == 'PRI') {
+                $tmp .= "\n\t\t\$pk->addField(\$field);";
+            }
+            if (($column['COLUMN_KEY'] ?? '') == 'UNI') {
+                $tmp .= "\n\t\t\$this->getTable()->addUniqueField(\$field);";
+            }
+            $tmp .= "\n\t\t\$this->getTable()->addField(\$field);\n\t\t\$field = null;\n";
         }
 
-        $file .= "
-\t/**
-\t * Get all rows as associative array
-\t * @return string[]
-\t * @throws \Exception
-\t */
-\tpublic function listAllArray(): array
-\t{
-\t\t\$query = static::query();
-\t\tforeach (\$this->getTable()->getPrimaryKey()->getFieldNames() as \$keyColumn) {
-\t\t\t\$query->orderBy(\$keyColumn);
-\t\t}
-\t\treturn \$query->arrays();
-\t}
-
-\t/**
-\t * Gets all rows and instantiates the object for all
-\t * Then returns an array of all objects
-\t * One SELECT, hydrated without a query per row; still every row of the table
-\t * @return {$this->getTable()->getNameAsClassname()}[]
-\t * @throws \Exception
-\t */
-\tpublic function listAllObjects(): array
-\t{
-\t\t\$query = static::query();
-\t\tforeach (\$this->getTable()->getPrimaryKey()->getFieldNames() as \$keyColumn) {
-\t\t\t\$query->orderBy(\$keyColumn);
-\t\t}
-\t\treturn \$query->get();
-\t}
-
-	/**
-	* Return all fields as form elements
-	* @return FormElementInterface[]
-	*/
-	public function getAllFieldsAsFormElements() : array{
-		\$tmp = [];
-		foreach(\$this->getTable()->getFields() as \$field){
-			\$tmp[] = \$field->getFormElement();
-		}
-		return \$tmp;
-	}
-";
-
-
-        $file .= "\n}\n";
-        $this->setBaseClassFile($file);
-        return $this;
-    }
-
-
-    /**
-     * Generates and saves class to file
-     * @return ClassGenerator
-     */
-    public function saveBaseClassToFile()
-    {
-        $this->processBaseClass();
-        $file = $this->getBaseClassFilePath();
-        $ok = file_put_contents($file, $this->getBaseClassFile());
-        return $this;
-    }
-
-    public function processClass()
-    {
-        $file = "<?php
-
-namespace {$this->config['namespace']};
-
-/**
- * Class {$this->getTable()->getNameAsClassname()}
- * @package {$this->config['namespace']}
- * Main Class for Table {$this->getTable()->getName()}
- * This class inherits functionality from Base{$this->getTable()->getNameAsClassname()}.
- * It is generated only once, please include all logic and code here
- */
-class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTable()->getNameAsClassname()}
-{
-	/**
-	 * Instructors constructor.
-	 * @param int \$id
-	 */
-	public function __construct(\$id = null)
-	{
-		parent::__construct(\$id);
-	}
-
-	/**
-	 * Returns the lowest level class in the inheritance tree
-	 * Used with late static binding to get the lowest level class
-	 */
-	protected function returnLeafClass()
-	{
-		return \$this;
-	}
-	
-	/**
-	 * Find one row by using the first result
-	 * @param array \$keyValuePairs
-	 * @return {$this->getTable()->getNameAsClassname()}
-	 * @throws \Exception
-	 */
-	public static function findOne(array \$keyValuePairs) : ?{$this->getTable()->getNameAsClassname()}
-	{
-		return parent::bOfindOne(\$keyValuePairs);
-	}
-	
-	/**
-	 * @param array \$keyValuePairs
-	 * @return {$this->getTable()->getNameAsClassname()}[]
-	 * @throws \Exception
-	 */
-	public static function find(array \$keyValuePairs = []) : array
-	{
-		return parent::bOfind(\$keyValuePairs);
-	}";
-        $file .= "\n}\n";
-        $this->setClassFile($file);
-    }
-
-    /**
-     * Generates and saves class to file
-     * @return ClassGenerator
-     */
-    public function saveClassToFile()
-    {
-        $this->processClass();
-        $file = $this->getClassFilePath();
-        if (!file_exists($file) || (isset($this->getConfig()['rewrite_class']) && $this->getConfig()['rewrite_class']))
-            file_put_contents($file, $this->getClassFile());
-        return $this;
-    }
-
-    /**
-     * Retruns the path where the class file will be stored
-     * @return string
-     */
-    public function getClassFilePath(): string
-    {
-        return $file = $this->getConfig()['class_dir'] . '/' . $this->getTable()->getNameAsClassname() . '.php';
-    }
-
-    /**
-     * @return bool
-     */
-    public function classFileExists(): bool
-    {
-        return file_exists($this->getClassFilePath());
-    }
-
-    /**
-     * Returns the path where the base class file will be stored
-     * @return string
-     */
-    public function getBaseClassFilePath(): string
-    {
-        return $file = $this->getConfig()['base_class_dir'] . '/Base' . $this->getTable()->getNameAsClassname() . '.php';
-    }
-
-    /**
-     * Check if base class file exists
-     * @return bool
-     */
-    public function baseClassFileExists(): bool
-    {
-        return file_exists($this->getBaseClassFilePath());
-    }
-
-    /**
-     * @return Table
-     */
-    public function getTable(): Table
-    {
-        return $this->table;
-    }
-
-    /**
-     * @param Table $table
-     */
-    public function setTable(Table $table): void
-    {
-        $this->table = $table;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getConfig(): array
-    {
-        return $this->config;
-    }
-
-    /**
-     * @param string[] $config
-     */
-    public function setConfig(array $config): void
-    {
-        $this->config = $config;
-    }
-
-    /**
-     * @return null
-     */
-    public function getBaseClassFile()
-    {
-        return $this->baseClassFile;
-    }
-
-    /**
-     * @param null $baseClassFile
-     */
-    public function setBaseClassFile($baseClassFile): void
-    {
-        $this->baseClassFile = $baseClassFile;
-    }
-
-    /**
-     * @return null
-     */
-    public function getClassFile()
-    {
-        return $this->classFile;
-    }
-
-    /**
-     * @param null $classFile
-     */
-    public function setClassFile($classFile): void
-    {
-        $this->classFile = $classFile;
-    }
-
-    /**
-     * Get column info for a table
-     * @return array
-     */
-    public function getTableColumns()
-    {
-        return $this->getTableInspector()->getColumns();
-    }
-
-
-    /**
-     *
-     */
-    public function populateForeignKeys(): void
-    {
-        foreach ($this->getTableInspector()->getColumns() as $column) {
-            if (array_key_exists('FOREIGN_KEY', $column) && count($column['FOREIGN_KEY']) > 0) {
-                $this->foreignKeys[$column['FOREIGN_KEY']['column_name']] = [
-                    'column_name' => $column['FOREIGN_KEY']['column_name'],
-                    'constraint_name' => $column['FOREIGN_KEY']['constraint_name'],
-                    'referenced_table_name' => $column['FOREIGN_KEY']['referenced_table_name'],
-                    'referenced_column_name' => $column['FOREIGN_KEY']['referenced_column_name'],
-                    'delete_rule' => $column['FOREIGN_KEY']['delete_rule'] ?? null,
-                    'update_rule' => $column['FOREIGN_KEY']['update_rule'] ?? null,
-                ];
-            }
+        $tmp .= "\n\t\t\$this->getTable()->setPrimaryKey(\$pk);\n";
+        if ($displayField !== null) {
+            $tmp .= "\t\t\$this->getTable()->setDisplayField(\$this->getTable()->getField(" . self::stringLiteral($displayField) . "));\n";
         }
+        return $tmp;
     }
 
     /**
-     * @return string
+     * The foreign key definitions of buildClass()
      */
     public function generateForeignKeys(): string
     {
-        $tmp = "\n\t\t/**
-		 * Generating Foreign keys
-		 */";
+        $tmp = "\n\t\t/**\n\t\t * Generating Foreign keys\n\t\t */";
 
         foreach ($this->foreignKeys as $fk) {
             $rules = '';
@@ -477,97 +240,428 @@ class {$this->getTable()->getNameAsClassname()} extends Base\\Base{$this->getTab
             }
             $tmp .= "\n\t\t\$this->getTable()->addForeignKey(
 			(new ForeignKey())
-				->setField(\$this->getTable()->getField(\"{$fk['column_name']}\"))
-				->setKeyName('{$fk['constraint_name']}')
-				->setReferencingTable(\"{$fk['referenced_table_name']}\")
-				->setReferencingField(\"{$fk['referenced_column_name']}\"){$rules}
+				->setField(\$this->getTable()->getField(" . self::stringLiteral((string)$fk['column_name']) . "))
+				->setKeyName('" . addslashes((string)$fk['constraint_name']) . "')
+				->setReferencingTable(" . self::stringLiteral((string)$fk['referenced_table_name']) . ")
+				->setReferencingField(" . self::stringLiteral((string)$fk['referenced_column_name']) . "){$rules}
 		);\n";
         }
         return $tmp;
     }
 
-    public function generateFields()
-    {
-        $tmp = "\n\t\t/**
-		 * Generate field data
-		 */
-		\$pk = new PrimaryKey();";
-
-        foreach ($this->getTableColumns() as $column) {
-            $additionalSettings = null;
-
-            if (mb_strstr($column['COLUMN_COMMENT']??'', 'setLabel') === false) {
-                $additionalSettings = "\n\t\t\t->setLabel(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }
-            /*if (mb_strstr($column['COLUMN_COMMENT'], 'setHint') === false) {
-                $additionalSettings .= "\n\t\t\t->setHint(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }*/
-            if (mb_strstr($column['COLUMN_COMMENT']??'', 'setPlaceHolder') === false) {
-                $additionalSettings .= "\n\t\t\t->setPlaceHolder(\"" . Util::tableFieldNameToLabel($column['COLUMN_NAME']) . "\")";
-            }
-
-            $tmp .= "\n\t\t\$field = (new Field())
-			->setName(\"{$column['COLUMN_NAME']}\"){$additionalSettings}
-			->setRequired(" . ($column['IS_NULLABLE'] == 'NO' ? 'true' : 'false') . ")
-			->setMaxLength(" . (is_numeric($column['CHARACTER_MAXIMUM_LENGTH']) ? $column['CHARACTER_MAXIMUM_LENGTH'] : '255') . ")
-			->setAutoIncrement(" . (strpos($column['EXTRA']??'', 'auto_increment') === false ? 'false' : 'true') . ")
-			->setUnique(" . ($column['COLUMN_KEY'] == 'UNI' ? 'true' : 'false') . ")
-			->setType(" . FieldTypeFactory::getClassLiteral($column['DATA_TYPE'], $column) . ");";
-
-            $maxLength = $column['CHARACTER_MAXIMUM_LENGTH'];
-            if (is_int($maxLength)) {
-                $tmp .= "\n\t\t\$field->setMaxLength({$maxLength});";
-            }
-
-            if (Util::isJSON($column['COLUMN_COMMENT'] ?? '')) {
-                $params = json_decode($column['COLUMN_COMMENT']);
-                foreach ($params->fields ?? [] as $method => $value) {
-                    if ($method == 'setType') {
-                        // {"fields":{"setType":"uuid"}} overrides the schema type, e.g. a MySQL char(36) holding UUIDs
-                        $tmp .= "\n\t\t\$field->setType(" . FieldTypeFactory::getClassLiteral((string)$value) . ");";
-                    } else if (method_exists((new Field()), $method)) {
-                        $tmp .= "\n\t\t\$field->$method(\"{$value}\");";
-                    } else if ($method == 'setDisplayField') {
-                        $tmp .= "\n\t\t\$this->getTable()->setDisplayField(\$field);";
-                    }
-
-                }
-            }
-
-            if ($column['COLUMN_KEY'] == 'PRI') {
-                $tmp .= "\n\t\t\$pk->addField(\$field);";
-            }
-            if ($column['COLUMN_KEY'] == 'UNI') {
-                $tmp .= "\n\t\t\$this->getTable()->addUniqueField(\$field);";
-            }
-            $tmp .= "\n\t\t\$this->getTable()->addField(\$field);
-		\$field = null;\n";
-
-        }
-
-        $tmp .= "\n\t\t\$this->getTable()->setPrimaryKey(\$pk);\n";
-        return $tmp;
-    }
-
     /**
-     * Given a column name, it will return the poiting table if it's a Foreign Key
-     * @param $column
-     * @return mixed|string
+     * setXVal / getXVal / getXFld / getXFormElement (+ getXObj for a foreign key) of one column
      */
-    public function getFkTable($column)
+    private function renderAccessors(string $columnName): string
     {
-        if (array_key_exists($column, $this->foreignKeys)) {
-            return $this->foreignKeys[$column]['referenced_table_name'];
-        } else {
-            return '';
+        $method = Util::tableFieldNameToMethodName($columnName);
+        $label = Util::tableFieldNameToLabel($columnName);
+        $literal = self::stringLiteral($columnName);
+
+        $file = "
+	/**
+	 * Set {$label} value
+	 * @param mixed \$value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function set{$method}Val(\$value = null)
+	{
+		\$this->setFieldValue({$literal}, \$value);
+		return static::returnLeafClass();
+	}
+
+	/**
+	 * Get {$label} value
+	 * @return mixed
+	 */
+	public function get{$method}Val()
+	{
+		return \$this->getFieldValue({$literal});
+	}
+
+	/**
+	 * Get {$label} field reference
+	 * @return Field
+	 */
+	public function get{$method}Fld()
+	{
+		return \$this->getField({$literal});
+	}
+
+	/**
+	 * Get {$label} form element reference
+	 * @param FormElementInterface|null \$formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function get{$method}FormElement(?FormElementInterface \$formElementOverride = null) : ComponentInterface
+	{
+		return \$this->getField({$literal})->getFormElement(\$formElementOverride);
+	}
+";
+        $fkTable = $this->getFkTable($columnName);
+        if ($fkTable !== '') {
+            $fkClass = '\\' . $this->getNamespace() . '\\' . Util::tableNameToClassName($fkTable);
+            $file .= "
+	/**
+	 * Get " . Util::tableNameToClassName($fkTable) . " Object (empty when the key is not set)
+	 * @return {$fkClass}
+	 */
+	public function get{$method}Obj()
+	{
+		\$value = \$this->get{$method}Val();
+		if (\$value !== null && \$value !== '') {
+			return new {$fkClass}(\$value);
+		}
+		return new {$fkClass}();
+	}
+";
         }
+        return $file;
+    }
+
+    private function renderListMethods(): string
+    {
+        $template = <<<'PHP'
+
+	/**
+	 * Get all rows as associative array
+	 * @return string[]
+	 * @throws \Exception
+	 */
+	public function listAllArray(): array
+	{
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
+		}
+		return $query->arrays();
+	}
+
+	/**
+	 * Gets all rows and instantiates the object for all
+	 * Then returns an array of all objects
+	 * One SELECT, hydrated without a query per row; still every row of the table
+	 * @return {class}[]
+	 * @throws \Exception
+	 */
+	public function listAllObjects(): array
+	{
+		$query = static::query();
+		foreach ($this->getTable()->getPrimaryKey()->getFieldNames() as $keyColumn) {
+			$query->orderBy($keyColumn);
+		}
+		return $query->get();
+	}
+
+	/**
+	* Return all fields as form elements
+	* @return FormElementInterface[]
+	*/
+	public function getAllFieldsAsFormElements() : array{
+		$tmp = [];
+		foreach($this->getTable()->getFields() as $field){
+			$tmp[] = $field->getFormElement();
+		}
+		return $tmp;
+	}
+
+PHP;
+        return strtr($template, ['{class}' => $this->getTable()->getNameAsClassname()]);
+    }
+
+    /* ───────────── main class ───────────── */
+
+    /**
+     * Build the model class source (getClassFile())
+     */
+    public function processClass(): static
+    {
+        $template = <<<'PHP'
+<?php
+
+namespace {ns};
+
+use Laf\UI\Form\DrawMode;
+use Laf\UI\Form\FormLayout;
+
+/**
+ * Class {class}
+ * @package {ns}
+ * Main Class for Table {table}
+ * This class inherits functionality from Base{class}.
+ * It is generated only once, please include all logic and code here
+ */
+class {class} extends Base\Base{class}
+{
+	/**
+	 * {class} constructor.
+	 * @param int|string|array|null $id
+	 */
+	public function __construct($id = null)
+	{
+		parent::__construct($id);
+	}
+
+	/**
+	 * Find one row by using the first result
+	 * @param array $keyValuePairs
+	 * @return {class}|null
+	 * @throws \Exception
+	 */
+	public static function findOne(array $keyValuePairs) : ?{class}
+	{
+		return parent::bOfindOne($keyValuePairs);
+	}
+
+	/**
+	 * @param array $keyValuePairs
+	 * @return {class}[]
+	 * @throws \Exception
+	 */
+	public static function find(array $keyValuePairs = []) : array
+	{
+		return parent::bOfind($keyValuePairs);
+	}
+
+	/**
+	 * The layout of this model's forms (null = FormLayout::auto() from the table and the
+	 * JSON column comments). Uncomment and adjust to control columns, sections, tabs and
+	 * which fields are excluded, read-only or hidden in each draw mode:
+	 *
+	 * public function getFormLayout(): ?FormLayout
+	 * {
+	 *     return FormLayout::auto($this->getTable())
+	 *         ->readOnly(['code'], [DrawMode::UPDATE])
+	 *         ->fieldset('Address', ['street', 'city'], 2);
+	 * }
+	 */
+}
+
+PHP;
+        $this->setClassFile(strtr($template, [
+            '{ns}' => $this->getNamespace(),
+            '{class}' => $this->getTable()->getNameAsClassname(),
+            '{table}' => $this->getTable()->getName(),
+        ]));
+        return $this;
     }
 
     /**
-     * @return TableInspector
+     * Build and write the model class, unless it exists and 'rewrite_class' is off
+     * @throws \RuntimeException when the file cannot be written
+     */
+    public function saveClassToFile(): static
+    {
+        $this->processClass();
+        $file = $this->getClassFilePath();
+        if (!file_exists($file) || !empty($this->getConfig()['rewrite_class'])) {
+            self::writeFile($file, (string)$this->getClassFile());
+        }
+        return $this;
+    }
+
+    /* ───────────── paths ───────────── */
+
+    /**
+     * Returns the path where the class file will be stored
+     */
+    public function getClassFilePath(): string
+    {
+        return rtrim((string)($this->getConfig()['class_dir'] ?? ''), '/\\') . '/' . $this->getTable()->getNameAsClassname() . '.php';
+    }
+
+    public function classFileExists(): bool
+    {
+        return file_exists($this->getClassFilePath());
+    }
+
+    /**
+     * Returns the path where the base class file will be stored
+     */
+    public function getBaseClassFilePath(): string
+    {
+        return rtrim((string)($this->getConfig()['base_class_dir'] ?? ''), '/\\') . '/Base' . $this->getTable()->getNameAsClassname() . '.php';
+    }
+
+    public function baseClassFileExists(): bool
+    {
+        return file_exists($this->getBaseClassFilePath());
+    }
+
+    /* ───────────── accessors ───────────── */
+
+    public function getTable(): Table
+    {
+        return $this->table;
+    }
+
+    public function setTable(Table $table): void
+    {
+        $this->table = $table;
+        $this->tableInspector = null;
+        $this->inspected = false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function setConfig(array $config): void
+    {
+        $this->config = $config;
+    }
+
+    public function getBaseClassFile(): ?string
+    {
+        return $this->baseClassFile;
+    }
+
+    public function setBaseClassFile(?string $baseClassFile): void
+    {
+        $this->baseClassFile = $baseClassFile;
+    }
+
+    public function getClassFile(): ?string
+    {
+        return $this->classFile;
+    }
+
+    public function setClassFile(?string $classFile): void
+    {
+        $this->classFile = $classFile;
+    }
+
+    /**
+     * Column metadata of the table (inspects on first use)
+     * @return array<string, array<string, mixed>>
+     */
+    public function getTableColumns(): array
+    {
+        return $this->inspector()->getColumns();
+    }
+
+    /**
+     * The inspector, created for the engine when none was given (inspect() runs on first use)
      */
     public function getTableInspector(): TableInspectorInterface
     {
+        if ($this->tableInspector === null) {
+            $this->tableInspector = TableInspectorFactory::create($this->getTable()->getName());
+            $this->inspected = false;
+        }
         return $this->tableInspector;
+    }
+
+    public function setTableInspector(TableInspectorInterface $tableInspector): static
+    {
+        $this->tableInspector = $tableInspector;
+        $this->inspected = false;
+        return $this;
+    }
+
+    /**
+     * Messages about comment settings or types the generator could not use
+     * @return string[]
+     */
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+
+    /**
+     * Collect the foreign keys of the inspected columns
+     */
+    public function populateForeignKeys(): void
+    {
+        $this->foreignKeys = [];
+        foreach ($this->getTableColumns() as $column) {
+            if (!empty($column['FOREIGN_KEY']) && is_array($column['FOREIGN_KEY'])) {
+                $fk = $column['FOREIGN_KEY'];
+                $this->foreignKeys[(string)$fk['column_name']] = [
+                    'column_name' => (string)$fk['column_name'],
+                    'constraint_name' => (string)$fk['constraint_name'],
+                    'referenced_table_name' => (string)$fk['referenced_table_name'],
+                    'referenced_column_name' => (string)$fk['referenced_column_name'],
+                    'delete_rule' => $fk['delete_rule'] ?? null,
+                    'update_rule' => $fk['update_rule'] ?? null,
+                ];
+            }
+        }
+    }
+
+    /**
+     * The table a foreign key column points at, '' when the column is not a foreign key
+     * @param string $column
+     */
+    public function getFkTable($column): string
+    {
+        return $this->foreignKeys[(string)$column]['referenced_table_name'] ?? '';
+    }
+
+    /* ───────────── internals ───────────── */
+
+    private function inspector(): TableInspectorInterface
+    {
+        $inspector = $this->getTableInspector();
+        $needsInspection = $inspector instanceof AbstractTableInspector ? !$inspector->isInspected() : !$this->inspected;
+        if ($needsInspection) {
+            $inspector->inspect();
+            $this->inspected = true;
+        }
+        return $inspector;
+    }
+
+    private function getNamespace(): string
+    {
+        return trim((string)($this->getConfig()['namespace'] ?? ''), '\\');
+    }
+
+    /**
+     * A double-quoted PHP string literal (the generated files always used double quotes)
+     */
+    private static function stringLiteral(string $value): string
+    {
+        return '"' . addcslashes($value, "\\\"\$\n\r\t") . '"';
+    }
+
+    /**
+     * Short-array PHP source of a nested array (strings and scalars exported by var_export)
+     * @param array<int|string, mixed> $value
+     */
+    public static function exportArray(array $value): string
+    {
+        $isList = $value === [] || array_keys($value) === range(0, count($value) - 1);
+        $parts = [];
+        foreach ($value as $key => $item) {
+            $exported = is_array($item) ? self::exportArray($item) : var_export($item, true);
+            $parts[] = $isList ? $exported : var_export($key, true) . ' => ' . $exported;
+        }
+        return '[' . implode(', ', $parts) . ']';
+    }
+
+    /**
+     * Write a file, creating its directory
+     * @throws \RuntimeException
+     */
+    private static function writeFile(string $path, string $content): void
+    {
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new \RuntimeException("Cannot create directory: {$dir}");
+        }
+        if (file_exists($path) && !is_writable($path)) {
+            throw new \RuntimeException("File is not writable: {$path}");
+        }
+        if (file_put_contents($path, $content) === false) {
+            throw new \RuntimeException("Failed to write file: {$path}");
+        }
     }
 }

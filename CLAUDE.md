@@ -38,6 +38,21 @@ php app/util/generate_classes.php
 # - [TableName].php (user customization layer, created once)
 # - CRUD page files (.page extension)
 ```
+`new DatabaseGenerator($libraryPath)` reads the namespace from `project.package_name`; `setTables([...])` /
+`setExcludedTables(['audit_log', 'phinx_*'])` select tables (base tables of the current database/schema, no views),
+`setLabelTranslations()`, `setOutput(callable)`, `setGenerateAutoloader(false)` (Composer apps), `getGeneratedFiles()`,
+`getWarnings()`. Per table: `ClassGenerator` / `PageGenerator` (`new X(new Table($name), $config)`, optional injected
+`TableInspectorInterface`; `TableInspectorFactory::create($table)` picks the engine inspector). Column metadata is the
+same shape on both engines (upper-case information_schema keys + `FOREIGN_KEY`; PostgreSQL reads the current schema,
+`COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`). JSON column comments
+drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","setRequired":false,"setType":"uuid",
+"setDisplayField":"label_al"},"form":{"readonly":"update","hidden":true,"exclude":["view"],"group":"Address",
+"tab":"Pricing","order":20,"element":"TextArea"}}` (see `Laf\Generator\ColumnComment`; `form` lands in
+`Field::setFormOptions()` and is read by `FormLayout::auto()`). Generated pages get the form from
+`$obj->getForm($drawMode)` (laid out by the model, see Forms), one related-records tab per foreign key column that
+points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, and delete links
+carrying the form's CSRF token (`Form::withCsrfToken()` / `isValidCsrfToken()`; pretty-URL rewrites must keep the
+query string). Config keys `page_factory` / `page_factory_method` replace `{namespace}\Factory::GeneralPage()`.
 
 ### Dependencies
 ```bash
@@ -101,10 +116,10 @@ All components support fluent interfaces and CSS/attribute management.
 
 #### 3. Code Generators (`src/Laf/Generator/`)
 
-- **ClassGenerator**: Generates Base and main class files from database schema
-- **PageGenerator**: Creates complete CRUD pages with action-based routing
-- **DatabaseGenerator**: Orchestrates generation for entire database
-- **TableInspector** / **PostgresTableInspector**: Queries `INFORMATION_SCHEMA` for table metadata
+- **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options)
+- **PageGenerator**: Creates complete CRUD pages with action-based routing (model-driven form layout, per-FK related tabs, CSRF-protected delete)
+- **DatabaseGenerator**: Orchestrates generation for entire database (table selection, output callback, file list)
+- **TableInspector** / **PostgresTableInspector** (via **TableInspectorFactory**): same-shaped table metadata on both engines; **ColumnComment** parses the JSON comment
 
 #### 4. Routing System (`src/Laf/Util/UrlParser.php`)
 
@@ -178,7 +193,7 @@ join the outer transaction).
 **Form Handling**:
 ```php
 $customer = new Customer(UrlParser::getId());
-$form = $customer->getForm();
+$form = $customer->getForm(DrawMode::UPDATE); // laid out by the model; getForm() alone = every field, flat
 
 if ($form->isSubmitted()) {
     try {
@@ -189,9 +204,17 @@ if ($form->isSubmitted()) {
     }
 }
 
-$form->setDrawMode(DrawMode::UPDATE);
 $page->addComponent($form);
 ```
+Form layout: `$obj->getForm($drawMode)` applies `$obj->getFormLayout()` (override in the model class; null =
+`FormLayout::auto($table)`: columns by field count, `created_*`/`updated_*` left out of insert/update, metadata in a
+"Details" tab on view, plus the fields' form options from the column comments) through `Form::applyLayout($mode)`.
+`FormLayout` (fluent, `toArray()/fromArray()`): `fields($names, $columns, $modes)`, `fieldset($legend, ...)`,
+`tab($title, ...)`, `exclude($names, $modes)`, `readOnly($names, $modes)` (element drawn in VIEW mode inside the edit
+form: posts nothing, untouched on processing), `hidden($names, $modes)` (wrapper `d-none`, still posts),
+`element($name, $class)`; unlisted fields are appended. The layout owns the elements' draw mode and hidden state; the
+`configureForm(Form)` hook on the model runs at the end of every `getForm()`. Existing pages that call `getForm()` and
+lay out themselves are unaffected.
 Forms: every field element comes from `Field::getFormElement()` (`FormElementFactory::create()`); inputs render Bootstrap 5
 markup and never change their own state when drawn; a field value change is mirrored into its element, so a form drawn
 after a submission shows what was submitted. A form reads only the request of its own method (POST by default, so a GET
