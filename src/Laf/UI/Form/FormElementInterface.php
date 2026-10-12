@@ -31,7 +31,7 @@ interface FormElementInterface extends ComponentInterface
 
     public function getHint(): ?string;
 
-    public function setHint(?string $value);
+    public function setHint(?string $value): ComponentInterface;
 
     /**
      * Validation messages shown next to the control in update mode

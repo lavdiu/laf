@@ -2,6 +2,9 @@
 
 namespace Laf\UI\Component;
 
+/**
+ * Values of a link's "rel" attribute (Link::setRel(); several may be joined with a space).
+ */
 class Rel
 {
     const Alternate = 'alternate';

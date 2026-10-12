@@ -115,6 +115,12 @@ Hierarchical component-based rendering:
   (`setActiveTab()`, `getTabs()`, Previous/Next buttons, ids `{id}_tab_links` / `{title}-tab`), `Modal($id)` (title raw HTML,
   `setSize(Modal::SIZE_*)`, `setCentered()`, `setStaticBackdrop()`, `setIncludeForm()` + `addHiddenInput()` for a CSRF token,
   `addFooterButton()`, `getModalOpenButton($label)`)
+- **Components** (`src/Laf/UI/Component/`): `Link($text, $href, $icon, $attributes, $classes)` (caption raw HTML,
+  `setConfirmationMessage()` JS-escaped, `setTarget(Target::*)`, `setRel(Rel::*)`, `setDisabled()`), `Dropdown($text, $class,
+  $icon, $rightAlign)` (`addLink()`, `addDivider()`, `addHeader()`, `addHtml()`, `setId()` names the toggle), `Image($src, $alt)`
+  (`setHeight/Width()` as px style, `setLazy()`), `Alert($title, $message, Alert::Type_*)` (raw HTML, `setDismissible()`,
+  `setIcon()`), `Carousel($documentIds, $id, $imageUrls)` (`setDocumentUrlBuilder()`, `useBgImages()`). Unbound elements
+  return null from `getField()`.
 - **Page Components** (`src/Laf/UI/Page/`): `Html` is the document (`setPageTitle()` escaped, `addHeaderComponent()`,
   `addScript($src, $attrs, $atBodyEnd)` / `addInlineScript()` / `addStylesheet()` / `addInlineStyle()` / `addMeta()` /
   `addLinkTag()` / `setFavicon()`, `setLanguage()` else Settings `locale.language` else `en`, `setBodyAttributes()` /
