@@ -3,7 +3,7 @@ Review and rework of the code generators (ClassGenerator, PageGenerator, Databas
 # Generator review — 2026-10-12
 
 Branch `improvements1`, working tree (not committed). Follows the Form review (`agent/2026-10-12-form-review-2-notes.md`)
-and the Db review. Files: `src/Laf/Generator/{ClassGenerator,PageGenerator,DatabaseGenerator,TableInspector,
+and the Db review. Files: `src/Laf/Generator/{ClassGenerator,PageGenerator,DatabaseGenerator,MysqlTableInspector (was TableInspector, now a deprecated alias),
 PostgresTableInspector,TableInspectorInterface}.php` (rewritten), new `AbstractTableInspector.php`,
 `TableInspectorFactory.php`, `ColumnComment.php`, `src/Laf/UI/Form/FormLayout.php` (new), edits in `Form.php`,
 `Database/BaseObject.php`, `Database/Field/Field.php`, `UI/Container/TabItem.php`, `Util/Util.php`,

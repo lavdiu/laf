@@ -42,7 +42,7 @@ php app/util/generate_classes.php
 `setExcludedTables(['audit_log', 'phinx_*'])` select tables (base tables of the current database/schema, no views),
 `setLabelTranslations()`, `setOutput(callable)`, `setGenerateAutoloader(false)` (Composer apps), `getGeneratedFiles()`,
 `getWarnings()`. Per table: `ClassGenerator` / `PageGenerator` (`new X(new Table($name), $config)`, optional injected
-`TableInspectorInterface`; `TableInspectorFactory::create($table)` picks the engine inspector). Column metadata is the
+`TableInspectorInterface`; `TableInspectorFactory::create($table)` picks `MysqlTableInspector` or `PostgresTableInspector`). Column metadata is the
 same shape on both engines (upper-case information_schema keys + `FOREIGN_KEY`; PostgreSQL reads the current schema,
 `COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`). JSON column comments
 drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","setRequired":false,"setType":"uuid",
@@ -119,7 +119,7 @@ All components support fluent interfaces and CSS/attribute management.
 - **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options)
 - **PageGenerator**: Creates complete CRUD pages with action-based routing (model-driven form layout, per-FK related tabs, CSRF-protected delete)
 - **DatabaseGenerator**: Orchestrates generation for entire database (table selection, output callback, file list)
-- **TableInspector** / **PostgresTableInspector** (via **TableInspectorFactory**): same-shaped table metadata on both engines; **ColumnComment** parses the JSON comment
+- **MysqlTableInspector** / **PostgresTableInspector** (via **TableInspectorFactory**; `TableInspector` is a deprecated alias of the MySQL one): same-shaped table metadata on both engines; **ColumnComment** parses the JSON comment
 
 #### 4. Routing System (`src/Laf/Util/UrlParser.php`)
 

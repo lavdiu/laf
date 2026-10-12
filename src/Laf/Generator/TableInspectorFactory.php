@@ -22,6 +22,6 @@ final class TableInspectorFactory
         if (Identifier::isPostgres($engine)) {
             return new PostgresTableInspector($table);
         }
-        return new TableInspector($table);
+        return new MysqlTableInspector($table);
     }
 }
