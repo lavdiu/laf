@@ -1,0 +1,11 @@
+{
+    "permissions": {
+        "allow": [
+            "read_file(*)"
+        ],
+        "ask": [
+            "write_file(*)",
+            "command(*)"
+        ]
+    }
+}
