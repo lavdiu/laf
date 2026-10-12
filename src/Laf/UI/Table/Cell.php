@@ -11,21 +11,24 @@ use Laf\Util\Util;
  */
 class Cell
 {
-    private $data = null;
-    private $colSpan = 0;
-    private $rowSpan = 0;
-    protected $tagName = 'td';
-    private $classes = [];
-    private $styles = [];
-    private $params = [];
-    private $table = null;
-    private $prettyPrint = false;
+    private ?string $data = null;
+    private int $colSpan = 0;
+    private int $rowSpan = 0;
+    protected string $tagName = 'td';
+    /** @var string[] */
+    private array $classes = [];
+    /** @var array<string, string> property => value */
+    private array $styles = [];
+    /** @var array<string, string> attribute => value */
+    private array $params = [];
+    private ?Table $table = null;
+    private bool $prettyPrint = false;
 
-    private $columnIndex = 0;
-    private $rowIndex = 0;
+    private int $columnIndex = 0;
+    private int $rowIndex = 0;
 
-    /** @var string|null id of the owning row ("tbl_3", "tbl_head_0"); set by Tr::draw() */
-    private $rowHtmlId = null;
+    /** id of the owning row ("tbl_3", "tbl_head_0"); set by Tr::draw() */
+    private ?string $rowHtmlId = null;
 
     /**
      * @param string $data raw HTML content
@@ -35,21 +38,27 @@ class Cell
         $this->setData($data);
     }
 
-    /** @return string|null raw HTML content */
-    public function getData()
+    /** raw HTML content */
+    public function getData(): ?string
     {
         return $this->data;
     }
 
     /** @param string|null $data raw HTML content */
-    public function setData($data): Cell
+    public function setData(?string $data): static
     {
         $this->data = $data;
         return $this;
     }
 
+    /** The tag the cell draws: td or th */
+    public function getTagName(): string
+    {
+        return $this->tagName;
+    }
+
     /** Plain-text content; escaped at this point so the stored data is safe HTML. */
-    public function setText(?string $text): Cell
+    public function setText(?string $text): static
     {
         $this->data = Util::e($text);
         return $this;
@@ -60,7 +69,7 @@ class Cell
         return $this->colSpan;
     }
 
-    public function setColSpan(int $colSpan): Cell
+    public function setColSpan(int $colSpan): static
     {
         $this->colSpan = $colSpan;
         return $this;
@@ -71,74 +80,78 @@ class Cell
         return $this->rowSpan;
     }
 
-    public function setRowSpan(int $rowSpan): Cell
+    public function setRowSpan(int $rowSpan): static
     {
         $this->rowSpan = $rowSpan;
         return $this;
     }
 
+    /** @return string[] */
     public function getClasses(): array
     {
         return $this->classes;
     }
 
-    public function addClass(string $class): Cell
+    public function addClass(string $class): static
     {
         $this->classes[] = $class;
         return $this;
     }
 
-    public function setClasses(array $classes): Cell
+    /** @param string[] $classes */
+    public function setClasses(array $classes): static
     {
         $this->classes = $classes;
         return $this;
     }
 
     /** Bootstrap text alignment helpers; numeric columns should be right-aligned. */
-    public function alignRight(): Cell
+    public function alignRight(): static
     {
         return $this->addClass('text-end');
     }
 
-    public function alignCenter(): Cell
+    public function alignCenter(): static
     {
         return $this->addClass('text-center');
     }
 
-    public function alignLeft(): Cell
+    public function alignLeft(): static
     {
         return $this->addClass('text-start');
     }
 
+    /** @return array<string, string> */
     public function getStyles(): array
     {
         return $this->styles;
     }
 
-    public function addStyle(string $property, string $value): Cell
+    public function addStyle(string $property, string $value): static
     {
         $this->styles[$property] = $value;
         return $this;
     }
 
-    public function setStyles(array $styles): Cell
+    public function setStyles(array $styles): static
     {
         $this->styles = $styles;
         return $this;
     }
 
-    public function addParam(string $property, string $value): Cell
+    public function addParam(string $property, string $value): static
     {
         $this->params[$property] = $value;
         return $this;
     }
 
+    /** @return array<string, string> */
     public function getParams(): array
     {
         return $this->params;
     }
 
-    public function setParams(array $params): Cell
+    public function setParams(array $params): static
     {
         $this->params = $params;
         return $this;
@@ -149,7 +162,7 @@ class Cell
         return $this->columnIndex;
     }
 
-    public function setColumnIndex(int $columnIndex): Cell
+    public function setColumnIndex(int $columnIndex): static
     {
         $this->columnIndex = $columnIndex;
         return $this;
@@ -160,7 +173,7 @@ class Cell
         return $this->rowIndex;
     }
 
-    public function setRowIndex(int $rowIndex): Cell
+    public function setRowIndex(int $rowIndex): static
     {
         $this->rowIndex = $rowIndex;
         return $this;
@@ -171,7 +184,7 @@ class Cell
         return $this->rowHtmlId;
     }
 
-    public function setRowHtmlId(?string $rowHtmlId): Cell
+    public function setRowHtmlId(?string $rowHtmlId): static
     {
         $this->rowHtmlId = $rowHtmlId;
         return $this;
@@ -223,7 +236,7 @@ class Cell
         return $html;
     }
 
-    public function setTable(Table $table): Cell
+    public function setTable(Table $table): static
     {
         $this->table = $table;
         return $this;
@@ -239,7 +252,7 @@ class Cell
         return $this->prettyPrint;
     }
 
-    public function setPrettyPrint(bool $prettyPrint): Cell
+    public function setPrettyPrint(bool $prettyPrint): static
     {
         $this->prettyPrint = $prettyPrint;
         return $this;

@@ -18,27 +18,29 @@ class Table implements ComponentInterface
 {
     use ComponentTrait;
 
-    /** @var Tr first header row (legacy single-row API) */
-    private $thead = null;
+    /** first header row (legacy single-row API) */
+    private Tr $thead;
     /** @var Tr[] additional header rows */
-    private $theadRows = [];
+    private array $theadRows = [];
     /** @var Tr[] */
-    private $tbody = [];
-    /** @var Tr */
-    private $tfoot = null;
-    private $caption = "";
-    private $id = "";
-    private $prettyPrint = false;
-    private $responsive = false;
+    private array $tbody = [];
+    private Tr $tfoot;
+    private string $caption = '';
+    private string $id = '';
+    private bool $prettyPrint = false;
+    private bool $responsive = false;
 
-    private $classes = [];
-    private $styles = [];
-    private $params = [];
+    /** @var string[] */
+    private array $classes = [];
+    /** @var array<string, string> property => value */
+    private array $styles = [];
+    /** @var array<string, string> attribute => value */
+    private array $params = [];
 
     public function __construct(?string $id = null)
     {
-        $this->thead = new Tr;
-        $this->tfoot = new Tr;
+        $this->thead = new Tr();
+        $this->tfoot = new Tr();
         $this->setId($id);
     }
 
@@ -46,8 +48,8 @@ class Table implements ComponentInterface
 
     /**
      * Build a table from plain data: every value is escaped text.
-     * @param array $rows list of rows, each a list (or map) of cell values
-     * @param array $headers optional header labels
+     * @param array<int, array<int|string, scalar|null>|scalar|null> $rows list of rows, each a list (or map) of cell values
+     * @param array<int|string, scalar|null> $headers optional header labels
      */
     public static function fromArray(array $rows, array $headers = [], ?string $id = null): Table
     {
@@ -61,8 +63,11 @@ class Table implements ComponentInterface
         return $table;
     }
 
-    /** Append a body row of escaped text cells. */
-    public function addRow(array $values): Table
+    /**
+     * Append a body row of escaped text cells.
+     * @param array<int|string, scalar|null> $values
+     */
+    public function addRow(array $values): static
     {
         $tr = new Tr();
         $tr->addCells($values);
@@ -70,7 +75,7 @@ class Table implements ComponentInterface
     }
 
     /** Bootstrap 5 look: striped, hoverable, compact, optionally wrapped in .table-responsive. */
-    public function bootstrap(bool $striped = true, bool $responsive = true): Table
+    public function bootstrap(bool $striped = true, bool $responsive = true): static
     {
         $this->addClass('table');
         if ($striped) {
@@ -87,7 +92,7 @@ class Table implements ComponentInterface
     }
 
     /** Wrap the <table> in <div class='table-responsive'> so wide tables scroll on phones. */
-    public function setResponsive(bool $responsive): Table
+    public function setResponsive(bool $responsive): static
     {
         $this->responsive = $responsive;
         return $this;
@@ -95,52 +100,56 @@ class Table implements ComponentInterface
 
     /* ───────────── legacy attribute API (kept; rendered together with the trait's) ───────────── */
 
+    /** @return string[] */
     public function getClasses(): array
     {
         return $this->classes;
     }
 
-    public function addClass(string $class): Table
+    public function addClass(string $class): static
     {
         $this->classes[] = $class;
         return $this;
     }
 
-    public function setClasses(array $classes): Table
+    /** @param string[] $classes */
+    public function setClasses(array $classes): static
     {
         $this->classes = $classes;
         return $this;
     }
 
+    /** @return array<string, string> */
     public function getStyles(): array
     {
         return $this->styles;
     }
 
-    public function addStyle(string $property, string $value): Table
+    public function addStyle(string $property, string $value): static
     {
         $this->styles[$property] = $value;
         return $this;
     }
 
-    public function setStyles(array $styles): Table
+    public function setStyles(array $styles): static
     {
         $this->styles = $styles;
         return $this;
     }
 
-    public function addParam(string $property, string $value): Table
+    public function addParam(string $property, string $value): static
     {
         $this->params[$property] = $value;
         return $this;
     }
 
+    /** @return array<string, string> */
     public function getParams(): array
     {
         return $this->params;
     }
 
-    public function setParams(array $params): Table
+    public function setParams(array $params): static
     {
         $this->params = $params;
         return $this;
@@ -153,13 +162,16 @@ class Table implements ComponentInterface
         return $this->thead;
     }
 
-    public function setThead(Tr $thead): Table
+    public function setThead(Tr $thead): static
     {
         $this->thead = $thead;
         return $this;
     }
 
-    /** All header rows: the legacy single row (when it has cells) followed by any added with addTheadRow(). */
+    /**
+     * All header rows: the legacy single row (when it has cells) followed by any added with addTheadRow().
+     * @return Tr[]
+     */
     public function getTheadRows(): array
     {
         $rows = [];
@@ -170,13 +182,13 @@ class Table implements ComponentInterface
     }
 
     /** @param Tr[] $rows replaces the extra header rows (the legacy setThead() row is kept) */
-    public function setTheadRows(array $rows): Table
+    public function setTheadRows(array $rows): static
     {
         $this->theadRows = array_values($rows);
         return $this;
     }
 
-    public function addTheadRow(Tr $row): Table
+    public function addTheadRow(Tr $row): static
     {
         $this->theadRows[] = $row;
         return $this;
@@ -189,7 +201,7 @@ class Table implements ComponentInterface
     }
 
     /** @param Tr[] $tbody */
-    public function setTbodyRows(array $tbody): Table
+    public function setTbodyRows(array $tbody): static
     {
         $i = 0;
         foreach ($tbody as $tr) {
@@ -199,7 +211,7 @@ class Table implements ComponentInterface
         return $this;
     }
 
-    public function addTr(Tr $tr): Table
+    public function addTr(Tr $tr): static
     {
         $tr->setRowIndex(count($this->tbody));
         $this->tbody[] = $tr;
@@ -211,7 +223,7 @@ class Table implements ComponentInterface
         return $this->tfoot;
     }
 
-    public function setTfoot(Tr $tfoot): Table
+    public function setTfoot(Tr $tfoot): static
     {
         $this->tfoot = $tfoot;
         return $this;
@@ -222,7 +234,7 @@ class Table implements ComponentInterface
         return $this->caption;
     }
 
-    public function setCaption(string $caption): Table
+    public function setCaption(string $caption): static
     {
         $this->caption = $caption;
         return $this;
@@ -234,7 +246,7 @@ class Table implements ComponentInterface
     }
 
     /** A null or empty id gets a generated one, so row and cell ids are always unique. */
-    public function setId(?string $id): Table
+    public function setId(?string $id): static
     {
         if ($id === null || trim($id) === '') {
             $id = 'tbl_' . substr(md5(uniqid('', true)), 0, 8);
@@ -250,6 +262,7 @@ class Table implements ComponentInterface
         return str_replace('\\', '-', static::class);
     }
 
+    /** @param Tr[] $rows */
     private function drawSection(string $tag, string $section, array $rows): string
     {
         if (count($rows) === 0) {
@@ -359,7 +372,7 @@ class Table implements ComponentInterface
         return $this->prettyPrint;
     }
 
-    public function setPrettyPrint(bool $prettyPrint): Table
+    public function setPrettyPrint(bool $prettyPrint): static
     {
         $this->prettyPrint = $prettyPrint;
         return $this;

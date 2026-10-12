@@ -15,20 +15,20 @@ class Tr
     public const SECTION_HEAD = 'head';
     public const SECTION_FOOT = 'foot';
 
-    private $cells = [];
-    private $classes = [];
-    private $styles = [];
-    private $params = [];
-    private $table = null;
-    private $rowIndex = 0;
-    private $prettyPrint = false;
-    private $section = self::SECTION_BODY;
+    /** @var Cell[] */
+    private array $cells = [];
+    /** @var string[] */
+    private array $classes = [];
+    /** @var array<string, string> property => value */
+    private array $styles = [];
+    /** @var array<string, string> attribute => value */
+    private array $params = [];
+    private ?Table $table = null;
+    private int $rowIndex = 0;
+    private bool $prettyPrint = false;
+    private string $section = self::SECTION_BODY;
 
-    public function __construct()
-    {
-    }
-
-    public function addCell(Cell $cell): Tr
+    public function addCell(Cell $cell): static
     {
         $cell->setRowIndex($this->getRowIndex())
             ->setColumnIndex(count($this->cells));
@@ -38,9 +38,9 @@ class Tr
 
     /**
      * Add several plain-text cells at once (escaped). Use $header = true for <th>.
-     * @param array $values
+     * @param array<int|string, scalar|null> $values
      */
-    public function addCells(array $values, bool $header = false): Tr
+    public function addCells(array $values, bool $header = false): static
     {
         foreach ($values as $value) {
             $cell = $header ? new Th('') : new Td('');
@@ -66,7 +66,7 @@ class Tr
     }
 
     /** @param Cell[] $cells */
-    public function setCells(array $cells): Tr
+    public function setCells(array $cells): static
     {
         $i = 0;
         foreach ($cells as $cell) {
@@ -78,52 +78,56 @@ class Tr
         return $this;
     }
 
+    /** @return string[] */
     public function getClasses(): array
     {
         return $this->classes;
     }
 
-    public function addClass(string $class): Tr
+    public function addClass(string $class): static
     {
         $this->classes[] = $class;
         return $this;
     }
 
-    public function setClasses(array $classes): Tr
+    /** @param string[] $classes */
+    public function setClasses(array $classes): static
     {
         $this->classes = $classes;
         return $this;
     }
 
+    /** @return array<string, string> */
     public function getStyles(): array
     {
         return $this->styles;
     }
 
-    public function addStyle(string $property, string $value): Tr
+    public function addStyle(string $property, string $value): static
     {
         $this->styles[$property] = $value;
         return $this;
     }
 
-    public function setStyles(array $styles): Tr
+    public function setStyles(array $styles): static
     {
         $this->styles = $styles;
         return $this;
     }
 
-    public function addParam(string $property, string $value): Tr
+    public function addParam(string $property, string $value): static
     {
         $this->params[$property] = $value;
         return $this;
     }
 
+    /** @return array<string, string> */
     public function getParams(): array
     {
         return $this->params;
     }
 
-    public function setParams(array $params): Tr
+    public function setParams(array $params): static
     {
         $this->params = $params;
         return $this;
@@ -134,7 +138,7 @@ class Tr
         return $this->rowIndex;
     }
 
-    public function setRowIndex(int $rowIndex): Tr
+    public function setRowIndex(int $rowIndex): static
     {
         $this->rowIndex = $rowIndex;
         foreach ($this->cells as $cell) {
@@ -149,7 +153,7 @@ class Tr
     }
 
     /** body (default), head or foot; set by Table::draw() */
-    public function setSection(string $section): Tr
+    public function setSection(string $section): static
     {
         $this->section = in_array($section, [self::SECTION_BODY, self::SECTION_HEAD, self::SECTION_FOOT], true) ? $section : self::SECTION_BODY;
         return $this;
@@ -216,7 +220,7 @@ class Tr
         return count($this->cells);
     }
 
-    public function setTable(Table $table): Tr
+    public function setTable(Table $table): static
     {
         $this->table = $table;
         return $this;
@@ -232,7 +236,7 @@ class Tr
         return $this->prettyPrint;
     }
 
-    public function setPrettyPrint(bool $prettyPrint): Tr
+    public function setPrettyPrint(bool $prettyPrint): static
     {
         $this->prettyPrint = $prettyPrint;
         return $this;

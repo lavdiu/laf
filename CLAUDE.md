@@ -111,6 +111,11 @@ Base/Base[TableName].php (auto-generated from schema)
 Hierarchical component-based rendering:
 - **Form**: Auto-generates forms from BaseObject fields, processes submissions via `processForm()`
 - **Grid Components**: SimpleTable, PhpGrid for data tables with pagination
+- **HTML table** (`src/Laf/UI/Table/`): `Table` is a ComponentInterface (`Table::fromArray($rows, $headers)`,
+  `addRow($values)` escaped, `bootstrap()`, `setResponsive()`, `setCaption()`, `addTheadRow()`, `getTfoot()`), rows are
+  `Tr` (`addCells($values, $header)`), cells `Td` / `Th` (`Cell`): `setText()` is escaped, the constructor and
+  `setData()` are raw HTML, `alignRight()` etc.; ids `tbl_{row}_{col}` come from the table id. Typed since 2026-10-12,
+  fluent setters return `static`.
 - **Containers** (`src/Laf/UI/Container/`): `GenericContainer` (= `Div`) draws its children in order, hands its draw
   mode only to children without one, pushes the row display mode down, renders its attribute bag (`setAttribute('id', …)`,
   `data-*`) and `setTag('section')`; `Row` / `Column` (Bootstrap grid), `Card` + `CardHeader/Body/Footer`, `Fieldset($legend)`,
