@@ -3,18 +3,18 @@
 namespace Laf\UI\Container;
 
 use Laf\UI\ComponentInterface;
-use mysql_xdevapi\Exception;
 
+/**
+ * Raw HTML as a component: draw() returns the content as given (not escaped),
+ * so pages can mix hand-written markup with components. It holds no children.
+ */
 class HtmlContainer extends GenericContainer implements ComponentInterface
 {
+    protected string $content = '';
 
-    /**
-     * @var string
-     */
-    protected $content = "";
-
-    public function __construct(string $content)
+    public function __construct(string $content = '')
     {
+        parent::__construct();
         $this->content = $content;
     }
 
@@ -23,27 +23,28 @@ class HtmlContainer extends GenericContainer implements ComponentInterface
         return $this->getContent();
     }
 
-    /**
-     * @return string
-     */
     public function getContent(): string
     {
         return $this->content;
     }
 
-    /**
-     * @param string $content
-     * @return HtmlContainer
-     */
-    public function setContent(string $content): HtmlContainer
+    public function setContent(string $content): static
     {
         $this->content = $content;
         return $this;
     }
 
     /**
+     * Appends raw HTML to the content
+     */
+    public function addContent(string $content): static
+    {
+        $this->content .= $content;
+        return $this;
+    }
+
+    /**
      * Returns the CSS class unique to the UI component
-     * @return string
      */
     public function getComponentCssControlClass(): string
     {
@@ -51,11 +52,11 @@ class HtmlContainer extends GenericContainer implements ComponentInterface
     }
 
     /**
-     * @param ComponentInterface $component
-     * @return ComponentInterface
+     * An HtmlContainer holds no components
+     * @throws \LogicException always
      */
     public function addComponent(ComponentInterface $component): ComponentInterface
     {
-        throw new Exception("HtmlContainer cannot accept other components. Use addContent() to add raw HTML content");
+        throw new \LogicException('HtmlContainer cannot hold other components; use setContent()/addContent() for raw HTML');
     }
 }

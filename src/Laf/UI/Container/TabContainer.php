@@ -1,76 +1,72 @@
 <?php
 
-
 namespace Laf\UI\Container;
-
 
 use Laf\UI\ComponentInterface;
 use Laf\Util\Util;
 
+/**
+ * Bootstrap tabs: the nav ("{id}_tab_links") with one link per TabItem child and
+ * the panes ("{id}_tab_content"). The first tab is active unless one was set
+ * active explicitly. Optional Previous / Next buttons (plain JavaScript).
+ * Children that are not TabItems are not drawn.
+ */
 class TabContainer extends GenericContainer implements ComponentInterface
 {
-    /**
-     * @var string
-     */
-    protected $id = "";
+    protected string $id = '';
+
+    protected bool $showNavButtons = false;
 
     /**
-     * @var bool
+     * @param string|null $id DOM id base; empty = generated ("tabs-" + uuid)
      */
-    protected $showNavButtons = false;
-
-
-    public function __construct(?string $id = "", bool $showNavButtons = false)
+    public function __construct(?string $id = '', bool $showNavButtons = false)
     {
-        $this->id = $id;
-        if (strlen($this->id) < 1) {
-            $this->id = Util::uuid();
-        }
+        parent::__construct();
+        $this->setId($id ?? '');
         $this->showNavButtons = $showNavButtons;
     }
 
     public function draw(): ?string
     {
         $this->addCssClass(static::getComponentCssControlClass());
+        $id = Util::e($this->getId());
+        $tabs = $this->getTabs();
 
-        $html = "<div
-			style='{$this->getCssStyleForHtml()}' 
-			class='{$this->getCssClassesForHtml()}'
-		>";
-
-        /**
-         * Drawing the tab buttons
-         */
-        $html .= "\n\t\t<ul class='nav nav-tabs' id='{$this->getId()}_tab_links' role='tablist'>";
-        foreach ($this->getComponents() as $key => $component) {
-            if ($component->getDrawMode() == '' && $this->getDrawMode() != '') {
+        foreach ($this->getComponents() as $component) {
+            if ((string)$component->getDrawMode() === '' && (string)$this->getDrawMode() !== '') {
                 $component->setDrawMode($this->getDrawMode());
             }
-            $component->setFormRowDisplayMode($this->getFormRowDisplayMode());
-            if (!($component instanceof TabItem)) {
-                continue;
-            }
-            /**
-             * Setting the first tab as active
-             */
-            if ($key === array_key_first($this->getComponents())) {
-                $component->setActive(true);
-            }
+            $component->setFormRowDisplayMode((string)$this->getFormRowDisplayMode());
+        }
 
-            $html .= $component->drawTitle();
+        /**
+         * one tab is active: the one set active, else the first
+         */
+        $active = false;
+        foreach ($tabs as $tab) {
+            if ($tab->isActive()) {
+                if ($active) {
+                    $tab->setActive(false);
+                }
+                $active = true;
+            }
+        }
+        if (!$active && $tabs !== []) {
+            $tabs[0]->setActive(true);
+        }
+
+        $html = "<div style='" . Util::e($this->getCssStyleForHtml()) . "' class='" . Util::e($this->getCssClassesForHtml()) . "'" . $this->drawAttributes() . ">";
+
+        $html .= "\n\t\t<ul class='nav nav-tabs' id='{$id}_tab_links' role='tablist'>";
+        foreach ($tabs as $tab) {
+            $html .= $tab->drawTitle();
         }
         $html .= "\n\t\t</ul>";
 
-
-        /**
-         * Draw content of the tab
-         */
-        $html .= "\n\t\t<div class='tab-content' id='{$this->getId()}_tab_content'>";
-        foreach ($this->getComponents() as $component) {
-            if (!($component instanceof TabItem)) {
-                continue;
-            }
-            $html .= "\n\t\t\t" . $component->draw();
+        $html .= "\n\t\t<div class='tab-content' id='{$id}_tab_content'>";
+        foreach ($tabs as $tab) {
+            $html .= "\n\t\t\t" . $tab->draw();
         }
         $html .= "\n\t\t</div>";
 
@@ -87,6 +83,32 @@ class TabContainer extends GenericContainer implements ComponentInterface
     }
 
     /**
+     * The TabItem children, in order
+     * @return TabItem[]
+     */
+    public function getTabs(): array
+    {
+        $tabs = [];
+        foreach ($this->getComponents() as $component) {
+            if ($component instanceof TabItem) {
+                $tabs[] = $component;
+            }
+        }
+        return $tabs;
+    }
+
+    /**
+     * Makes the tab with this title (or this position, 0-based) the active one
+     */
+    public function setActiveTab(int|string $tab): static
+    {
+        foreach ($this->getTabs() as $i => $item) {
+            $item->setActive(is_int($tab) ? $i === $tab : $item->getTitle() === $tab);
+        }
+        return $this;
+    }
+
+    /**
      * Plain-JavaScript click handler that activates the previous or next tab of the
      * container whose id is given ("{id}_tab_links" holds the tab links) and scrolls to the top.
      * @param string $direction 'previous' or 'next'
@@ -100,37 +122,26 @@ class TabContainer extends GenericContainer implements ComponentInterface
             . "if(t){t.click();window.scroll({top:0,left:0,behavior:'smooth'});}})();";
     }
 
-    /**
-     * @return string
-     */
     public function getId(): string
     {
         return $this->id;
     }
 
     /**
-     * @param string $id
-     * @return TabContainer
+     * @param string $id DOM id base; empty = generated
      */
-    public function setId(string $id): TabContainer
+    public function setId(string $id): static
     {
-        $this->id = $id;
+        $this->id = $id !== '' ? $id : 'tabs-' . Util::uuid();
         return $this;
     }
 
-    /**
-     * @return bool
-     */
     public function isShowNavButtons(): bool
     {
         return $this->showNavButtons;
     }
 
-    /**
-     * @param bool $showNavButtons
-     * @return TabContainer
-     */
-    public function setShowNavButtons(bool $showNavButtons): TabContainer
+    public function setShowNavButtons(bool $showNavButtons): static
     {
         $this->showNavButtons = $showNavButtons;
         return $this;
@@ -138,7 +149,6 @@ class TabContainer extends GenericContainer implements ComponentInterface
 
     /**
      * Returns the CSS class unique to the UI component
-     * @return string
      */
     public function getComponentCssControlClass(): string
     {

@@ -1,9 +1,11 @@
 <?php
 
-
 namespace Laf\UI\Container;
 
-
+/**
+ * Bootstrap container widths, used with ComponentInterface::setContainerType():
+ * the value is drawn as a css class of the container.
+ */
 class ContainerType
 {
     /**

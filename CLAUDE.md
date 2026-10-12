@@ -108,7 +108,13 @@ Base/Base[TableName].php (auto-generated from schema)
 Hierarchical component-based rendering:
 - **Form**: Auto-generates forms from BaseObject fields, processes submissions via `processForm()`
 - **Grid Components**: SimpleTable, PhpGrid for data tables with pagination
-- **Containers**: Div, TabContainer, GenericContainer for layout
+- **Containers** (`src/Laf/UI/Container/`): `GenericContainer` (= `Div`) draws its children in order, hands its draw
+  mode only to children without one, pushes the row display mode down, renders its attribute bag (`setAttribute('id', …)`,
+  `data-*`) and `setTag('section')`; `Row` / `Column` (Bootstrap grid), `Card` + `CardHeader/Body/Footer`, `Fieldset($legend)`,
+  `HtmlContainer($html)` (raw, `addContent()`, holds no children), `TabContainer($id)` + `TabItem($title, $icon)`
+  (`setActiveTab()`, `getTabs()`, Previous/Next buttons, ids `{id}_tab_links` / `{title}-tab`), `Modal($id)` (title raw HTML,
+  `setSize(Modal::SIZE_*)`, `setCentered()`, `setStaticBackdrop()`, `setIncludeForm()` + `addHiddenInput()` for a CSRF token,
+  `addFooterButton()`, `getModalOpenButton($label)`)
 - **Page Components** (`src/Laf/UI/Page/`): `Html` is the document (`setPageTitle()` escaped, `addHeaderComponent()`,
   `addScript($src, $attrs, $atBodyEnd)` / `addInlineScript()` / `addStylesheet()` / `addInlineStyle()` / `addMeta()` /
   `addLinkTag()` / `setFavicon()`, `setLanguage()` else Settings `locale.language` else `en`, `setBodyAttributes()` /

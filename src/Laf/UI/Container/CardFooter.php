@@ -1,34 +1,22 @@
 <?php
 
-
 namespace Laf\UI\Container;
 
-
 use Laf\UI\ComponentInterface;
-use Laf\UI\Traits\ComponentTrait;
 
+/**
+ * The footer of a Card (<div class="card-footer">).
+ */
 class CardFooter extends Div implements ComponentInterface
 {
-    use ComponentTrait;
-
-    public function __construct(array $classes = [], array $style = [])
-    {
-        $this->setContainerType("");
-        parent::__construct($classes, $style);
-    }
-
-    /**
-     * @inheritDoc
-     */
     public function draw(): ?string
     {
         $this->addCssClass('card-footer');
         return parent::draw();
-
     }
 
     /**
-     * @return string
+     * Returns the CSS class unique to the UI component
      */
     public function getComponentCssControlClass(): string
     {
