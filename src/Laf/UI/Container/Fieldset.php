@@ -16,13 +16,14 @@ class Fieldset extends Div implements ComponentInterface
 
     /**
      * @param string $legend caption, escaped at output
-     * @param array $classes css classes
-     * @param array $style property => value
+     * @param string[] $classes css classes
+     * @param array<string, string|null> $style property => value
      */
     public function __construct(string $legend = '', array $classes = [], array $style = [])
     {
         parent::__construct($classes, $style);
         $this->legend = $legend;
+        $this->tag = 'fieldset';
     }
 
     public function getLegend(): string
@@ -30,7 +31,7 @@ class Fieldset extends Div implements ComponentInterface
         return $this->legend;
     }
 
-    public function setLegend(string $legend): Fieldset
+    public function setLegend(string $legend): static
     {
         $this->legend = $legend;
         return $this;
@@ -39,19 +40,15 @@ class Fieldset extends Div implements ComponentInterface
     public function draw(): ?string
     {
         $this->addCssClass(static::getComponentCssControlClass());
-        $this->addCssClass($this->getContainerType());
+        if ($this->getContainerType() !== '') {
+            $this->addCssClass($this->getContainerType());
+        }
 
-        $html = "\n\t<fieldset style='" . Util::e($this->getCssStyleForHtml()) . "' class='" . Util::e($this->getCssClassesForHtml()) . "'>";
+        $html = "\n\t<fieldset style='" . Util::e($this->getCssStyleForHtml()) . "' class='" . Util::e($this->getCssClassesForHtml()) . "'" . $this->drawAttributes() . ">";
         if ($this->legend !== '') {
             $html .= "\n\t\t<legend>" . Util::e($this->legend) . "</legend>";
         }
-        foreach ($this->getComponents() as $component) {
-            if ((string)$component->getDrawMode() === '') {
-                $component->setDrawMode($this->getDrawMode());
-            }
-            $component->setFormRowDisplayMode((string)$this->getFormRowDisplayMode());
-            $html .= "\n\t\t" . $component->draw();
-        }
+        $html .= $this->drawComponents();
         $html .= "\n\t</fieldset>";
         return $html;
     }
