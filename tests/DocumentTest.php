@@ -64,9 +64,25 @@ class DocumentTest extends TestCase
         $this->assertNull(Document::upload('doc', ['name' => 'a.png', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0]));
         $this->assertNull(Document::upload('doc', ['name' => 'a.png', 'tmp_name' => $this->pngFile(), 'error' => UPLOAD_ERR_PARTIAL, 'size' => 10]));
         $this->assertNull(Document::upload('doc', ['name' => 'a.txt', 'tmp_name' => $this->textFile(''), 'error' => UPLOAD_ERR_OK, 'size' => 0]), 'empty file');
-        $this->assertNull(Document::upload('doc', ['name' => ['a.png'], 'tmp_name' => [$this->pngFile()], 'error' => [0], 'size' => [10]]), 'multi-file arrays are not handled');
+        $this->assertNull(Document::upload('doc', ['name' => ['a.png'], 'tmp_name' => [$this->pngFile()], 'error' => [0], 'size' => [10]]), 'multi-file arrays belong to uploadMany()');
         $_FILES['doc'] = ['name' => 'a.png', 'tmp_name' => $this->dir . '/does-not-exist', 'error' => UPLOAD_ERR_OK, 'size' => 10];
         $this->assertNull(Document::upload('doc'));
+        $this->assertSame([], glob($this->dir . '/*_full.*') ?: [], 'nothing stored');
+    }
+
+    /** @test */
+    public function upload_many_skips_unusable_slots_and_accepts_a_single_file_entry(): void
+    {
+        $this->assertSame([], Document::uploadMany('missing'));
+        $this->assertSame([], Document::uploadMany('doc', ['name' => 'a.png', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0]), 'single-file entry, nothing posted');
+        $_FILES['doc'] = [
+            'name' => ['a.png', 'b.txt', 'c.png'],
+            'type' => ['image/png', 'text/plain', 'image/png'],
+            'tmp_name' => ['', $this->textFile(), $this->dir . '/does-not-exist'],
+            'error' => [UPLOAD_ERR_NO_FILE, UPLOAD_ERR_OK, UPLOAD_ERR_OK],
+            'size' => [0, 6, 10],
+        ];
+        $this->assertSame([], Document::uploadMany('doc'), 'no file, a refused type, a missing file');
         $this->assertSame([], glob($this->dir . '/*_full.*') ?: [], 'nothing stored');
     }
 

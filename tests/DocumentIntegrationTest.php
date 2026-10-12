@@ -162,6 +162,26 @@ class DocumentIntegrationTest extends TestCase
     }
 
     /** @test */
+    public function upload_many_stores_each_usable_file_of_a_multi_file_field(): void
+    {
+        $first = $this->dir . '/first.txt';
+        $second = $this->dir . '/second.txt';
+        file_put_contents($first, 'first');
+        file_put_contents($second, 'second');
+        $ids = Document::uploadMany('files', [
+            'name' => ['First.txt', 'empty.txt', 'Second.txt'],
+            'type' => ['text/plain', 'text/plain', 'text/plain'],
+            'tmp_name' => [$first, '', $second],
+            'error' => [UPLOAD_ERR_OK, UPLOAD_ERR_NO_FILE, UPLOAD_ERR_OK],
+            'size' => [5, 0, 6],
+        ]);
+        $this->assertCount(2, $ids);
+        $this->assertSame('First.txt', (new Document($ids[0]))->getModel()->getFieldValue('file_name_original'));
+        $this->assertSame('Second.txt', (new Document($ids[1]))->getModel()->getFieldValue('file_name_original'));
+        $this->assertSame('second', file_get_contents((new Document($ids[1]))->getFullPathFullSize()));
+    }
+
+    /** @test */
     public function a_failed_store_leaves_no_files_behind(): void
     {
         $source = $this->dir . '/report.txt';

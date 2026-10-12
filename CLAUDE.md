@@ -36,7 +36,8 @@ Both write their caches to `var/` (ignored).
 
 ### Code Generation
 ```bash
-# Generate model classes from database schema
+# Generate model classes from database schema: copy sample_files/class_generator.php into the application
+# (asm and routerarena keep it as app/util/generate_classes.php) and run it
 php app/util/generate_classes.php
 
 # This creates/updates:
@@ -179,8 +180,9 @@ URL-encoded. `UrlParser::reset()` re-reads the request (tests, CLI).
 `Laf\Filesystem\Document` wraps the application's `<package>\Document` model (columns `file_name`, `file_name_original`,
 `file_extension`, `thumbnail_name`, `file_size`, `mime_type`, optional `encrypt_key`; `Document::setModelClass()`
 overrides the class). `Document::upload('field')` stores the file posted in a form field (or a `$_FILES`-shaped array
-given as second argument) and returns the new id, or null when nothing usable was posted; `Document::storeFile($path,
-$originalName)` stores a file that is already on disk. The MIME type is read from the file (`finfo`), never from the
+given as second argument) and returns the new id, or null when nothing usable was posted;
+`Document::uploadMany('field')` takes a multi-file input (`name="field[]" multiple`) and returns the ids stored, in
+posted order; `Document::storeFile($path, $originalName)` stores a file that is already on disk. The MIME type is read from the file (`finfo`), never from the
 request, and checked against `upload.allowed_mime_types` (exact types or `image/*`); images are resized to
 `upload.max_image_size` (1200) with a `upload.thumbnail_size` (300) thumbnail, other files are stored unchanged.
 Storage failures throw `RuntimeException` (files written so far are removed). `new Document($id)` gives
@@ -388,12 +390,10 @@ examples/             # Usage examples
 
 ## Example Application
 
-See `1-example/` directory for a complete ERP application demonstrating:
-- Full application bootstrap in `public/index.php`
-- Code generation script in `app/util/generate_classes.php`
-- Generated models with customizations
-- CRUD pages with complex business logic
-- Multi-module structure
+No example application is checked in. `sample_files/` holds the bootstrap pieces (`config.php`, `database.php`,
+`constants.php`, `functions.php`, `class_generator.php`, `test.php`, `grid-callback-examples.md`),
+`examples/audit_logging_example.php` walks through the audit log, and `sample_project/` (gitignored) is a copy of
+the production ASM ERP built on LAF, kept for reference only.
 
 ## Field Types and Validation
 
@@ -423,7 +423,9 @@ Each type provides:
 - `tests/bootstrap.php` configures Settings from the `LAF_DB_*` environment variables; integration tests skip
   themselves when no connection can be made, and create their own tables (`dummy_table`, `code_table`, `link_table`,
   `status_table`, `audit_log`, `document`)
-- `tests/Fixtures/LafShell/` holds hand-kept models in the generated shape (`DummyTable`, `CodeTable`, `LinkTable`,
-  `Document`) so the unit suite can exercise BaseObject, forms and Document without a database
+- `tests/Fixtures/LafShell/` holds the models the unit suite uses without a database (`DummyTable`, `CodeTable`,
+  `LinkTable`, `Document`): the `Base/` classes are `ClassGenerator` output (`tests/Fixtures/regenerate.php` writes
+  them to `tests/Fixtures/generated/<engine>/` from the integration tables; copy them over after a generator change),
+  the leaf classes are hand-kept
 - CI (`.github/workflows/ci.yml`): unit suite on PHP 8.1–8.5, PHPStan, integration suite on MariaDB and PostgreSQL
   (PHP 8.1 and 8.5); `Dockerfile` is `php:8.5-cli`

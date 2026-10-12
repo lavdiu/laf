@@ -14,39 +14,54 @@ use Laf\Exception\InvalidForeignKeyValue;
 
 /**
  * Class BaseLinkTable
- * Base Class for Table link_table — composite primary key (left_id, code) with an
- * integer FK to dummy_table.id and a VARCHAR FK to code_table.code.
- * Hand-maintained to match ClassGenerator output; see tests/Fixtures/regenerate.php.
+ * @package LafShell\Base
+ * Base Class for Table link_table
+ * Basic definition of the fields and relationship with the Database Table link_table
+ * This class will be auto-generated every time there is a schema change
+ * Please do not add code here. Instead add your code at the main class one directory above
  */
 class BaseLinkTable extends Database\BaseObject
 {
+	/**
+	 * BaseLinkTable constructor: binds the table and loads the row when a key is given
+	 * @param int|string|array|null $id primary key value (name => value for a composite key)
+	 */
 	public function __construct($id = null)
 	{
 		parent::__construct($id);
 		$this->buildClass();
-		$this->setRecordId($id);
-		if ($id != '') {
+		if ($id !== null && $id !== '') {
 			self::select($id);
 		}
 	}
 
-	public function select($id): bool
+	/**
+	 * Select the record by primary key
+	 * @param int|string|array $id
+	 * @return bool
+	 * @throws \Exception
+	 */
+	public function select($id) : bool
 	{
 		$this->setRecordId($id);
 		return parent::select($id);
 	}
 
+	/**
+	 * Build the class properties and link it to the db table
+	 */
 	private function buildClass()
 	{
-		$this->setTable(new Table('link_table'));
-
+		$this->setTable(new Table("link_table"));
+		/**
+		 * Generate field data
+		 */
 		$pk = new PrimaryKey();
 		$field = (new Field())
 			->setName("left_id")
 			->setLabel("Left")
-			->setPlaceHolder("Left")
+			->setPlaceholder("Left")
 			->setRequired(true)
-			->setMaxLength(255)
 			->setAutoIncrement(false)
 			->setUnique(false)
 			->setType(new Database\Field\TypeInteger('int'));
@@ -57,7 +72,7 @@ class BaseLinkTable extends Database\BaseObject
 		$field = (new Field())
 			->setName("code")
 			->setLabel("Code")
-			->setPlaceHolder("Code")
+			->setPlaceholder("Code")
 			->setRequired(true)
 			->setMaxLength(40)
 			->setAutoIncrement(false)
@@ -70,9 +85,8 @@ class BaseLinkTable extends Database\BaseObject
 		$field = (new Field())
 			->setName("note")
 			->setLabel("Note")
-			->setPlaceHolder("Note")
+			->setPlaceholder("Note")
 			->setRequired(false)
-			->setMaxLength(65535)
 			->setAutoIncrement(false)
 			->setUnique(false)
 			->setType(new Database\Field\TypeText());
@@ -81,6 +95,9 @@ class BaseLinkTable extends Database\BaseObject
 
 		$this->getTable()->setPrimaryKey($pk);
 
+		/**
+		 * Generating Foreign keys
+		 */
 		$this->getTable()->addForeignKey(
 			(new ForeignKey())
 				->setField($this->getTable()->getField("left_id"))
@@ -89,6 +106,7 @@ class BaseLinkTable extends Database\BaseObject
 				->setReferencingField("id")
 				->setOnDelete('CASCADE')
 		);
+
 		$this->getTable()->addForeignKey(
 			(new ForeignKey())
 				->setField($this->getTable()->getField("code"))
@@ -96,27 +114,160 @@ class BaseLinkTable extends Database\BaseObject
 				->setReferencingTable("code_table")
 				->setReferencingField("code")
 		);
+
 	}
 
-	public function setLeftIdVal($value = null) { $this->setFieldValue("left_id", $value); return static::returnLeafClass(); }
-	public function getLeftIdVal() { return $this->getFieldValue("left_id"); }
+	/**
+	 * Set Left value
+	 * @param mixed $value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function setLeftIdVal($value = null)
+	{
+		$this->setFieldValue("left_id", $value);
+		return static::returnLeafClass();
+	}
+
+	/**
+	 * Get Left value
+	 * @return mixed
+	 */
+	public function getLeftIdVal()
+	{
+		return $this->getFieldValue("left_id");
+	}
+
+	/**
+	 * Get Left field reference
+	 * @return Field
+	 */
+	public function getLeftIdFld()
+	{
+		return $this->getField("left_id");
+	}
+
+	/**
+	 * Get Left form element reference
+	 * @param FormElementInterface|null $formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function getLeftIdFormElement(?FormElementInterface $formElementOverride = null) : ComponentInterface
+	{
+		return $this->getField("left_id")->getFormElement($formElementOverride);
+	}
+
+	/**
+	 * Get DummyTable Object (empty when the key is not set)
+	 * @return \LafShell\DummyTable
+	 */
 	public function getLeftIdObj()
 	{
-		if (is_numeric($this->getLeftIdVal())) {
-			return new \LafShell\DummyTable($this->getLeftIdVal());
-		} else {
-			return new \LafShell\DummyTable();
+		$value = $this->getLeftIdVal();
+		if ($value !== null && $value !== '') {
+			return new \LafShell\DummyTable($value);
 		}
+		return new \LafShell\DummyTable();
 	}
-	public function setCodeVal($value = null) { $this->setFieldValue("code", $value); return static::returnLeafClass(); }
-	public function getCodeVal() { return $this->getFieldValue("code"); }
+
+	/**
+	 * Set Code value
+	 * @param mixed $value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function setCodeVal($value = null)
+	{
+		$this->setFieldValue("code", $value);
+		return static::returnLeafClass();
+	}
+
+	/**
+	 * Get Code value
+	 * @return mixed
+	 */
+	public function getCodeVal()
+	{
+		return $this->getFieldValue("code");
+	}
+
+	/**
+	 * Get Code field reference
+	 * @return Field
+	 */
+	public function getCodeFld()
+	{
+		return $this->getField("code");
+	}
+
+	/**
+	 * Get Code form element reference
+	 * @param FormElementInterface|null $formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function getCodeFormElement(?FormElementInterface $formElementOverride = null) : ComponentInterface
+	{
+		return $this->getField("code")->getFormElement($formElementOverride);
+	}
+
+	/**
+	 * Get CodeTable Object (empty when the key is not set)
+	 * @return \LafShell\CodeTable
+	 */
 	public function getCodeObj()
 	{
-		return new \LafShell\CodeTable($this->getCodeVal());
+		$value = $this->getCodeVal();
+		if ($value !== null && $value !== '') {
+			return new \LafShell\CodeTable($value);
+		}
+		return new \LafShell\CodeTable();
 	}
-	public function setNoteVal($value = null) { $this->setFieldValue("note", $value); return static::returnLeafClass(); }
-	public function getNoteVal() { return $this->getFieldValue("note"); }
 
+	/**
+	 * Set Note value
+	 * @param mixed $value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function setNoteVal($value = null)
+	{
+		$this->setFieldValue("note", $value);
+		return static::returnLeafClass();
+	}
+
+	/**
+	 * Get Note value
+	 * @return mixed
+	 */
+	public function getNoteVal()
+	{
+		return $this->getFieldValue("note");
+	}
+
+	/**
+	 * Get Note field reference
+	 * @return Field
+	 */
+	public function getNoteFld()
+	{
+		return $this->getField("note");
+	}
+
+	/**
+	 * Get Note form element reference
+	 * @param FormElementInterface|null $formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function getNoteFormElement(?FormElementInterface $formElementOverride = null) : ComponentInterface
+	{
+		return $this->getField("note")->getFormElement($formElementOverride);
+	}
+
+	/**
+	 * Get all rows as associative array
+	 * @return string[]
+	 * @throws \Exception
+	 */
 	public function listAllArray(): array
 	{
 		$query = static::query();
@@ -126,6 +277,13 @@ class BaseLinkTable extends Database\BaseObject
 		return $query->arrays();
 	}
 
+	/**
+	 * Gets all rows and instantiates the object for all
+	 * Then returns an array of all objects
+	 * One SELECT, hydrated without a query per row; still every row of the table
+	 * @return LinkTable[]
+	 * @throws \Exception
+	 */
 	public function listAllObjects(): array
 	{
 		$query = static::query();
@@ -135,12 +293,16 @@ class BaseLinkTable extends Database\BaseObject
 		return $query->get();
 	}
 
-	public function getAllFieldsAsFormElements(): array
-	{
+	/**
+	* Return all fields as form elements
+	* @return FormElementInterface[]
+	*/
+	public function getAllFieldsAsFormElements() : array{
 		$tmp = [];
-		foreach ($this->getTable()->getFields() as $field) {
+		foreach($this->getTable()->getFields() as $field){
 			$tmp[] = $field->getFormElement();
 		}
 		return $tmp;
 	}
+
 }

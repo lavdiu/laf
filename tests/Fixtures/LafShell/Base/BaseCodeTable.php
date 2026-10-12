@@ -14,36 +14,53 @@ use Laf\Exception\InvalidForeignKeyValue;
 
 /**
  * Class BaseCodeTable
- * Base Class for Table code_table — a VARCHAR primary key that is not auto-increment.
- * Hand-maintained to match ClassGenerator output; see tests/Fixtures/regenerate.php.
+ * @package LafShell\Base
+ * Base Class for Table code_table
+ * Basic definition of the fields and relationship with the Database Table code_table
+ * This class will be auto-generated every time there is a schema change
+ * Please do not add code here. Instead add your code at the main class one directory above
  */
 class BaseCodeTable extends Database\BaseObject
 {
+	/**
+	 * BaseCodeTable constructor: binds the table and loads the row when a key is given
+	 * @param int|string|array|null $id primary key value (name => value for a composite key)
+	 */
 	public function __construct($id = null)
 	{
 		parent::__construct($id);
 		$this->buildClass();
-		$this->setRecordId($id);
-		if ($id != '') {
+		if ($id !== null && $id !== '') {
 			self::select($id);
 		}
 	}
 
-	public function select($id): bool
+	/**
+	 * Select the record by primary key
+	 * @param int|string|array $id
+	 * @return bool
+	 * @throws \Exception
+	 */
+	public function select($id) : bool
 	{
 		$this->setRecordId($id);
 		return parent::select($id);
 	}
 
+	/**
+	 * Build the class properties and link it to the db table
+	 */
 	private function buildClass()
 	{
-		$this->setTable(new Table('code_table'));
-
+		$this->setTable(new Table("code_table"));
+		/**
+		 * Generate field data
+		 */
 		$pk = new PrimaryKey();
 		$field = (new Field())
 			->setName("code")
 			->setLabel("Code")
-			->setPlaceHolder("Code")
+			->setPlaceholder("Code")
 			->setRequired(true)
 			->setMaxLength(40)
 			->setAutoIncrement(false)
@@ -56,7 +73,7 @@ class BaseCodeTable extends Database\BaseObject
 		$field = (new Field())
 			->setName("name")
 			->setLabel("Name")
-			->setPlaceHolder("Name")
+			->setPlaceholder("Name")
 			->setRequired(false)
 			->setMaxLength(50)
 			->setAutoIncrement(false)
@@ -66,13 +83,97 @@ class BaseCodeTable extends Database\BaseObject
 		$field = null;
 
 		$this->getTable()->setPrimaryKey($pk);
+
+		/**
+		 * Generating Foreign keys
+		 */
 	}
 
-	public function setCodeVal($value = null) { $this->setFieldValue("code", $value); return static::returnLeafClass(); }
-	public function getCodeVal() { return $this->getFieldValue("code"); }
-	public function setNameVal($value = null) { $this->setFieldValue("name", $value); return static::returnLeafClass(); }
-	public function getNameVal() { return $this->getFieldValue("name"); }
+	/**
+	 * Set Code value
+	 * @param mixed $value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function setCodeVal($value = null)
+	{
+		$this->setFieldValue("code", $value);
+		return static::returnLeafClass();
+	}
 
+	/**
+	 * Get Code value
+	 * @return mixed
+	 */
+	public function getCodeVal()
+	{
+		return $this->getFieldValue("code");
+	}
+
+	/**
+	 * Get Code field reference
+	 * @return Field
+	 */
+	public function getCodeFld()
+	{
+		return $this->getField("code");
+	}
+
+	/**
+	 * Get Code form element reference
+	 * @param FormElementInterface|null $formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function getCodeFormElement(?FormElementInterface $formElementOverride = null) : ComponentInterface
+	{
+		return $this->getField("code")->getFormElement($formElementOverride);
+	}
+
+	/**
+	 * Set Name value
+	 * @param mixed $value
+	 * @return static
+	 * @throws InvalidForeignKeyValue
+	 */
+	public function setNameVal($value = null)
+	{
+		$this->setFieldValue("name", $value);
+		return static::returnLeafClass();
+	}
+
+	/**
+	 * Get Name value
+	 * @return mixed
+	 */
+	public function getNameVal()
+	{
+		return $this->getFieldValue("name");
+	}
+
+	/**
+	 * Get Name field reference
+	 * @return Field
+	 */
+	public function getNameFld()
+	{
+		return $this->getField("name");
+	}
+
+	/**
+	 * Get Name form element reference
+	 * @param FormElementInterface|null $formElementOverride
+	 * @return ComponentInterface
+	 */
+	public function getNameFormElement(?FormElementInterface $formElementOverride = null) : ComponentInterface
+	{
+		return $this->getField("name")->getFormElement($formElementOverride);
+	}
+
+	/**
+	 * Get all rows as associative array
+	 * @return string[]
+	 * @throws \Exception
+	 */
 	public function listAllArray(): array
 	{
 		$query = static::query();
@@ -82,6 +183,13 @@ class BaseCodeTable extends Database\BaseObject
 		return $query->arrays();
 	}
 
+	/**
+	 * Gets all rows and instantiates the object for all
+	 * Then returns an array of all objects
+	 * One SELECT, hydrated without a query per row; still every row of the table
+	 * @return CodeTable[]
+	 * @throws \Exception
+	 */
 	public function listAllObjects(): array
 	{
 		$query = static::query();
@@ -91,12 +199,16 @@ class BaseCodeTable extends Database\BaseObject
 		return $query->get();
 	}
 
-	public function getAllFieldsAsFormElements(): array
-	{
+	/**
+	* Return all fields as form elements
+	* @return FormElementInterface[]
+	*/
+	public function getAllFieldsAsFormElements() : array{
 		$tmp = [];
-		foreach ($this->getTable()->getFields() as $field) {
+		foreach($this->getTable()->getFields() as $field){
 			$tmp[] = $field->getFormElement();
 		}
 		return $tmp;
 	}
+
 }

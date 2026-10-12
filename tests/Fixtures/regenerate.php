@@ -3,7 +3,7 @@
  * Regenerates the LafShell test fixtures from the real ClassGenerator so they
  * cannot drift from generator output. Not part of the test suites.
  *
- * Usage (needs a database with the three tables, which BaseObjectTest creates):
+ * Usage (needs a database with the tables, which BaseObjectTest and DocumentIntegrationTest create):
  *   LAF_DB_ENGINE=mysql    LAF_DB_NAME=laf_test LAF_DB_USER=root     LAF_DB_PASS=         php tests/Fixtures/regenerate.php
  *   LAF_DB_ENGINE=postgres LAF_DB_NAME=laf_test LAF_DB_USER=postgres LAF_DB_PASS=postgres php tests/Fixtures/regenerate.php
  *
@@ -14,6 +14,7 @@
  */
 require_once __DIR__ . '/../bootstrap.php';
 
+use Laf\Database\Db;
 use Laf\Database\Table;
 use Laf\Generator\ClassGenerator;
 use Laf\Util\Settings;
@@ -28,7 +29,11 @@ $config = [
 ];
 @mkdir($config['base_class_dir'], 0777, true);
 
-foreach (['dummy_table', 'code_table', 'link_table'] as $tableName) {
+foreach (['dummy_table', 'code_table', 'link_table', 'document'] as $tableName) {
+    if (!Db::getInstance()->tableExists($tableName)) {
+        echo "skipped {$tableName}: table not found\n";
+        continue;
+    }
     $generator = new ClassGenerator(new Table($tableName), $config);
     $generator->saveBaseClassToFile()->saveClassToFile();
     echo "generated {$tableName} -> {$generator->getBaseClassFilePath()}\n";
