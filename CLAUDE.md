@@ -193,11 +193,20 @@ $form->setDrawMode(DrawMode::UPDATE);
 $page->addComponent($form);
 ```
 Forms: every field element comes from `Field::getFormElement()` (`FormElementFactory::create()`); inputs render Bootstrap 5
-markup and never change their own state when drawn; `processForm()` = `detectSubmission()` + CSRF (one token per session
-and form, `CsrfTokenException`) + `applySubmittedValues()` + `validate()` (opt-out `setValidateOnSubmit(false)`); a
-checkbox posts a hidden `0` so unchecked is distinguishable from "not on the form"; `Select`/`Radio`/`CheckboxCollection`
-take `setOptions()` or the FK table; Date/DateTime/Time inputs show the locale format (`locale.*.format`) with a picker
-class, or native inputs with `setNativeInput(true)` / Settings `form.native_date_inputs`.
+markup and never change their own state when drawn; a field value change is mirrored into its element, so a form drawn
+after a submission shows what was submitted. A form reads only the request of its own method (POST by default, so a GET
+submission is ignored) or the arrays given to `setRequest($data, $files)`. `processForm()` = `detectSubmission()` + CSRF
+(one token per session and form, `CsrfTokenException`) + `applySubmittedValues()` + `validate()` (opt-out
+`setValidateOnSubmit(false)`) + insert/update; a write refused for a missing required or a duplicate unique value is also a
+`FormValidationException` (message on the field, `getPrevious()` = the original exception). The drawn form posts a signed
+list of its editable elements (`{form}_fields`): a boolean drawn disabled or read-only, or not drawn at all, is left alone
+when absent, and `setRestrictToRenderedFields(true)` / Settings `form.restrict_to_rendered_fields` ignores posted fields
+outside that list (mass-assignment guard; values from `setSubmittedFieldValue()` always apply). When the form has errors it
+draws an alert above the fields (`setShowErrorSummary(false)`, `drawErrorSummary()`) and `is-invalid` on the elements;
+`addError($field, $message)` adds an application message. A checkbox posts a hidden `0` so unchecked is distinguishable from
+"not on the form"; `Select`/`Radio`/`CheckboxCollection` take `setOptions()` or the FK table; Date/DateTime/Time inputs show
+the locale format (`locale.*.format`) with a picker class, or native inputs with `setNativeInput(true)` / Settings
+`form.native_date_inputs`.
 
 **Foreign Key Navigation**:
 Generated classes include methods to traverse relationships:

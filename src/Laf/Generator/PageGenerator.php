@@ -68,6 +68,7 @@ class PageGenerator
         $labels['record-saved'] = $this->labelTranslations['record-saved'] ?? 'Record saved successfully';
         $labels['record-deleted'] = $this->labelTranslations['record-deleted'] ?? 'Record deleted successfully';
         $labels['record-not-found'] = $this->labelTranslations['record-not-found'] ?? 'Record not found';
+        $labels['record-not-saved'] = $this->labelTranslations['record-not-saved'] ?? 'The record was not saved, please correct the fields marked below';
         return $labels;
     }
 
@@ -106,6 +107,7 @@ class PageGenerator
         $file = "<?php
 
 use {$namespace}\\{$className};
+use Laf\Exception\FormValidationException;
 use Laf\UI\Component\Alert;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
@@ -141,11 +143,16 @@ if (isset(\$_SESSION['flash_message'])) {
 }
 
 if (\$form->isSubmitted()) {
-{$this->buildRecordStatusDefault()}	\$id = \$form->processForm();
-	\$_SESSION['flash_message'] = '{$labels['record-saved']}';
-	\$_SESSION['flash_type'] = Alert::Type_Success;
-	UrlParser::redirectToViewPage(\$id);
-	exit;
+{$this->buildRecordStatusDefault()}	try {
+		\$id = \$form->processForm();
+		\$_SESSION['flash_message'] = '{$labels['record-saved']}';
+		\$_SESSION['flash_type'] = Alert::Type_Success;
+		UrlParser::redirectToViewPage(\$id);
+		exit;
+	} catch (FormValidationException \$ex) {
+		// the form is drawn again below with the submitted values and the messages
+		\$page->addComponent(new Alert('', '{$labels['record-not-saved']}', Alert::Type_Danger));
+	}
 }
 
 switch (UrlParser::getAction()) {

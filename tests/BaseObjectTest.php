@@ -1001,6 +1001,31 @@ class BaseObjectTest extends TestCase
 		$this->assertCount(1, DummyTable::find());
 	}
 
+	/** @test */
+	public function form_duplicate_unique_value_is_reported_on_the_field()
+	{
+		$this->object->getField('unique_field')->setValue('taken-by-form-test');
+		$this->object->store();
+
+		$form = (new DummyTable())->getForm();
+		$form->setCsrfProtection(false);
+		self::postForm(\Laf\UI\Form\DrawMode::INSERT, ['required_field' => 'req', 'unique_field' => 'taken-by-form-test']);
+		try {
+			$form->processForm();
+			$this->fail('expected FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$this->assertArrayHasKey('unique_field', $ex->getErrors());
+			$this->assertInstanceOf(\Laf\Exception\UniqueFieldDuplicateValueException::class, $ex->getPrevious());
+		}
+		$_POST = [];
+		$this->assertCount(1, DummyTable::find());
+		$form->setDrawMode(\Laf\UI\Form\DrawMode::INSERT);
+		$html = $form->draw();
+		$this->assertStringContainsString('is-invalid', $html);
+		$this->assertStringContainsString('laf-form-errors', $html);
+		$this->assertStringContainsString('>taken-by-form-test</textarea>', $html, 'the redrawn form keeps the submitted value');
+	}
+
 	// ── loading and state ──
 
 	/** @test */

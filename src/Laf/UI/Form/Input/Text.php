@@ -480,7 +480,7 @@ class Text implements FormElementInterface
     /**
      * A field value as the string an attribute can carry: bools as 1/0, arrays and objects as JSON.
      */
-    protected static function valueToString(mixed $value): ?string
+    public static function valueToString(mixed $value): ?string
     {
         if ($value === null) {
             return null;

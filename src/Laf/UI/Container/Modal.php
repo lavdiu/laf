@@ -123,6 +123,7 @@ class Modal implements ComponentInterface
     public function setFooterButtons(array $buttons = []): Modal
     {
         $this->footerButtons = $buttons;
+        return $this;
     }
 
     /**
