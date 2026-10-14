@@ -90,7 +90,7 @@ class BaseM2mGroup extends Database\BaseObject
 		/**
 		 * Many-to-many relations through linker tables
 		 */
-		$this->getTable()->addManyToMany("m2m_person_group", ['owner' => 'group_id', 'other' => 'person_id', 'table' => 'm2m_person', 'label' => 'M2m Persons']);
+		$this->belongsToMany("m2m_person")->through("m2m_person_group")->keys("group_id", "person_id")->label("M2m Persons");
 
 	}
 

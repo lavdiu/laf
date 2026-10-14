@@ -274,6 +274,69 @@ Search and sort tuning per column:
 | `setJsCallback('fnName')` | grid.js calls `fnName(value, row, column)` to render the cell, see [callbacks](#javascript-callbacks) |
 | `setFormat(Column::FORMAT_FLOAT)` | override the detected format |
 
+### Styling cells: inner and outer element
+
+grid.js builds every body cell as two elements: the **outer** element is the `<td>`, the **inner** element is the
+`<a>` (when the column has an href) or the `<span>` inside it that holds the value. Each one takes a CSS class, an
+inline style and extra attributes:
+
+| Getter / setter | Applies to | Notes |
+|---|---|---|
+| `getInnerElementCssClass()`, `setInnerElementCssClass(string)` | `<a>` / `<span>` | replaces the element's class |
+| `getInnerElementCssStyle()`, `setInnerElementCssStyle(string)` | `<a>` / `<span>` | a `style` string, e.g. `'font-family:monospace'` |
+| `getInnerElementAttributes()`, `setInnerElementAttributes(string\|array)` | `<a>` / `<span>` | a JSON object string or an array name => value; the getter returns the JSON string |
+| `getOuterElementCssClass()`, `setOuterElementCssClass(string)` | `<td>` | replaces the cell's class; numeric columns still get `text-end` |
+| `getOuterElementCssStyle()`, `setOuterElementCssStyle(string)` | `<td>` | e.g. a fixed width `'width:90px;'` |
+| `getOuterElementAttributes()`, `setOuterElementAttributes(string\|array)` | `<td>` | as for the inner element |
+
+The same six values are the last six positional constructor arguments (see [Columns](#columns)); each setter
+returns the column, so they chain. They style body cells only: the header (`<th>`) and the search row are not
+affected. A [cell callback](#javascript-callbacks) can override the four class/style values per row by returning
+an object (`innerElementCssClass`, `outerElementCssStyle`, ...); the attributes always come from the column.
+
+```php
+use Laf\UI\Grid\PhpGrid\Column;
+use Laf\UI\Grid\PhpGrid\PhpGrid;
+
+$grid = new PhpGrid('ch19_employees');
+$grid->setSqlQuery("SELECT e.id, e.first_name, e.email, e.salary FROM employee e WHERE e.last_name = 'Ch19'");
+$grid->setRowsPerPage(3);
+$grid->setSortDetails('id', 'ASC');
+
+$grid->addColumn((new Column('id', 'ID'))
+    ->setHref('?action=view&id={id}')
+    ->setInnerElementCssClass('btn btn-sm btn-outline-success')   // the link looks like a button
+    ->setOuterElementCssStyle('width:90px;'));                   // narrow cell
+
+$grid->addColumn((new Column('first_name', 'First name'))
+    ->setOuterElementCssClass('fw-semibold')
+    ->setOuterElementAttributes(['data-col' => 'first_name', 'title' => 'First name']));
+
+$grid->addColumn((new Column('email', 'E-mail'))
+    ->setInnerElementCssStyle('font-family:monospace')
+    ->setInnerElementAttributes('{"data-copy":"1","translate":"no"}'));   // JSON string works too
+
+$grid->addColumn((new Column('salary', 'Salary'))->setOuterElementCssClass('text-success'));
+
+echo $grid->getColumn('first_name')->getOuterElementAttributes();  // {"data-col":"first_name","title":"First name"}
+echo $grid->getColumn('email')->getInnerElementCssStyle();         // font-family:monospace
+```
+
+The first body row grid.js draws for this grid (taken from the browser):
+
+```html
+<tr id="ch19_employees_row_0">
+  <td class="text-end" style="width: 90px;"><a href="?action=view&amp;id=37" class="btn btn-sm btn-outline-success">37</a></td>
+  <td class="fw-semibold" data-col="first_name" title="First name"><span>Ada</span></td>
+  <td><span data-copy="1" translate="no" style="font-family: monospace;">ch19.ada@example.com</span></td>
+  <td class="text-success text-end"><span>4200.50</span></td>
+</tr>
+```
+
+> **Note:** grid.js sets attributes with `setAttribute()` and skips names that are not plain attribute names, so
+> the values cannot break out of the markup, but an `on*` attribute (`onclick`) is set like any other: keep
+> attribute values developer-defined, never built from row data or user input.
+
 ## Action buttons
 
 Action buttons form the per-row dropdown menu at the end of each row.
@@ -808,8 +871,8 @@ statement to show the error path, `?js=old` loads an older `grid.js` from `var/g
 | `getFieldName()`, `setFieldName()`, `getLabel()`, `setLabel()`, `getIndex()`, `setIndex()` | identity and order |
 | `getFormat()`, `setFormat()`, `isNumeric()` | `Column::FORMAT_INTEGER`, `FORMAT_FLOAT`, `FORMAT_BOOLEAN`, `FORMAT_DATE`, `FORMAT_TIME`, `FORMAT_DATETIME`, `FORMAT_STRING` |
 | `getHref()`, `setHref()`, `getTarget()`, `setTarget()` | link template and target (`''` = none) |
-| `get/setInnerElementCssStyle()`, `get/setInnerElementCssClass()`, `get/setOuterElementCssStyle()`, `get/setOuterElementCssClass()` | CSS of the content and the cell |
-| `get/setInnerElementAttributes()`, `get/setOuterElementAttributes()` | extra attributes: JSON object string or array |
+| `getInnerElementCssStyle()`, `setInnerElementCssStyle()`, `getInnerElementCssClass()`, `setInnerElementCssClass()`, `getOuterElementCssStyle()`, `setOuterElementCssStyle()`, `getOuterElementCssClass()`, `setOuterElementCssClass()` | CSS of the content (`<a>`/`<span>`) and the cell (`<td>`), see [Styling cells](#styling-cells-inner-and-outer-element) |
+| `getInnerElementAttributes()`, `setInnerElementAttributes()`, `getOuterElementAttributes()`, `setOuterElementAttributes()` | extra attributes: JSON object string or array in, JSON string out |
 | `isVisible()`, `setVisible()`, `isExportable()`, `setExportable()`, `isSearchable()`, `setSearchable()`, `isSortable()`, `setSortable()` | switches |
 | `getSearchOperator()`, `setSearchOperator()`, `getWildcardMode()`, `setWildcardMode()` | search tuning; `Column::WILDCARD_CONTAINS`, `WILDCARD_STARTS_WITH`, `WILDCARD_ENDS_WITH` |
 | `isCaseInsensitive()`, `setCaseInsensitive(?bool)`, `isCaseInsensitiveSort()`, `setCaseInsensitiveSort(?bool)` | case handling |

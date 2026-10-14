@@ -112,7 +112,7 @@ class BaseProject extends Database\BaseObject
 		/**
 		 * Many-to-many relations through linker tables
 		 */
-		$this->getTable()->addManyToMany("employee_project", ['owner' => 'project_id', 'other' => 'employee_id', 'table' => 'employee', 'label' => 'Team members']);
+		$this->belongsToMany("employee")->through("employee_project")->keys("project_id", "employee_id")->label("Team members");
 
 	}
 

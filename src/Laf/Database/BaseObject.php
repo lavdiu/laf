@@ -140,12 +140,39 @@ class BaseObject implements \JsonSerializable
     private array $manyToManyRelations = [];
 
     /**
-     * A many-to-many relation of this row through a linker table the generator found
-     * (Table::addManyToMany()), cached per object: $person->manyToMany('person_group')->ids()
+     * Declares a many-to-many relation through a linker table; the other settings are optional:
+     *
+     *   $this->belongsToMany('group')->through('person_group')->keys('person_id', 'group_id')
+     *        ->label('Groups')->chips()->creatable();
+     *
+     * Usually written in the model class's constructor (after parent::__construct()), or generated into
+     * the Base class for a linker table marked {"linker": true}. See ManyToManyBuilder.
+     * @param string $other the other table, or its model class (Group::class)
+     */
+    public function belongsToMany(string $other): ManyToManyBuilder
+    {
+        $builder = new ManyToManyBuilder($other);
+        $this->getTable()->addManyToManyBuilder($builder);
+        $this->manyToManyRelations = []; // relations built before this declaration are rebuilt
+        return $builder;
+    }
+
+    /**
+     * A many-to-many relation of this row, by its linker table or by the other table, cached per object:
+     * $person->manyToMany('person_group')->ids(), $person->manyToMany('group')->ids()
      * @throws \InvalidArgumentException when the table has no such relation
      */
     public function manyToMany(string $junction): ManyToMany
     {
+        $table = $this->getTable();
+        if (!$table->hasManyToMany($junction)) {
+            foreach ($table->getManyToManyDefinitions() as $name => $definition) {
+                if (($definition['table'] ?? null) === $junction) {
+                    $junction = (string)$name;
+                    break;
+                }
+            }
+        }
         if (!isset($this->manyToManyRelations[$junction])) {
             $this->manyToManyRelations[$junction] = new ManyToMany($this, $junction);
         }
@@ -1122,8 +1149,8 @@ class BaseObject implements \JsonSerializable
 
     /**
      * Constraint check of every field without touching the database row:
-     * required, field rules (type, length, range, pattern, validators), single-column
-     * uniqueness and the model's validateRecord().
+     * required, field rules (type, length, range, pattern, validators), uniqueness (unique
+     * fields and Table::addUniqueKey() combinations) and the model's validateRecord().
      * @return array<string, string[]> column => messages (ValidationException::RECORD_KEY for
      *         record-level messages), empty when valid
      */
@@ -1136,10 +1163,10 @@ class BaseObject implements \JsonSerializable
                 $errors[$field->getName()] = $messages;
             }
         }
-        foreach ($this->uniqueFields() as $name => $field) {
-            if ($this->isDuplicateValue($field)) {
-                $errors[$name][] = sprintf('%s must be unique: the value already exists', $field->getLabel() ?: $name);
-            }
+        foreach ($this->duplicateUniqueKeys(null, false) as $names) {
+            $errors[$names[0]][] = count($names) === 1
+                ? sprintf('%s must be unique: the value already exists', $this->fieldLabel($names[0]))
+                : sprintf('%s must be unique together: the combination already exists', implode(', ', array_map(fn(string $name) => $this->fieldLabel($name), $names)));
         }
         return self::mergeErrors($errors, $this->recordErrors());
     }
@@ -1267,19 +1294,114 @@ class BaseObject implements \JsonSerializable
      */
     private function checkUniqueFieldsForDuplicateValues(): void
     {
-        foreach ($this->uniqueFields() as $name => $field) {
-            if ($this->recordSelected && !$field->hasChanged()) {
+        $duplicates = $this->duplicateUniqueKeys();
+        if ($duplicates === []) {
+            return;
+        }
+        $names = $duplicates[0];
+        $values = array_map(function (string $name): string {
+            $value = $this->getTable()->getField($name)->getValue();
+            return is_scalar($value) ? (string)$value : gettype($value);
+        }, $names);
+        $message = count($names) === 1
+            ? sprintf("Field %s must be unique: value '%s' already exists in %s", $names[0], $values[0], $this->getTable()->getName())
+            : sprintf("Fields %s must be unique together: values '%s' already exist in %s", implode(', ', $names), implode("', '", $values), $this->getTable()->getName());
+        throw (new UniqueFieldDuplicateValueException($message))->setFieldNames($names);
+    }
+
+    /**
+     * The unique keys whose values another row already holds. Each entry lists the columns of one
+     * key: one column for a unique field, several for a Table::addUniqueKey() combination. A key
+     * with an empty column never counts (NULL never collides in a unique index).
+     *
+     *   $employee->duplicateUniqueKeys();   // [['email']] when another employee has this e-mail
+     *
+     * @param string[]|null $fieldNames only keys with at least one of these columns (a form passes its
+     *        editable fields); null = every key
+     * @param bool $changedOnly on a loaded row, only keys with a changed column: what store() checks, so a
+     *        row that already holds an old duplicate stays editable
+     * @return array<int, string[]>
+     */
+    public function duplicateUniqueKeys(?array $fieldNames = null, bool $changedOnly = true): array
+    {
+        $table = $this->getTable();
+        $duplicates = [];
+        foreach ($this->uniqueKeyColumns() as $names) {
+            if ($fieldNames !== null && array_intersect($names, $fieldNames) === []) {
                 continue;
             }
-            if ($this->isDuplicateValue($field)) {
-                throw (new UniqueFieldDuplicateValueException(sprintf(
-                    "Field %s must be unique: value '%s' already exists in %s",
-                    $name,
-                    is_scalar($field->getValue()) ? (string)$field->getValue() : gettype($field->getValue()),
-                    $this->getTable()->getName()
-                )))->setFieldNames([$name]);
+            $fields = array_map(fn(string $name) => $table->getField($name), $names);
+            if ($changedOnly && $this->recordSelected && array_filter($fields, fn(Field $field) => $field->hasChanged()) === []) {
+                continue;
+            }
+            if ($this->isDuplicateKey($fields)) {
+                $duplicates[] = $names;
             }
         }
+        return $duplicates;
+    }
+
+    /**
+     * The columns of the unique key a failed statement collided with, read from the driver's
+     * message: PostgreSQL "Key (a, b)=(…)", else the index name ("for key 'name'", "unique
+     * constraint "name"") looked up in Table::getUniqueKeys(), the primary key or, on MySQL,
+     * information_schema. Forms use it to put the database's refusal on the right field.
+     * @return string[] empty when the error is not a unique violation or the key is not known
+     */
+    public function uniqueViolationFieldNames(DatabaseException $ex): array
+    {
+        if (!$ex->isUniqueViolation()) {
+            return [];
+        }
+        $table = $this->getTable();
+        $message = $ex->getMessage();
+        if (preg_match('/Key \((.+?)\)=\(/s', $message, $m)) {
+            $names = [];
+            foreach (explode(',', $m[1]) as $part) {
+                $part = trim($part, " \t\n\"`");
+                if ($table->hasField($part)) {
+                    $names[] = $part;
+                }
+            }
+            if ($names === []) {
+                // an expression index such as lower((email)::text): the columns it names
+                foreach (array_keys($table->getFields()) as $name) {
+                    if (preg_match('/\b' . preg_quote((string)$name, '/') . '\b/', $m[1])) {
+                        $names[] = (string)$name;
+                    }
+                }
+            }
+            if ($names !== []) {
+                return $names;
+            }
+        }
+        if (!preg_match('/unique constraint "([^"]+)"/', $message, $m) && !preg_match("/for key '([^']+)'/", $message, $m)) {
+            return [];
+        }
+        $key = $m[1];
+        $dot = strrpos($key, '.');
+        if ($dot !== false) {
+            $key = substr($key, $dot + 1); // MySQL 8 names the key as table.index
+        }
+        if ($table->hasUniqueKey($key)) {
+            return $table->getUniqueKeys()[$key];
+        }
+        if ($key === 'PRIMARY' || $key === $table->getName() . '_pkey') {
+            return $this->primaryKey()->getFieldNames();
+        }
+        if (Identifier::isPostgres()) {
+            return [];
+        }
+        try {
+            $columns = Db::getColumn(
+                'SELECT COLUMN_NAME FROM information_schema.STATISTICS'
+                . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND INDEX_NAME = :i ORDER BY SEQ_IN_INDEX',
+                [':t' => (string)$table->getName(), ':i' => $key]
+            );
+        } catch (\Throwable $lookupFailed) {
+            return [];
+        }
+        return array_values(array_filter(array_map('strval', $columns), fn(string $name) => $table->hasField($name)));
     }
 
     /**
@@ -1306,14 +1428,46 @@ class BaseObject implements \JsonSerializable
         return $unique;
     }
 
-    /** True when another row already holds this field's value */
-    private function isDuplicateValue(Field $field): bool
+    /**
+     * Every unique key except the primary key: the unique fields, then the Table::addUniqueKey()
+     * combinations (skipped when a column is not on the model, so the check is never stricter
+     * than the index)
+     * @return array<string, string[]> key => columns
+     */
+    private function uniqueKeyColumns(): array
     {
-        $value = $field->getValue();
-        if ($value === null || $value === '') {
-            return false;
+        $table = $this->getTable();
+        $keys = [];
+        foreach (array_keys($this->uniqueFields()) as $name) {
+            $keys[(string)$name] = [(string)$name];
         }
-        $query = (new Query($this->getTable()))->where($field->getName(), $value);
+        $primary = $this->primaryKey()->getFieldNames();
+        foreach ($table->getUniqueKeys() as $keyName => $names) {
+            if ($names === [] || array_filter($names, fn(string $name) => !$table->hasField($name)) !== []) {
+                continue;
+            }
+            if ((count($names) === 1 && isset($keys[$names[0]])) || array_diff($names, $primary) === []) {
+                continue;
+            }
+            $keys['key:' . $keyName] = $names;
+        }
+        return $keys;
+    }
+
+    /**
+     * True when another row already holds these fields' values (all of them)
+     * @param Field[] $fields
+     */
+    private function isDuplicateKey(array $fields): bool
+    {
+        $query = new Query($this->getTable());
+        foreach ($fields as $field) {
+            $value = $field->getValue();
+            if ($value === null || $value === '') {
+                return false;
+            }
+            $query->where($field->getName(), $value);
+        }
         if ($this->recordSelected) {
             foreach ($this->primaryKey()->getFields() as $keyField) {
                 $old = $keyField->getOldValue();
@@ -1324,6 +1478,13 @@ class BaseObject implements \JsonSerializable
             }
         }
         return $query->exists();
+    }
+
+    /** The field's label, else its name */
+    private function fieldLabel(string $name): string
+    {
+        $table = $this->getTable();
+        return $table->hasField($name) ? ($table->getField($name)->getLabel() ?: $name) : $name;
     }
 
     /* ------------------------------------------------------------------ */

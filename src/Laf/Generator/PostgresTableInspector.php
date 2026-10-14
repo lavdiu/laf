@@ -87,6 +87,44 @@ class PostgresTableInspector extends AbstractTableInspector
         return $labels;
     }
 
+    protected function populateTableComment(): void
+    {
+        $sql = "
+        SELECT pg_catalog.obj_description(cl.oid, 'pg_class')
+        FROM pg_catalog.pg_class cl
+        JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = current_schema()
+            AND cl.relname = :t
+        ";
+        $comment = Db::getOne($sql, [':t' => $this->getTable()]);
+        $this->setTableComment(is_string($comment) ? $comment : null);
+    }
+
+    protected function populateUniqueKeys(): void
+    {
+        // key columns only (INCLUDE columns are not part of the rule); attnum 0 = an expression,
+        // which drops the index (column_name null); partial indexes (WHERE ...) are left out
+        $sql = "
+        SELECT
+            ic.relname AS index_name,
+            a.attname AS column_name
+        FROM pg_catalog.pg_index i
+        JOIN pg_catalog.pg_class cl ON cl.oid = i.indrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+        JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
+        CROSS JOIN LATERAL unnest(i.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord)
+        LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum AND k.attnum > 0
+        WHERE i.indisunique
+            AND NOT i.indisprimary
+            AND i.indpred IS NULL
+            AND k.ord <= i.indnkeyatts
+            AND n.nspname = current_schema()
+            AND cl.relname = :t
+        ORDER BY ic.relname, k.ord
+        ";
+        $this->storeUniqueKeyRows(Db::getAllAssoc($sql, [':t' => $this->getTable()]));
+    }
+
     /**
      * Foreign keys from pg_constraint: one row per column, composite keys
      * matched position by position (information_schema would cross-join them)

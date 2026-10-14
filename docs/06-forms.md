@@ -439,7 +439,8 @@ $documentHandlerClass = null)` then runs, in order:
    with the type's `fromInput()` (locale dates and numbers are parsed); a boolean drawn editable but absent becomes
    false. Values that do not convert become errors, not exceptions. Many-to-many keys are collected.
 4. `validate()` (unless `setValidateOnSubmit(false)`): `Field::validate()` on every field that was drawn editable or set
-   with `setSubmittedFieldValue()`, the many-to-many checks, and, only when all of that passed, the model's
+   with `setSubmittedFieldValue()`, the unique values and unique combinations those fields take (see
+   [Unique values](#unique-values)), the many-to-many checks, and, only when all of that passed, the model's
    `validateRecord()` (see [05-validation.md](05-validation.md)).
 5. Any error: `FormValidationException` with every message.
 6. `insert()` or `update()`: an object with a primary key value is updated, except a non-auto-increment key in
@@ -448,7 +449,9 @@ $documentHandlerClass = null)` then runs, in order:
    the same rules.
 7. A write refused for a missing required value or a duplicate unique value becomes a `FormValidationException` with the
    message on the field (`getPrevious()` is the original `MissingFieldValueException` /
-   `UniqueFieldDuplicateValueException`). Other database errors propagate.
+   `UniqueFieldDuplicateValueException`). So does a unique violation reported by the database itself
+   (`DatabaseException::isUniqueViolation()`), with the message on the columns of the violated index. Other database
+   errors propagate.
 8. The object is `reload()`ed (database defaults, metadata) and the record id is returned.
 
 The values end up in the object, and because each field mirrors its value into its cached element, a form drawn
@@ -512,21 +515,54 @@ try {
 ```
 
 ```text
-Birth Date: invalid value; First Name is required
+Birth Date: invalid value; First Name is required; E-mail: this value is already in use
 Array
 (
     [birth_date] => Array ( [0] => Birth Date: invalid value )
     [first_name] => Array ( [0] => First Name is required )
+    [email] => Array ( [0] => E-mail: this value is already in use )
 )
+// $ex->getPrevious() is a Laf\Exception\UniqueFieldDuplicateValueException with getFieldNames() === ['email']
 ```
 
-The duplicate e-mail is not reported here because the write was never attempted. Once the fields are valid, the
-unique index refuses it:
+The taken e-mail is reported together with the other mistakes, so the user fixes everything in one round trip.
+See [Unique values](#unique-values) for combinations and for values only the database knows about.
 
-```text
-Array ( [email] => Array ( [0] => E-mail: this value is already in use ) )
-// $ex->getPrevious() is a Laf\Exception\UniqueFieldDuplicateValueException
+### Unique values
+
+A unique value never ends in an error page. A form reports it as a message on the field, at three levels:
+
+| Situation | Who notices | Message |
+|---|---|---|
+| A single unique column (`employee.email`) holds a value another row has | `validate()`, before any write | `E-mail: this value is already in use` on `email` |
+| A unique index over several columns (`employee_project (employee_id, project_id)`, generated as `Table::addUniqueKey()`) repeats a combination | `validate()`, before any write | `Team members + Projects: this combination is already in use` on the first of those columns that the form edits |
+| The database refuses the INSERT/UPDATE with a unique violation the model did not predict: another request stored the same value a moment earlier, an index the model does not know (a Base class generated before unique keys existed, an expression index such as `lower(email)`) | `processForm()`, after the database refused | the same messages, on the columns read from the database's error (`BaseObject::uniqueViolationFieldNames()`); a form-level message when the columns cannot be told |
+
+Rules:
+- Only keys with a changed column are checked on an update (the same rule as `store()`), so a row that already holds
+  an old duplicate can still be edited.
+- A key with an empty column is never a duplicate (NULL never collides in a unique index).
+- A key with a column that already has an error is checked again once that value is valid.
+- The duplicate check runs together with the field rules. `validateRecord()` runs only once all of them pass.
+- `getPrevious()` of the `FormValidationException` is a `UniqueFieldDuplicateValueException` naming the columns. For a
+  database refusal, that one's `getPrevious()` is the `DatabaseException`.
+- Other database errors (a foreign key violation, a lost connection) still propagate as `DatabaseException`.
+
+```php
+// the linker form: the same employee and project a second time
+$link = new EmployeeProject();
+$form = $link->getForm(DrawMode::INSERT);
+$form->setRequest($form->buildRequest(['employee_id' => 32, 'project_id' => 11], DrawMode::INSERT));
+try {
+    $form->processForm();
+} catch (FormValidationException $ex) {
+    print_r($ex->getErrors());
+    // ['employee_id' => ['Team members + Projects: this combination is already in use']]
+}
 ```
+
+Outside forms, `$model->duplicateUniqueKeys()` lists the taken keys and `store()` throws
+`UniqueFieldDuplicateValueException` (see [03-models.md](03-models.md#exceptions)).
 
 `validateRecord()` messages arrive the same way, a record-level message (key `''` or
 `ValidationException::RECORD_KEY`) under `_form`:

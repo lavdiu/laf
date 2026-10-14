@@ -1074,6 +1074,7 @@ table cells are text, escaped by `Table` ([09-lists-and-tables.md](09-lists-and-
 | `Modal::getModalOpenButton($label = 'Open Modal', $cssClasses = 'btn btn-outline-secondary btn-sm'): Link` | opener link | |
 | `ContainerType::TYPE_DEFAULT`, `TYPE_FLUID` | `container`, `container-fluid` | |
 | `TabContent` | deprecated tab description of the old `Form::addTab()`; never drawn | use `TabContainer` / `FormLayout::tab()` |
+| `new TabContent($title, $content, $fields = [])`, `getTitle()`, `setTitle()`, `getTitleNoSpaces()`, `getContent()`, `setContent()`, `getFields()`, `setFields(array)`, `addField(string)` | plain holder of title, HTML and field names (deprecated) | kept for compatibility only |
 
 ### Components (`Laf\UI\Component`)
 

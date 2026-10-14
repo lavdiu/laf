@@ -2,7 +2,8 @@
 --   company           a standalone table
 --   employee          has a foreign key to company (one company per employee)
 --   project           a standalone table
---   employee_project  linker table: employees <-> projects, many-to-many
+--   employee_project  linker table: employees <-> projects, many-to-many (marked with the table comment
+--                     {"linker": true}, so the generator gives both forms a multi-value picker)
 -- audit_log comes from migrations/create_audit_logs_table.sql (optional, enables the audit log).
 
 CREATE TABLE `company` (
@@ -58,4 +59,4 @@ CREATE TABLE `employee_project` (
   KEY `employee_project_project_fk` (`project_id`),
   CONSTRAINT `employee_project_employee_fk` FOREIGN KEY (`employee_id`) REFERENCES `employee` (`id`) ON DELETE CASCADE,
   CONSTRAINT `employee_project_project_fk` FOREIGN KEY (`project_id`) REFERENCES `project` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{"linker": true}';

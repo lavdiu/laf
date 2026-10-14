@@ -3,11 +3,13 @@
 LAF knows two kinds of relations and shows each in forms. A **foreign key** column (`employee.company_id → company`)
 holds exactly one key. It is drawn as a `<select>`, or as an `Autocomplete` search box when the referenced table is
 too big for a drop-down. A **many-to-many** relation exists only through a **linker table**
-(`employee_project(employee_id, project_id)`). The generator detects the linker table and adds a relation definition
-to both sides' Base classes. `$employee->manyToMany('employee_project')` then reads and writes the links, and the
-Employee form shows a "Projects" picker by itself, as checkboxes, chips with search, or two lists. This chapter covers
-both kinds: the lookup/create JSON endpoint that the autocomplete widgets use, the `ManyToMany` API, the three
-pickers, how a form stores the row and its links in one transaction, and the browser-side events and
+(`employee_project(employee_id, project_id)`), and only once it is declared: either the linker table is marked with
+the table comment `{"linker": true}` and the generator writes a `belongsToMany()` declaration into both sides' Base
+classes, or a model class declares it by hand with `$this->belongsToMany('project')`.
+`$employee->manyToMany('employee_project')` then reads and writes the links, and the Employee form shows a
+"Projects" picker by itself, as checkboxes, chips with search, or two lists. This chapter covers both kinds: the
+lookup/create JSON endpoint that the autocomplete widgets use, declaring a many-to-many relation, the `ManyToMany`
+API, the three pickers, how a form stores the row and its links in one transaction, and the browser-side events and
 `LafAutocomplete` API.
 
 **On this page**
@@ -18,7 +20,7 @@ pickers, how a form stores the row and its links in one transaction, and the bro
 - [The lookup endpoint: `handleLookupRequest()`](#the-lookup-endpoint-handlelookuprequest)
 - [Searching: columns, custom sources, labels](#searching-columns-custom-sources-labels)
 - ["Create new" from the list](#create-new-from-the-list)
-- [Many-to-many: linker tables and `addManyToMany()`](#many-to-many-linker-tables-and-addmanytomany)
+- [Many-to-many: declaring a relation](#many-to-many-declaring-a-relation)
 - [The `ManyToMany` API](#the-manytomany-api)
 - [The three pickers](#the-three-pickers)
 - [Configuring a picker](#configuring-a-picker)
@@ -48,9 +50,11 @@ CREATE TABLE `employee_project` (
   UNIQUE KEY `employee_project_unique` (`employee_id`, `project_id`),
   CONSTRAINT `employee_project_employee_fk` FOREIGN KEY (`employee_id`) REFERENCES `employee` (`id`) ON DELETE CASCADE,
   CONSTRAINT `employee_project_project_fk` FOREIGN KEY (`project_id`) REFERENCES `project` (`id`) ON DELETE CASCADE
-);
+) COMMENT='{"linker": true}';
 ```
 
+The table comment `{"linker": true}` marks `employee_project` as a linker table, so the generator turns it into a
+many-to-many relation on both sides (PostgreSQL: `COMMENT ON TABLE employee_project IS '{"linker": true}'`).
 The comment on a linker column labels the picker on the **other** side. The comment on `project_id` says
 "Projects", which is the label of the picker on the Employee form. The comment on `employee_id` says
 "Team members", which is the label of the picker on the Project form.
@@ -67,13 +71,13 @@ $this->getTable()->addForeignKey(
         ->setReferencingField("id")
 );
 
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects']);
+$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects");
 ```
 
 [`BaseProject.php`](examples/generated/MyApp/Base/BaseProject.php) gets the mirror image:
 
 ```php
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'project_id', 'other' => 'employee_id', 'table' => 'employee', 'label' => 'Team members']);
+$this->belongsToMany("employee")->through("employee_project")->keys("project_id", "employee_id")->label("Team members");
 ```
 
 > **Note:** `ForeignKey::setReferencingTable()` / `getReferencingTable()` hold the table that is **referenced**
@@ -179,7 +183,7 @@ $employee->getCompanyIdFld()->setFormElementClass('Text');
 
 **A foreign key always holds one value.** On a field bound to a foreign key, `Select::isMultiple()` returns false
 even after `setMultiple(true)`, and `CheckboxCollection` draws radio buttons. To pick several values you need a
-linker table ([below](#many-to-many-linker-tables-and-addmanytomany)).
+linker table ([below](#many-to-many-declaring-a-relation)).
 
 The default `Select` drawn for `company_id` on the Employee form (the field name is ROT13-encoded, as with every
 form field; see [06-forms.md](06-forms.md)):
@@ -424,35 +428,208 @@ leading `+ `.
 > field. It is off by default. The created row goes through the referenced model's `insert()`, so the audit log and
 > model hooks run.
 
-## Many-to-many: linker tables and `addManyToMany()`
+## Many-to-many: declaring a relation
 
-LAF supports multi-value selection **only through a linker table**. The generator's `JunctionDetector` treats a
-table as a linker of table T when:
+LAF supports multi-value selection **only through a linker table**. A model gets a many-to-many relation from a
+`belongsToMany()` declaration, which reaches the model in one of two ways:
 
-- it has **exactly two foreign keys**, pointing at **two different tables**, one of which is T (if both point at T,
-  it is a plain child table), and
-- it has **at most two data columns** (`JunctionDetector::MAX_EXTRA_COLUMNS`) besides the primary key and the
-  metadata columns `id, created_on, created_by, updated_on, updated_by, is_deleted, deleted, record_status_id`.
+- **the generator** writes it into both sides' Base classes for a linker table marked `{"linker": true}`
+  ([below](#from-the-generator-marked-linker-tables));
+- **you** write it in the model class, for a linker table that is not marked, or to refine the generated one.
 
-`employee_project(id, employee_id, project_id)` qualifies. A child table with its own data (an `invoice_line`) does
-not. For each linker found, the generator writes one `addManyToMany()` into **both** sides' Base classes. The
-definition is configured by the comment of the linker column that points at the **picked** table:
+### By hand: `belongsToMany()`
 
-| Comment key (on `employee_project.project_id`) | Effect on the Employee form's picker |
+Declare the relation in the model class's constructor, after `parent::__construct($id)`. Only the other table is
+required; everything after it is optional:
+
+```php
+namespace MyApp;
+
+class Employee extends Base\BaseEmployee
+{
+    public function __construct($id = null)
+    {
+        parent::__construct($id);
+        $this->belongsToMany('project')              // the other table, or Project::class
+            ->through('employee_project')            // the linker table
+            ->keys('employee_id', 'project_id')      // its column to this table, then its column to the other table
+            ->label('Projects')
+            ->hint('Projects this person bills time to')
+            ->required()                             // at least one project
+            ->max(3)                                 // at most three
+            ->chips()                                // or ->checkboxes(), ->dualList(), ->picker('...')
+            ->creatable()                            // "+ Create ..." in the chips / dual list
+            ->tab('Assignments');                    // placement by FormLayout::auto()
+    }
+}
+```
+
+That declaration gives the definition (`$employee->getTable()->getManyToManyDefinition('employee_project')`, real
+output):
+
+```php
+[
+    'owner' => 'employee_id',
+    'other' => 'project_id',
+    'table' => 'project',
+    'label' => 'Projects',
+    'hint' => 'Projects this person bills time to',
+    'required' => true,
+    'max' => 3,
+    'form' => ['element' => 'Autocomplete', 'create' => true, 'tab' => 'Assignments'],
+]
+```
+
+and the Employee form a `ManyToManyAutocomplete` picker with `getMaxItems()` 3, required, with create.
+
+What the optional calls default to:
+
+| Left out | Default |
 |---|---|
-| `fields.setLabel` | label (default: the other table's name pluralised, "Projects") |
-| `fields.setHint` | hint under the picker |
-| `fields.setRequired: true` | at least one row must be chosen |
-| `form.element` | `Autocomplete` (chips), `DualList`, `CheckboxCollection` / `Checkboxes`. The alias `TransferList` works only at runtime (`FormLayout::element()`, `getFormElement('TransferList')`). In a column comment the generator drops it with a warning, so write `DualList` there |
-| `form.create: true` | the chips or dual list may create rows of the other table |
-| `form.order`, `form.group`, `form.tab` | placement by `FormLayout::auto()` |
-| `form.exclude`, `form.readonly`, `form.hidden` | true or draw modes, as for a column |
-| `form.multi: false` | **no picker** for this side (the definition is not generated) |
+| `through()` | a relation already declared on this table for the same other table (so a model class can refine the generated one), else `{this}_{other}` or `{other}_{this}`, whichever has a generated model class (`employee_project` → `MyApp\EmployeeProject`) |
+| `keys()` | read from the linker model's foreign keys: its only column that points at this table, and its only other column that points at the other table. Row metadata columns (`created_by → person`, `record_status_id → record_status`) never count. Needed when it is still ambiguous: a table linked to itself (`person_friend(person_id, friend_id)`) |
+| `label()` | the other table's name as a label, in plural (`Util::pluralLabel()`): "Projects", "Companies", "Addresses" |
+| the picker | checkboxes, or chips when the other table has more rows than `form.select_autocomplete_threshold` ([the three pickers](#the-three-pickers)) |
+
+**Declarations are resolved lazily**, when the table's relations are first read (`getManyToManyDefinitions()`,
+`hasManyToMany()`, `manyToMany()`, `getForm()`), in the order they were declared. So the chained calls may come in
+any order.
+
+**Declaring a relation that already exists refines it.** The generated Base class declares the relation; the
+model class adds what the schema cannot say. Options given in the refinement win, the others are kept:
+
+```php
+// MyApp\Employee, after parent::__construct($id)
+$this->belongsToMany('project')->chips()->creatable();
+```
+
+```php
+// $employee->getTable()->getManyToManyDefinitions(), real output
+[
+    'employee_project' => [
+        'owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects',  // generated
+        'form' => ['element' => 'Autocomplete', 'create' => true],                                        // added
+    ],
+]
+```
+
+The relation keeps its name, the linker table, and is still one relation, not two. Read it by that name or by the
+other table:
+
+```php
+$employee->manyToMany('employee_project')->ids();
+$employee->manyToMany('project')->ids();     // the same relation object
+```
+
+To drop the generated relation instead, call `$this->getTable()->removeManyToMany('employee_project')` in the
+constructor.
+
+#### `ManyToManyBuilder` methods
+
+`belongsToMany()` returns a `Laf\Database\ManyToManyBuilder`. Every setter returns the builder.
+
+| Method | Definition key | What it does |
+|---|---|---|
+| `through(string $junction)` | the relation's name | the linker table |
+| `keys(string $ownerColumn, string $otherColumn)` | `owner`, `other` | the linker's column that points at this table, then the one that points at the other table |
+| `label(string $label)` | `label` | the picker's label |
+| `hint(string $hint)` | `hint` | help text under the picker |
+| `required(bool $required = true)` | `required` | at least one row must be chosen |
+| `max(?int $maxItems)` | `max` | at most this many rows (`setMaxItems()` on the picker); null = no limit |
+| `checkboxes()` | `form.element` = `Checkboxes` | one checkbox per row of the other table |
+| `chips()` | `form.element` = `Autocomplete` | a search box with chips |
+| `dualList()` | `form.element` = `DualList` | two lists with Add / Remove buttons |
+| `picker(string $element)` | `form.element` | a picker by name (`Checkboxes`, `Autocomplete`, `DualList`) or a `RelationElementInterface` class |
+| `creatable(bool $create = true)` | `form.create` | the chips or the dual list may add rows to the other table |
+| `group(string $legend)` | `form.group` | the fieldset `FormLayout::auto()` puts the picker in |
+| `tab(string $title)` | `form.tab` | the tab `FormLayout::auto()` puts the picker in |
+| `order(int $order)` | `form.order` | position among the fields in `FormLayout::auto()` |
+| `form(array $hints)` | `form.*` | any other layout hint, as in a column comment's `"form"` object (`exclude`, `readonly`, `hidden`: `true` or draw modes), merged |
+| `getName(): string` | | the relation's name (the linker table), resolved |
+| `toArray(): array` | | the full definition with the defaults filled in, as `Table::addManyToMany()` takes it |
+| `resolve(?Table $table = null): array` | | `[linker table, definition]`; what the table calls on the first read |
+| `setTable(Table $table)` | | binds the builder to the table of the declaring model (`Table::addManyToManyBuilder()` does it) |
+
+> **Note:** `picker()` takes the names `Checkboxes`, `CheckboxCollection`, `Autocomplete`, `DualList`, the short
+> aliases `chips`, `dual` and `TransferList`, or a class implementing `RelationElementInterface`. The shortcuts
+> `checkboxes()`, `chips()` and `dualList()` read best.
+
+The builder works without a model too, for example in a test:
+
+```php
+use Laf\Database\ManyToManyBuilder;
+
+$builder = new ManyToManyBuilder('project', (new Employee())->getTable());
+$builder->getName();    // 'employee_project'
+$builder->toArray();    // ['owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects', 'form' => []]
+```
+
+#### Errors
+
+A declaration that cannot be resolved throws a `LogicException` when the relations are first read (not where
+`belongsToMany()` is called). The messages say what to add (real output from the example schema):
+
+```php
+$this->belongsToMany('company');
+// LogicException: employee ⇄ company: no linker table found (looked for the models of employee_company and company_employee); name it with ->through('…')
+
+$this->belongsToMany('project')->through('project_member');
+// LogicException: employee ⇄ project: the linker table project_member has no model class \MyApp\ProjectMember (run the generator)
+```
+
+and, for a linker whose columns cannot be told apart (from `tests/ManyToManyBuilderTest.php`):
+
+```
+dummy_table ⇄ m2m_group through m2m_person_group: cannot tell the linker columns apart (foreign keys to dummy_table: none; to m2m_group: group_id); name them with ->keys('…', '…')
+```
+
+`belongsToMany('')` throws `InvalidArgumentException: belongsToMany() needs the other table` at once, and
+`manyToMany()` with a name that is neither a linker table nor the other table of a relation throws
+`InvalidArgumentException: Table employee has no many-to-many relation through company`.
+
+### From the generator: marked linker tables
+
+The generator writes the declaration for a linker table whose table comment says `{"linker": true}` (see the
+[example tables](#the-example-tables)), on both sides:
+
+```php
+// BaseEmployee
+$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects");
+
+// BaseProject
+$this->belongsToMany("employee")->through("employee_project")->keys("project_id", "employee_id")->label("Team members");
+```
+
+The marked table must also follow the linker rule (`JunctionDetector`): **exactly two foreign keys**, pointing at
+**two different tables** (metadata columns never count as one of them, even when they are foreign keys:
+`created_by → person`, `record_status_id → record_status`), and **at most two data columns**
+(`JunctionDetector::MAX_EXTRA_COLUMNS`) besides the primary key and the metadata columns `id, created_on,
+created_by, updated_on, updated_by, is_deleted, deleted, record_status_id`. A marked table that does not follow it
+gets a generator warning and no picker; an unmarked table that follows it gets a `Note:` line and no picker.
+`laf-generate --many-to-many=auto` restores the old behaviour (every table that follows the rule, except tables
+commented `{"linker": false}`). The marker, the modes and the messages are in
+[02-code-generation.md](02-code-generation.md#linker-tables-and-many-to-many-relations).
+
+The generated declaration is configured by the comment of the linker column that points at the **picked** table:
+
+| Comment key (on `employee_project.project_id`) | Effect on the Employee form's picker | Generated call |
+|---|---|---|
+| `fields.setLabel` | label (default: the other table's name pluralised, "Projects") | `->label()` |
+| `fields.setHint` | hint under the picker | `->hint()` |
+| `fields.setRequired: true` | at least one row must be chosen | `->required()` |
+| `form.element` | `Autocomplete` (chips), `DualList`, `CheckboxCollection` / `Checkboxes`; the aliases `chips`, `dual` and `TransferList` work too | `->chips()`, `->dualList()`, `->checkboxes()` |
+| `form.create: true` | the chips or dual list may create rows of the other table | `->creatable()` |
+| `form.order`, `form.group`, `form.tab` | placement by `FormLayout::auto()` | `->order()`, `->group()`, `->tab()` |
+| `form.exclude`, `form.readonly`, `form.hidden` | true or draw modes, as for a column | `->form([...])` |
+| `form.multi: false` | **no picker** for this side (the declaration is not generated) | |
 
 The generator also refuses a picker, with a warning, when the linker table has a required data column without a
 default. Such a link cannot be inserted from a picker. Details are in [02-code-generation.md](02-code-generation.md).
 
-You can also declare a relation by hand, for example for a linker the generator did not detect:
+### The array form: `Table::addManyToMany()`
+
+Before `belongsToMany()`, relations were declared as arrays, and generated Base classes contained
+`$this->getTable()->addManyToMany(...)` lines. That form still works and is what the builder produces in the end:
 
 ```php
 $this->getTable()->addManyToMany('employee_project', [
@@ -462,9 +639,14 @@ $this->getTable()->addManyToMany('employee_project', [
     'label' => 'Projects',
     'hint' => 'Projects this person bills time to',
     'required' => true,
+    'max' => 3,
     'form' => ['element' => 'DualList', 'create' => true, 'tab' => 'Assignments'],
 ]);
 ```
+
+`addManyToMany()` stores the array as given and replaces a relation of the same name, also one the Base class
+declared with `belongsToMany()` (declarations made before the call are resolved first). `belongsToMany()` merges
+into an existing definition instead. To drop a generated relation, call `removeManyToMany('employee_project')`.
 
 `Table` also has `hasManyToMany($junction)`, `getManyToManyDefinition($junction)`, `getManyToManyDefinitions()` and
 `removeManyToMany($junction)`. A relation needs the **linker table's generated model** (`MyApp\EmployeeProject`), and
@@ -473,8 +655,9 @@ is not available without raising an error.
 
 ## The `ManyToMany` API
 
-`$employee->manyToMany('employee_project')` returns the relation of that row. It is cached per object, reset when the
-object is cloned, and throws `InvalidArgumentException` for an unknown name. Real output:
+`$employee->manyToMany('employee_project')` returns the relation of that row; `$employee->manyToMany('project')`
+(the other table's name) returns the same one. It is cached per object, reset when the object is cloned, and throws
+`InvalidArgumentException` for an unknown name. Real output:
 
 ```php
 use Laf\Database\ManyToMany;
@@ -532,9 +715,9 @@ list, just as it appends unlisted fields. The picker's value starts as `ids()`.
 
 | Class | Chosen by | Best for | Posts |
 |---|---|---|---|
-| `Input\ManyToManyCheckboxes` (extends `CheckboxCollection`) | default; `CheckboxCollection`, `Checkboxes`, `Checkbox` | small tables (all rows shown) | `employee_project[]` per ticked box |
-| `Input\ManyToManyAutocomplete` (extends `Autocomplete`) | `Autocomplete`; or by default when the other table has more rows than `form.select_autocomplete_threshold` | big tables (search) | `employee_project[]` per chip |
-| `Input\ManyToManyDualList` (extends `ManyToManyAutocomplete`) | `DualList`, `TransferList` | up to a few hundred rows, when users move many at once | `employee_project[]` per selected option |
+| `Input\ManyToManyCheckboxes` (extends `CheckboxCollection`) | default; `->checkboxes()`; `CheckboxCollection`, `Checkboxes`, `Checkbox` | small tables (all rows shown) | `employee_project[]` per ticked box |
+| `Input\ManyToManyAutocomplete` (extends `Autocomplete`) | `->chips()`; `Autocomplete`; or by default when the other table has more rows than `form.select_autocomplete_threshold` | big tables (search) | `employee_project[]` per chip |
+| `Input\ManyToManyDualList` (extends `ManyToManyAutocomplete`) | `->dualList()`; `DualList` | up to a few hundred rows, when users move many at once | `employee_project[]` per selected option |
 
 All three post an empty hidden `employee_project[]` value first, so that removing every choice is still submitted.
 They post under the **relation name** (the linker table), not under a ROT13 column name. Their element id is
@@ -545,16 +728,21 @@ Ways to choose the picker, from most general to most specific:
 ```php
 // comment on the linker column employee_project.project_id: {"form":{"element":"DualList"}}
 
+// the declaration, in the model constructor
+$this->belongsToMany('project')->dualList();
+
 $layout = FormLayout::auto($employee->getTable())->element('employee_project', 'Autocomplete');
 $form = $employee->getForm(DrawMode::UPDATE, $layout);
 
 $picker = $employee->manyToMany('employee_project')->getFormElement('DualList');   // before getForm()
 ```
 
-`ManyToMany::resolveElementClass()` maps the short names: `Autocomplete` → `ManyToManyAutocomplete`;
-`CheckboxCollection`, `Checkboxes`, `Checkbox` → `ManyToManyCheckboxes`; `DualList`, `TransferList` →
+`ManyToMany::resolveElementClass()` maps the short names: `Autocomplete`, `chips` → `ManyToManyAutocomplete`;
+`CheckboxCollection`, `Checkboxes`, `Checkbox` → `ManyToManyCheckboxes`; `DualList`, `dual`, `TransferList` →
 `ManyToManyDualList`. A class implementing `RelationElementInterface` is used as is. Anything else throws
-`InvalidArgumentException`.
+`InvalidArgumentException`. `FormLayout::resolveElementClass()` falls back to this map for names it does not know as a
+form element, so `FormLayout::element()`, the `"element"` of a column comment and a declaration's `picker()` accept
+the same aliases.
 
 To get at the picker after the form is built, use `Form::getRelationElement('employee_project')`.
 `getRelationElements()` lists all of them.
@@ -903,7 +1091,7 @@ server at `http://localhost/laf/sample_files/autocomplete_demo.php`.
 | `getOwner()` | the row | |
 | `getOwnerColumn()` / `getOtherColumn()` | linker columns (`employee_id` / `project_id`) | |
 | `getDefinition()` | the definition array | `form` always an array |
-| `getLabel()` / `getHint()` / `isRequired()` | from the definition | label falls back to the table name |
+| `getLabel()` / `getHint()` / `isRequired()` | from the definition | label falls back to the table name; `max` in the definition sets the picker's `setMaxItems()` |
 | `getFormOption($key, $default = null)` | one layout hint | order, group, tab, exclude, readonly, hidden, element, create |
 | `getJunctionClass()` | `\MyApp\EmployeeProject` | |
 | `isAvailable()` | linker model exists and both columns are FKs on it | |
@@ -926,9 +1114,11 @@ server at `http://localhost/laf/sample_files/autocomplete_demo.php`.
 | `static namesOf(Table $table)` | relation names of a table | |
 | `getLayoutModes(string $key)` | internal, used by FormLayout | |
 
-`BaseObject::manyToMany(string $junction): ManyToMany` is cached per object.
-`Table::addManyToMany()`, `hasManyToMany()`, `getManyToManyDefinition()`, `getManyToManyDefinitions()` and
-`removeManyToMany()` manage the definitions.
+`BaseObject::manyToMany(string $junction): ManyToMany` takes the linker table or the other table and is cached per
+object. `BaseObject::belongsToMany(string $other): ManyToManyBuilder` declares a relation
+([methods](#manytomanybuilder-methods)). `Table::addManyToMany()`, `addManyToManyBuilder()`, `hasManyToMany()`,
+`getManyToManyDefinition()`, `getManyToManyDefinitions(bool $resolvePending = true)` and `removeManyToMany()`
+manage the definitions.
 
 ### `Laf\UI\Form\Input\Autocomplete` (extends `Select`)
 
@@ -980,7 +1170,7 @@ server at `http://localhost/laf/sample_files/autocomplete_demo.php`.
 
 ## See also
 
-- [02-code-generation.md](02-code-generation.md): linker-table detection, `addManyToMany()` output, column comments
+- [02-code-generation.md](02-code-generation.md): the `{"linker": true}` marker, the generator modes, the generated `belongsToMany()` lines, column comments
 - [03-models.md](03-models.md): `ForeignKey`, `Table`, `relatedObject()`, transactions, hooks
 - [05-validation.md](05-validation.md): `setValidateOnStore()` (used by create), validation messages
 - [06-forms.md](06-forms.md): `getForm()`, `FormLayout`, `processForm()`, CSRF, signed field list, `buildRequest()`

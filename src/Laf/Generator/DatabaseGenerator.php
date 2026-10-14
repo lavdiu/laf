@@ -56,8 +56,11 @@ class DatabaseGenerator
     /** @var string[] pages copied to live_page_dir by installMissingPages() */
     private array $installedPages = [];
 
-    /** @var string[] */
+    /** @var string[] warnings of the last run */
     private array $warnings = [];
+
+    /** @var string[] notices of the last run (each once) */
+    private array $notices = [];
 
     /**
      * @param string $library_path relative or absolute path of the folder that receives the namespace folder
@@ -199,6 +202,35 @@ class DatabaseGenerator
         return $this->warnings;
     }
 
+    /**
+     * Notices of the last run (each once): linker tables found but not marked {"linker": true}
+     * @return string[]
+     */
+    public function getNotices(): array
+    {
+        return $this->notices;
+    }
+
+    /**
+     * How linker tables become many-to-many relations: ClassGenerator::MANY_TO_MANY_MARKED (default: only
+     * tables whose comment says {"linker": true}), MANY_TO_MANY_AUTO (every table the rule finds, unless
+     * {"linker": false}) or MANY_TO_MANY_OFF; null = Settings generator.many_to_many
+     * @throws \InvalidArgumentException for another value
+     */
+    public function setManyToManyMode(?string $mode): static
+    {
+        if ($mode === null) {
+            unset($this->config['many_to_many']);
+            return $this;
+        }
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, [ClassGenerator::MANY_TO_MANY_MARKED, ClassGenerator::MANY_TO_MANY_AUTO, ClassGenerator::MANY_TO_MANY_OFF], true)) {
+            throw new \InvalidArgumentException(sprintf('Many-to-many mode "%s": use marked, auto or off', $mode));
+        }
+        $this->config['many_to_many'] = $mode;
+        return $this;
+    }
+
     /* ───────────── generation ───────────── */
 
     /**
@@ -215,6 +247,12 @@ class DatabaseGenerator
             $this->generatedFiles[] = $generator->getClassFilePath();
             foreach ($generator->getWarnings() as $warning) {
                 $this->warn($table['table_name'] . ': ' . $warning);
+            }
+            foreach ($generator->getNotices() as $notice) {
+                if (!in_array($notice, $this->notices, true)) {
+                    $this->notices[] = $notice;
+                    $this->write("\nNote: " . $notice);
+                }
             }
             $this->write("\nProcessed table: " . $table['table_name']);
         }

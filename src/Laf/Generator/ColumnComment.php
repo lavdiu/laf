@@ -51,6 +51,19 @@ final class ColumnComment
     }
 
     /**
+     * The linker marker of a table comment: {"linker": true} = generate many-to-many relations through
+     * this table, {"linker": false} = never; null when the comment does not say
+     */
+    public static function linker(?string $tableComment): ?bool
+    {
+        $parsed = self::parse($tableComment);
+        if ($parsed === null || !array_key_exists('linker', $parsed)) {
+            return null;
+        }
+        return (bool)$parsed['linker'];
+    }
+
+    /**
      * Field setters from "fields": method => PHP source of the argument list.
      * Unknown methods and setType/setDisplayField (handled by the generator) are left out;
      * unknown methods are reported in $warnings.

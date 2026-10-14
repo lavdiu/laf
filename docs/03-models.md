@@ -42,9 +42,9 @@ MyApp\Employee                          yours: created once, never overwritten
 ```
 
 - [`Base/BaseEmployee.php`](examples/generated/MyApp/Base/BaseEmployee.php) builds the `Table` metadata in its
-  constructor (one `Field` per column, the primary key, the foreign keys, the many-to-many relations) and declares the
-  typed accessors: `setFirstNameVal()`, `getFirstNameVal()`, `getFirstNameFld()`, `getFirstNameFormElement()`, and
-  for a foreign key `getCompanyIdObj()`. **Never edit it**: the next generator run replaces it.
+  constructor (one `Field` per column, the primary key, the foreign keys, the many-to-many relations of marked
+  linker tables) and declares the typed accessors: `setFirstNameVal()`, `getFirstNameVal()`, `getFirstNameFld()`,
+  `getFirstNameFormElement()`, and for a foreign key `getCompanyIdObj()`. **Never edit it**: the next generator run replaces it.
 - [`Employee.php`](examples/generated/MyApp/Employee.php) is the leaf class. It starts almost empty (`find()`,
   `findOne()` and a commented `getFormLayout()` example) and is where your business rules, hooks and helpers go.
 
@@ -239,7 +239,7 @@ Rules of the write path:
 | `store()` on a loaded object without changes | `true`, no SQL, no audit entry, `afterUpdate()` not called |
 | `update()` on an object that was never loaded | `false` |
 | a required column is empty | `MissingFieldValueException` before any SQL |
-| a single-column unique value already exists in another row | `UniqueFieldDuplicateValueException` before any SQL |
+| a unique value (or a unique combination of `Table::addUniqueKey()`) already exists in another row | `UniqueFieldDuplicateValueException` before any SQL |
 | validation on store is on and a rule fails | `ValidationException` before any SQL (see [05-validation.md](05-validation.md)) |
 | the database refuses the statement | `DatabaseException` |
 
@@ -398,7 +398,8 @@ Positive checks are cached for the request; `null` and `''` are always accepted 
 
 To list the children of a row, query the child table: `Employee::find(['company_id' => $company->getIdVal()])`, or
 `Employee::query()->where('company_id', $company)` (a model object as value means its key). Many-to-many links
-(`$employee->manyToMany('employee_project')`) are covered in [08-relations.md](08-relations.md).
+(`$employee->manyToMany('employee_project')`, or by the other table, `$employee->manyToMany('project')`) are
+covered in [08-relations.md](08-relations.md).
 
 ## Transactions
 
@@ -430,7 +431,7 @@ receives the `Db` instance as its argument. See [13-database.md](13-database.md)
 |---|---|---|
 | `Laf\Exception\RecordNotFoundException` (`RuntimeException`, code 404) | `loadOrFail()` | `getTableName()`, `getRecordId()` |
 | `Laf\Exception\MissingFieldValueException` | `store()` / `insert()` / `update()` when a required column is empty | `getFieldNames()` |
-| `Laf\Exception\UniqueFieldDuplicateValueException` | `store()` / `insert()` / `update()` when a single-column unique value exists in another row | `getFieldNames()` |
+| `Laf\Exception\UniqueFieldDuplicateValueException` | `store()` / `insert()` / `update()` when a unique value or a unique combination exists in another row | `getFieldNames()` (the column, or every column of the combination) |
 | `Laf\Exception\ValidationException` | `store()` with validation on store | `getErrors()`, `getMessages()`, `getFieldNames()`, `getTableName()` (see [05-validation.md](05-validation.md)) |
 | `Laf\Exception\DatabaseException` | any statement the ORM runs (load, write, delete, `Query`) | `getSql()`, `getBindings()`, `getSqlState()`, `getDriverCode()`, `isUniqueViolation()`, `isForeignKeyViolation()`, `getPrevious()` = the `PDOException` |
 | `Laf\Exception\InvalidValueException` | setters, `Field::setValue()` | message names the table, column and reason |
@@ -452,12 +453,27 @@ $dup->store();
 // UniqueFieldDuplicateValueException:
 //   "Field email must be unique: value 'ana.models@example.com' already exists in employee"
 //   getFieldNames() === ['email']
+
+$link = new EmployeeProject();     // employee_project has UNIQUE (employee_id, project_id)
+$link->setEmployeeIdVal(32)->setProjectIdVal(11);   // already linked
+$link->store();
+// UniqueFieldDuplicateValueException:
+//   "Fields employee_id, project_id must be unique together: values '32', '11' already exist in employee_project"
+//   getFieldNames() === ['employee_id', 'project_id']
 ```
+
+The generator writes a unique index over several columns into the Base class as
+`$this->getTable()->addUniqueKey("employee_project_unique", ['employee_id', 'project_id']);` (see
+[BaseEmployeeProject.php](examples/generated/MyApp/Base/BaseEmployeeProject.php)), so the combination is checked like
+a unique column. A key with an empty column never counts, and on an update only keys with a changed column are
+checked. `$model->duplicateUniqueKeys()` returns the taken keys without throwing (`[['employee_id', 'project_id']]`).
 
 The required and unique checks run in PHP before the statement, which gives clear messages; the database
 constraints stay the real guarantee. Two requests inserting the same e-mail at the same moment can both pass the
-PHP check, and the second then fails with a `DatabaseException` whose `isUniqueViolation()` is `true`. Catch both
-when it matters:
+PHP check, and the second then fails with a `DatabaseException` whose `isUniqueViolation()` is `true`.
+`$model->uniqueViolationFieldNames($ex)` names the columns of the violated index (from PostgreSQL's `Key (…)=` detail,
+or from the index name through `Table::getUniqueKeys()`, the primary key or MySQL's `information_schema`). Forms do
+this for you ([06-forms.md](06-forms.md#unique-values)). In your own code, catch both when it matters:
 
 ```php
 use Laf\Exception\DatabaseException;
@@ -604,9 +620,12 @@ Each object is copied deeply when a model is cloned, so two model objects never 
 | `getField($name)`, `hasField($name)`, `getFields()`, `getFieldCount()` | field access |
 | `setPrimaryKey(PrimaryKey)`, `getPrimaryKey()`, `getPrimaryKeyCount()`, `isPrimaryKey($name)` | primary key |
 | `addForeignKey(ForeignKey)`, `getForeignKey($column)`, `isForeignKey($column)`, `getForeignKeys()` | foreign keys, keyed by column |
-| `addManyToMany($junction, $definition)`, `removeManyToMany()`, `hasManyToMany()`, `getManyToManyDefinition()`, `getManyToManyDefinitions()` | linker-table relations (see [08-relations.md](08-relations.md)) |
+| `addManyToMany($junction, $definition)`, `removeManyToMany()`, `hasManyToMany()`, `getManyToManyDefinition()` | linker-table relations as arrays (see [08-relations.md](08-relations.md)) |
+| `addManyToManyBuilder(ManyToManyBuilder $builder)` | a `belongsToMany()` declaration, kept pending and resolved (linker table, columns, defaults) on the first read of the relations, in declaration order; a declaration for an existing relation refines it |
+| `getManyToManyDefinitions(bool $resolvePending = true)` | linker table => definition; resolves the pending declarations first (`false` = only those resolved so far, used while resolving). Reading the relations throws `LogicException` when a declaration names no usable linker table |
 | `setDisplayField(?Field)`, `getDisplayField()` | the label column (fallback rules above) |
 | `addUniqueField(Field)`, `setUniqueFields()`, `getUniqueFields()`, `hasUniqueFields()` | single-column unique constraints checked before writes |
+| `addUniqueKey($name, $columns)`, `removeUniqueKey($name)`, `hasUniqueKey($name)`, `getUniqueKeys()` | unique indexes over several columns (index name => columns), checked before writes like unique fields |
 | `__toString()` | the name |
 
 ### Field
@@ -709,6 +728,8 @@ Every public method, grouped. Static methods are marked.
 | `static transaction(callable $fn)` | run `$fn` in a transaction | |
 | `validate()` | every rule: column => messages | [05-validation.md](05-validation.md) |
 | `recordErrors()` | `validateRecord()` normalised to column => messages | |
+| `duplicateUniqueKeys(?array $fieldNames = null, bool $changedOnly = true)` | the unique keys whose values another row holds, each as its columns | limit to keys touching `$fieldNames`; `$changedOnly` = only keys with a changed column on a loaded row |
+| `uniqueViolationFieldNames(DatabaseException $ex)` | the columns of the unique index a failed statement violated | `[]` when not a unique violation or unknown |
 | `setValidateOnStore(?bool)`, `getValidateOnStore()`, `isValidateOnStore()` | validation inside `store()` | |
 | `getTable()`, `hasTable()`, `setTable()` | metadata | |
 | `getField($name)` | `Field` or `null` | |
@@ -718,7 +739,8 @@ Every public method, grouped. Static methods are marked.
 | `isNew()`, `isLoaded()`, `isRecordSelected()`, `setRecordSelected()`, `recordExists()` | state | |
 | `getRecordId()`, `setRecordId()`, `getPrimaryKeyValue()` | key | |
 | `getAffectedRows()`, `getLastSql()` | last statement | |
-| `manyToMany($junction)` | the `ManyToMany` relation through a linker table | [08-relations.md](08-relations.md) |
+| `belongsToMany(string $other)` | declares a many-to-many relation to `$other` (a table name or a model class) and returns its `ManyToManyBuilder` (`->through()`, `->keys()`, `->label()`, `->chips()`, ...); write it in the model constructor after `parent::__construct($id)` | [08-relations.md](08-relations.md#many-to-many-declaring-a-relation) |
+| `manyToMany(string $name)` | the `ManyToMany` relation, by linker table (`'employee_project'`) or by the other table (`'project'`), cached per object | [08-relations.md](08-relations.md) |
 | `getForm($drawMode = null, $layout = null)`, `getFormLayout()`, `getAllFieldsAsFormElements()` | forms | [06-forms.md](06-forms.md) |
 | `getListAllSimpleTableObject()` | legacy `SimpleTable` listing (deprecated grid) | use [09-lists-and-tables.md](09-lists-and-tables.md) or [10-grids.md](10-grids.md) |
 | `static getIcon()` | icon class of the model | generated classes may override |

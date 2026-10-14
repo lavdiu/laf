@@ -21,6 +21,7 @@ use LafShell\DummyTable;
 use LafShell\LinkTable;
 use LafShell\M2mGroup;
 use LafShell\M2mPerson;
+use LafShell\M2mPersonGroup;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -119,8 +120,10 @@ class BaseObjectTest extends TestCase
 			  person_id INTEGER NOT NULL,
 			  group_id INTEGER NOT NULL,
 			  CONSTRAINT m2m_person_group_person_fk FOREIGN KEY (person_id) REFERENCES m2m_person (id) ON DELETE CASCADE,
-			  CONSTRAINT m2m_person_group_group_fk FOREIGN KEY (group_id) REFERENCES m2m_group (id)
+			  CONSTRAINT m2m_person_group_group_fk FOREIGN KEY (group_id) REFERENCES m2m_group (id),
+			  CONSTRAINT m2m_person_group_unique UNIQUE (person_id, group_id)
 			);
+			COMMENT ON TABLE m2m_person_group IS '{\"linker\": true}';
 			DROP TABLE IF EXISTS audit_log;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table_postgres.sql');
 		} else {
@@ -199,9 +202,10 @@ class BaseObjectTest extends TestCase
 			  PRIMARY KEY (`id`),
 			  KEY `m2m_person_group_person_fk` (`person_id`),
 			  KEY `m2m_person_group_group_fk` (`group_id`),
+			  UNIQUE KEY `m2m_person_group_unique` (`person_id`, `group_id`),
 			  CONSTRAINT `m2m_person_group_person_fk` FOREIGN KEY (`person_id`) REFERENCES `m2m_person` (`id`) ON DELETE CASCADE,
 			  CONSTRAINT `m2m_person_group_group_fk` FOREIGN KEY (`group_id`) REFERENCES `m2m_group` (`id`)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{\"linker\": true}';
 			DROP TABLE IF EXISTS `audit_log`;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table.sql');
 		}
@@ -1708,6 +1712,113 @@ class BaseObjectTest extends TestCase
 			$this->fail('expected an InvalidValueException');
 		} catch (InvalidValueException $ex) {
 			$this->assertSame('"New parent" cannot be added here: more details are required', $ex->getMessage());
+		}
+	}
+
+	/* ───────────── unique values: messages instead of errors ───────────── */
+
+	public function testInspectorsReadUniqueKeysOverSeveralColumns()
+	{
+		$inspector = \Laf\Generator\TableInspectorFactory::create('m2m_person_group');
+		$inspector->inspect();
+		$this->assertSame(['m2m_person_group_unique' => ['person_id', 'group_id']], $inspector->getUniqueKeys());
+
+		$generated = (string)(new \Laf\Generator\ClassGenerator(new Table('m2m_person_group'), ['namespace' => 'LafShell']))->processBaseClass()->getBaseClassFile();
+		$this->assertStringContainsString("\$this->getTable()->addUniqueKey(\"m2m_person_group_unique\", ['person_id', 'group_id']);", $generated);
+	}
+
+	public function testLinkerTablesAreMarkedByTheirTableComment()
+	{
+		$inspector = \Laf\Generator\TableInspectorFactory::create('m2m_person_group');
+		$inspector->inspect();
+		$this->assertSame('{"linker": true}', $inspector->getTableComment());
+		$link = \Laf\Generator\TableInspectorFactory::create('link_table');
+		$link->inspect();
+		$this->assertNull($link->getTableComment(), 'no comment: null');
+
+		$person = new \Laf\Generator\ClassGenerator(new Table('m2m_person'), ['namespace' => 'LafShell']);
+		$this->assertStringContainsString('$this->belongsToMany("m2m_group")->through("m2m_person_group")->keys("person_id", "group_id")->label("M2m Groups");', (string)$person->processBaseClass()->getBaseClassFile());
+
+		$dummy = new \Laf\Generator\ClassGenerator(new Table('dummy_table'), ['namespace' => 'LafShell']);
+		$this->assertStringNotContainsString('belongsToMany', (string)$dummy->processBaseClass()->getBaseClassFile(), 'link_table is not marked');
+		$this->assertStringContainsString('link_table looks like a linker table (code_table ⇄ dummy_table)', implode("\n", $dummy->getNotices()));
+	}
+
+	public function testUniqueKeyRefusesARepeatedCombinationBeforeTheInsert()
+	{
+		$groups = $this->seedGroups('Admins');
+		$person = new M2mPerson();
+		$person->setFieldValue('name', 'Ann');
+		$person->insert();
+		$person->manyToMany('m2m_person_group')->sync([$groups['Admins']]);
+
+		$again = (new M2mPersonGroup())->setPersonIdVal($person->getRecordId())->setGroupIdVal($groups['Admins']);
+		$this->assertSame([['person_id', 'group_id']], $again->duplicateUniqueKeys());
+		$this->assertArrayHasKey('person_id', $again->validate());
+		try {
+			$again->store();
+			$this->fail('expected a UniqueFieldDuplicateValueException');
+		} catch (UniqueFieldDuplicateValueException $ex) {
+			$this->assertSame(['person_id', 'group_id'], $ex->getFieldNames());
+		}
+		$this->assertSame(1, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM m2m_person_group'), 'no statement was sent');
+	}
+
+	public function testFormShowsARepeatedCombinationAsAMessage()
+	{
+		$groups = $this->seedGroups('Admins');
+		$person = new M2mPerson();
+		$person->setFieldValue('name', 'Ann');
+		$person->insert();
+		$person->manyToMany('m2m_person_group')->sync([$groups['Admins']]);
+		$data = ['person_id' => $person->getRecordId(), 'group_id' => $groups['Admins']];
+
+		foreach (['the model knows the key' => false, 'only the database knows it' => true] as $case => $removeKey) {
+			$link = new M2mPersonGroup();
+			if ($removeKey) {
+				$link->getTable()->removeUniqueKey('m2m_person_group_unique'); // a Base class generated before unique keys existed
+			}
+			$form = $link->getForm(\Laf\UI\Form\DrawMode::INSERT);
+			$form->setRequest($form->buildRequest($data, \Laf\UI\Form\DrawMode::INSERT));
+			try {
+				$form->processForm();
+				$this->fail("$case: expected a FormValidationException");
+			} catch (\Laf\Exception\FormValidationException $ex) {
+				$label = $link->getTable()->getField('person_id')->getLabel() . ' + ' . $link->getTable()->getField('group_id')->getLabel();
+				$this->assertSame(['person_id' => [$label . ': this combination is already in use']], $ex->getErrors(), $case);
+				$this->assertStringContainsString('this combination is already in use', $form->draw(), "$case: the redrawn form shows it");
+			}
+		}
+		$this->assertSame(1, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM m2m_person_group'));
+	}
+
+	public function testFormReportsADuplicateTogetherWithTheOtherErrors()
+	{
+		$form = (new DummyTable())->getForm(\Laf\UI\Form\DrawMode::INSERT);
+		$form->setRequest($form->buildRequest(['unique_field' => 'unique', 'required_field' => ''], \Laf\UI\Form\DrawMode::INSERT));
+		try {
+			$form->processForm();
+			$this->fail('expected a FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$errors = $ex->getErrors();
+			$this->assertArrayHasKey('required_field', $errors);
+			$this->assertSame(['Unique Field: this value is already in use'], $errors['unique_field'], 'in the same round trip');
+		}
+	}
+
+	public function testFormTurnsAUniqueViolationTheModelMissedIntoAMessage()
+	{
+		$row = new DummyTable();
+		$row->getUniqueFieldFld()->setUnique(false);
+		$row->getTable()->setUniqueFields([]); // the model no longer checks: only the database refuses
+		$form = $row->getForm(\Laf\UI\Form\DrawMode::INSERT);
+		$form->setRequest($form->buildRequest(['unique_field' => 'unique', 'required_field' => 'req'], \Laf\UI\Form\DrawMode::INSERT));
+		try {
+			$form->processForm();
+			$this->fail('expected a FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$this->assertSame(['unique_field' => ['Unique Field: this value is already in use']], $ex->getErrors());
+			$this->assertInstanceOf(DatabaseException::class, $ex->getPrevious()->getPrevious(), 'the database refusal is kept');
 		}
 	}
 }

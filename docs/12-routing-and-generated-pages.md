@@ -634,8 +634,10 @@ you route it under another module name. The delete button carries the CSRF token
   jt.project_id = …`), with View buttons to `?module=employee`. The grid variable is `$employee`, the model variable
   `$project`.
 - On the forms, the linker table also gives each side a many-to-many picker ("Projects" on employees, "Team members"
-  on projects): that comes from the models (`addManyToMany()` in the Base classes), not from the page. See
-  [08-relations.md](08-relations.md).
+  on projects): that comes from the models (the `belongsToMany()` declarations the generator writes into the Base
+  classes because `employee_project` is marked `{"linker": true}`), not from the page. The junction tabs above do
+  not need the marker: the page generator finds linker tables by the rule alone. See
+  [08-relations.md](08-relations.md#many-to-many-declaring-a-relation).
 
 [company.page](examples/generated/pages/company.page) adds two things:
 

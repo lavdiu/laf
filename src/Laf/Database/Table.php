@@ -32,6 +32,12 @@ class Table
     /** @var array<string, array<string, mixed>> linker table => many-to-many definition (addManyToMany()) */
     private array $manyToMany = [];
 
+    /** @var ManyToManyBuilder[] belongsToMany() declarations not resolved yet (resolved on the first read) */
+    private array $pendingManyToMany = [];
+
+    /** @var array<string, string[]> index name => columns of a unique key over several columns (addUniqueKey()) */
+    private array $uniqueKeys = [];
+
     /**
      * Table constructor.
      * @param string|null $name
@@ -250,18 +256,33 @@ class Table
             }
         }
         $definition['form'] = isset($definition['form']) && is_array($definition['form']) ? $definition['form'] : [];
+        // declarations made before this call come first, so a definition added later (a model class after the
+        // generated Base class) replaces theirs
+        $this->resolvePendingManyToMany();
         $this->manyToMany[$junction] = $definition;
+        return $this;
+    }
+
+    /**
+     * A belongsToMany() declaration, resolved (linker table, columns, defaults) when the relations are
+     * first read, so a model may declare it in any order and refine a generated one
+     */
+    public function addManyToManyBuilder(ManyToManyBuilder $builder): static
+    {
+        $this->pendingManyToMany[] = $builder->setTable($this);
         return $this;
     }
 
     public function removeManyToMany(string $junction): static
     {
+        $this->resolvePendingManyToMany();
         unset($this->manyToMany[$junction]);
         return $this;
     }
 
     public function hasManyToMany(string $junction): bool
     {
+        $this->resolvePendingManyToMany();
         return isset($this->manyToMany[$junction]);
     }
 
@@ -270,15 +291,33 @@ class Table
      */
     public function getManyToManyDefinition(string $junction): ?array
     {
+        $this->resolvePendingManyToMany();
         return $this->manyToMany[$junction] ?? null;
     }
 
     /**
+     * @param bool $resolvePending false = only the definitions resolved so far (used while resolving)
      * @return array<string, array<string, mixed>> linker table => definition
      */
-    public function getManyToManyDefinitions(): array
+    public function getManyToManyDefinitions(bool $resolvePending = true): array
     {
+        if ($resolvePending) {
+            $this->resolvePendingManyToMany();
+        }
         return $this->manyToMany;
+    }
+
+    /**
+     * Turns the belongsToMany() declarations into definitions, in declaration order
+     * @throws \LogicException when a declaration names no usable linker table
+     */
+    private function resolvePendingManyToMany(): void
+    {
+        while ($this->pendingManyToMany !== []) {
+            $builder = array_shift($this->pendingManyToMany);
+            [$junction, $definition] = $builder->resolve($this);
+            $this->manyToMany[$junction] = $definition;
+        }
     }
 
     /**
@@ -395,6 +434,43 @@ class Table
     {
         $this->uniqueFields[] = $field;
         return $this;
+    }
+
+    /**
+     * A unique index over several columns (UNIQUE (first_name, last_name)): the combination of
+     * values must not repeat. The generator adds one per such index; single-column unique
+     * indexes stay on the field (Field::setUnique(), addUniqueField()). Checked before every
+     * write like a unique field, and forms show a duplicate as a message on the first column.
+     * @param string $name the index (constraint) name, used to recognise the database's own error
+     * @param string[] $fieldNames the columns in index order
+     */
+    public function addUniqueKey(string $name, array $fieldNames): static
+    {
+        $fieldNames = array_values(array_unique(array_map('strval', $fieldNames)));
+        if ($name === '' || $fieldNames === []) {
+            throw new \InvalidArgumentException(sprintf('Table %s: a unique key needs a name and at least one column', $this->name));
+        }
+        $this->uniqueKeys[$name] = $fieldNames;
+        return $this;
+    }
+
+    public function removeUniqueKey(string $name): static
+    {
+        unset($this->uniqueKeys[$name]);
+        return $this;
+    }
+
+    public function hasUniqueKey(string $name): bool
+    {
+        return isset($this->uniqueKeys[$name]);
+    }
+
+    /**
+     * @return array<string, string[]> index name => columns (only the keys added with addUniqueKey())
+     */
+    public function getUniqueKeys(): array
+    {
+        return $this->uniqueKeys;
     }
 
 

@@ -72,6 +72,23 @@ class Util
     }
 
     /**
+     * English plural of a label: Group → Groups, Company → Companies, Box → Boxes
+     */
+    public static function pluralLabel(string $label): string
+    {
+        if ($label === '') {
+            return $label;
+        }
+        if (preg_match('/[^aeiou]y$/i', $label)) {
+            return substr($label, 0, -1) . 'ies';
+        }
+        if (preg_match('/(s|x|z|ch|sh)$/i', $label)) {
+            return $label . 'es';
+        }
+        return $label . 's';
+    }
+
+    /**
      * Column name to method name part: instructor_name → InstructorName
      */
     public static function tableFieldNameToMethodName(?string $name): string

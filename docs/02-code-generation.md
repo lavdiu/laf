@@ -4,8 +4,8 @@ LAF writes the repetitive part of a database application for you: for every tabl
 (columns, types, keys, foreign keys, comments) and generates a Base class that describes the table, a model class
 you own, and a CRUD page. This chapter is the complete reference for that step: the `laf-generate` command and
 every option, the `DatabaseGenerator` PHP API, what each generated file contains and when it is rewritten, the
-JSON column comments that tune the output, how column types map to field types, how linker tables become
-many-to-many relations, the page labels, and the table inspectors underneath.
+JSON column comments that tune the output, how column types map to field types, how marked linker tables
+become many-to-many relations, the page labels, and the table inspectors underneath.
 
 On this page:
 
@@ -18,6 +18,7 @@ On this page:
 - [Type mapping](#type-mapping)
 - [Display columns](#display-columns)
 - [Foreign keys](#foreign-keys)
+- [Unique keys over several columns](#unique-keys-over-several-columns)
 - [Linker tables and many-to-many relations](#linker-tables-and-many-to-many-relations)
 - [PageGenerator: labels, page shell, module names](#pagegenerator)
 - [Table inspectors (MySQL and PostgreSQL)](#table-inspectors-mysql-and-postgresql)
@@ -79,8 +80,9 @@ and generates. It is installed as `vendor/bin/laf-generate`; inside a LAF checko
 | `--force` | `-f` | flag | off | Overwrite existing model classes (`MyApp/Employee.php`). Base classes are always rewritten. |
 | `--list` | `-l` | flag | off | Dry run: print the selected tables and the files a run would write (`write`, `keep`, `install`). Writes nothing. |
 | `--labels=FILE` | | `.php` or `.json` | Settings `settings.label.translations` | Page label translations (see [Page labels](#page-labels)). A `.php` file returns an array, a `.json` file holds an object. |
+| `--many-to-many=MODE` | | `marked`, `auto` or `off` | Settings `generator.many_to_many`, else `marked` | Which linker tables become many-to-many pickers: only tables commented `{"linker": true}`, every table the linker rule finds, or none (see [Linker tables](#linker-tables-and-many-to-many-relations)). Another value is a usage error (exit 2). |
 | `--strict` | | flag | off | Exit code 1 when the generator reported warnings (for CI). |
-| `--quiet` | `-q` | flag | off | Print only warnings and the summary line. |
+| `--quiet` | `-q` | flag | off | Print only warnings, notes and the summary line. |
 | `--help` | `-h` | flag | | Print the usage text and exit 0. |
 
 Values are given as `--lib=app/lib` or `--lib app/lib`. Flags take no value (`--list=1` is an error). Anything
@@ -126,6 +128,9 @@ vendor/bin/laf-generate --bootstrap=app/bootstrap.php --pages --labels=app/label
 
 # regenerate a model class from scratch (overwrites your code in MyApp/Project.php!)
 vendor/bin/laf-generate --bootstrap=app/bootstrap.php --tables=project --classes --force
+
+# the behaviour before linker tables became opt-in: every table the linker rule finds gets pickers
+vendor/bin/laf-generate --bootstrap=app/bootstrap.php --classes --many-to-many=auto
 ```
 
 A dry run on the example schema after a first generation (existing files are kept):
@@ -190,7 +195,7 @@ complete output for `employee`. Its parts:
 |---|---|
 | `__construct($id = null)` | binds the table metadata (`buildClass()`) and loads the row when an id is given; a composite key is `['a' => 1, 'b' => 2]` |
 | `select($id): bool` | loads a row by primary key |
-| `buildClass()` (private) | one `Field` per column (name, label, placeholder, required, max length, auto-increment, unique, type, then the setters from the column comment and `setFormOptions()`), the `PrimaryKey`, unique fields, the display field when a comment names one, one `ForeignKey` per foreign key column, one `addManyToMany()` per linker table |
+| `buildClass()` (private) | one `Field` per column (name, label, placeholder, required, max length, auto-increment, unique, type, then the setters from the column comment and `setFormOptions()`), the `PrimaryKey`, unique fields, the display field when a comment names one, one `ForeignKey` per foreign key column, one `addUniqueKey()` per unique index over several columns, one `belongsToMany()` per marked linker table that points at the table |
 | `setXxxVal($value)` | sets a column value, returns the object (chainable) |
 | `getXxxVal()` | the column value, typed by its field type |
 | `getXxxFld()` | the `Laf\Database\Field\Field` object (metadata, validation rules, value) |
@@ -223,7 +228,7 @@ What the generator derives from the schema:
 | `setRequired()` | `IS_NULLABLE = 'NO'` (defaults are not considered: see the note below) |
 | `setMaxLength()` | `CHARACTER_MAXIMUM_LENGTH` of character columns only (`varchar`, `char`, `enum`, `set`, `binary`, `varbinary`, PostgreSQL `character varying`, `bpchar`, `citext`); text and JSON columns get none |
 | `setAutoIncrement()` | `EXTRA` contains `auto_increment` (MySQL), identity or `nextval()` default (PostgreSQL) |
-| `setUnique()` + `addUniqueField()` | a single-column unique index (`COLUMN_KEY = 'UNI'`); columns of a composite unique index are not marked |
+| `setUnique()` + `addUniqueField()` | a single-column unique index (`COLUMN_KEY = 'UNI'`); columns of a unique index over several columns are not marked; the index becomes `addUniqueKey()` (below) |
 | `$pk->addField()` | primary key columns, in key order |
 | `setType()` | the [type mapping](#type-mapping), or the comment's `setType` |
 
@@ -360,6 +365,7 @@ exit($generator->getWarnings() === [] ? 0 : 1);
 | `setGenerateAutoloader(bool $generate): static` | Whether `generateEverything()` writes `{Namespace}/autoload.php` | Default `true` |
 | `setForceRewriteClasses(bool $force): static` / `isForceRewriteClasses(): bool` | Overwrite existing model classes | Same as the constructor's second argument |
 | `setInstallMissingPages(bool $install): static` | Whether `generateEverything()` ends with `installMissingPages()` | Default `false` |
+| `setManyToManyMode(?string $mode): static` | Which linker tables become relations: `ClassGenerator::MANY_TO_MANY_MARKED` (`'marked'`), `MANY_TO_MANY_AUTO` (`'auto'`) or `MANY_TO_MANY_OFF` (`'off'`) | Stored as config key `many_to_many`; `null` removes it, so Settings `generator.many_to_many` applies (else `marked`); another value throws `InvalidArgumentException` |
 | `generateEverything(array $labelTranslations = []): void` | `checkConfig()`, directories, autoloader (unless off), classes, pages, and the page installation when switched on | A non-empty argument replaces the label translations; throws `MissingConfigParamException` when the config lacks directories or namespace |
 | `processTables(): static` | Base and model classes of the selected tables | The class generators create their folders |
 | `processPages(): static` | Pages of the selected tables into `page_dir` | |
@@ -372,6 +378,7 @@ exit($generator->getWarnings() === [] ? 0 : 1);
 | `getGeneratedFiles(): array` | Every file the run wrote or considered (model classes that were kept included), installed pages and the autoloader | |
 | `getInstalledPages(): array` | The pages `installMissingPages()` copied | |
 | `getWarnings(): array` | Messages from the generators, prefixed with the table name for class warnings | See [Warnings](#warnings-plan-and-ci) |
+| `getNotices(): array` | Information that is not a problem, each text once per run: linker tables found but not marked | Also written as `Note: ...` progress lines |
 
 ### The config array
 
@@ -673,13 +680,67 @@ On the referenced side, every foreign key that points at a table's primary key g
 related-records tab (the company page lists the company's employees). Navigation, validation and the form inputs
 of foreign keys are covered in [03-models.md](03-models.md) and [08-relations.md](08-relations.md).
 
+## Unique keys over several columns
+
+A single-column unique index marks its field (`setUnique(true)` + `addUniqueField()`). A unique index over several
+columns becomes one `addUniqueKey()` line, so the model refuses a repeated combination before the INSERT and forms
+show it as a message. `employee_project` has `UNIQUE (employee_id, project_id)`, and
+[`BaseEmployeeProject.php`](examples/generated/MyApp/Base/BaseEmployeeProject.php) gets:
+
+```php
+/**
+ * Unique keys over several columns
+ */
+$this->getTable()->addUniqueKey("employee_project_unique", ['employee_id', 'project_id']);
+```
+
+The inspectors read the indexes (`getUniqueKeys()`: index name => columns in index order). Left out:
+
+- the primary key
+- partial indexes (`WHERE …`, PostgreSQL)
+- expression indexes (`lower(email)`, MySQL 8 functional key parts)
+- MySQL prefix indexes (`unique_field(255)`): they are unique only on the first characters, so checking whole values
+  would refuse rows the database accepts
+- PostgreSQL `INCLUDE` columns
+
+A table without such an index gets no extra lines, so its output stays byte-identical to older generator runs.
+
+The database still refuses what the model cannot predict (an expression index, two requests at the same moment);
+forms turn that refusal into a message too, see [06-forms.md](06-forms.md#unique-values).
+
 ## Linker tables and many-to-many relations
 
 A **linker table** (junction table) connects two tables so that a row of one can be linked to several rows of
 the other. `employee_project(id, employee_id → employee, project_id → project)` links employees and projects.
-`Laf\Generator\JunctionDetector` recognises one by this rule:
 
-1. it has **exactly two foreign key columns**, pointing at **two different tables**;
+Linker tables are **opt-in**. The generator turns one into many-to-many pickers only when the table's own comment
+marks it with `{"linker": true}`:
+
+```sql
+-- MySQL / MariaDB: in the CREATE TABLE ...
+CREATE TABLE `employee_project` (
+  ...
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{"linker": true}';
+-- ... or on an existing table
+ALTER TABLE employee_project COMMENT = '{"linker": true}';
+
+-- PostgreSQL
+COMMENT ON TABLE employee_project IS '{"linker": true}';
+```
+
+A table with two foreign keys and little else is not always something users should edit with a picker (a log,
+a stock movement, an assignment that has its own page), so the generator does not guess. The example schema
+([`examples/schema.mysql.sql`](examples/schema.mysql.sql), [`examples/schema.postgres.sql`](examples/schema.postgres.sql))
+marks `employee_project`. The inspectors read the comment with `getTableComment()`, and `ColumnComment::linker()`
+parses it: `true`, `false`, or `null` when the comment does not say (no comment, plain text, or JSON without a
+`linker` key).
+
+### The linker rule
+
+The marker is checked against `Laf\Generator\JunctionDetector`, which recognises a linker table by this rule:
+
+1. it has **exactly two foreign key columns**, pointing at **two different tables** (metadata columns such as
+   `created_by` or `record_status_id` never count, even when they are foreign keys);
 2. besides the foreign keys, the primary key and the metadata columns (`id`, `created_on`, `created_by`,
    `updated_on`, `updated_by`, `is_deleted`, `deleted`, `record_status_id`), it has **at most two other columns**
    (`JunctionDetector::MAX_EXTRA_COLUMNS`), e.g. a `position` or a `role`.
@@ -688,32 +749,91 @@ So `invoice_line(invoice_id, product_id, quantity, price, discount)` is not a li
 it is a child table and gets ordinary related tabs. A table whose two keys point at the same table
 (`transfer(from_account_id, to_account_id)`) is not a linker either.
 
-For each linker table that points at a table, the generator writes one `addManyToMany()` into that table's Base
-class; both sides get one:
+The marker decides, the rule is the safety check:
+
+| The table | Result (default mode) |
+|---|---|
+| marked `{"linker": true}` and follows the rule | a `belongsToMany()` line in both sides' Base classes |
+| marked `{"linker": true}`, does not follow the rule | no relation, and a **warning**: `table invoice is marked {"linker": true} but is no linker table: it needs exactly two foreign keys to two different tables and at most 2 other columns besides the key and row metadata; no picker` |
+| not marked, follows the rule | no relation, and a **note**: `employee_project looks like a linker table (employee ⇄ project): mark it with the table comment {"linker": true} for many-to-many pickers` |
+| marked `{"linker": false}` | no relation, no note |
+| not marked, does not follow the rule | nothing |
+
+The note is information, not a problem. It is printed once per run (both sides of the linker report the same
+text) as a `Note: ...` line, collected in `DatabaseGenerator::getNotices()` / `ClassGenerator::getNotices()`, and
+it does not count as a warning, so `laf-generate --strict` still exits with 0. `--quiet` keeps the notes. A real
+run on the example schema with the marker removed:
+
+```
+Starting to generate Classes
+Processed table: company
+Note: employee_project looks like a linker table (employee ⇄ project): mark it with the table comment {"linker": true} for many-to-many pickers
+Processed table: employee
+Processed table: employee_project
+Processed table: project
+Done: 4 tables, 8 class files, 0 pages, 0 pages installed, 0 warnings
+```
+
+### Modes
+
+| Mode | Linker tables that become relations |
+|---|---|
+| `marked` (default) | only tables commented `{"linker": true}` that follow the rule; unmarked ones give a note |
+| `auto` | every table the rule finds, except tables commented `{"linker": false}` (the behaviour before linker tables became opt-in); no notes |
+| `off` | none; the marker is ignored, no notes, no marker warnings |
+
+Choose the mode in one of these places (the first one set wins):
+
+| Where | How |
+|---|---|
+| `laf-generate` | `--many-to-many=marked`, `auto` or `off` |
+| `DatabaseGenerator` | `setManyToManyMode('auto')` (`null` = no override) |
+| `ClassGenerator` | config key `many_to_many` |
+| Settings | `generator.many_to_many` (see [16-settings-locale-utilities.md](16-settings-locale-utilities.md)) |
+
+`ClassGenerator::getManyToManyMode()` returns the mode in effect. An unknown value in the config or in Settings
+falls back to `marked`; `setManyToManyMode()` and `--many-to-many` refuse it.
+
+The read-only junction tabs on the generated pages ([below](#junction-tabs-on-generated-pages)) do not depend on
+the marker or the mode: the page generator still detects linker tables by the rule alone.
+
+### What is generated
+
+For each marked linker table that points at a table, the generator writes one `belongsToMany()` into that table's
+Base class; both sides get one (from [`BaseEmployee.php`](examples/generated/MyApp/Base/BaseEmployee.php) and
+[`BaseProject.php`](examples/generated/MyApp/Base/BaseProject.php)):
 
 ```php
 // BaseEmployee
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects']);
+$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects");
 
 // BaseProject
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'project_id', 'other' => 'employee_id', 'table' => 'employee', 'label' => 'Team members']);
+$this->belongsToMany("employee")->through("employee_project")->keys("project_id", "employee_id")->label("Team members");
 ```
 
-| Definition key | Meaning | Source |
+This is the same fluent declaration you can write by hand in a model class
+([08-relations.md](08-relations.md#many-to-many-declaring-a-relation)). The generator always names the linker
+table and both columns, so the line never depends on naming conventions. The parts and where they come from:
+
+| Call | Definition key | Source |
 |---|---|---|
-| `owner` | the linker column that points at this table | schema |
-| `other` | the linker column that points at the other table | schema |
-| `table` | the other table | schema |
-| `label` | the picker's label | the `setLabel` of the comment on the **`other` column**, else the other table's name in plural ("Project" gives "Projects", "Category" "Categories", "Address" "Addresses") |
-| `hint` | help text under the picker | `setHint` of the same comment (only when set) |
-| `required` | at least one row must be picked | `"setRequired": true` in the same comment (only when true) |
-| `form` | layout hints: `order`, `group`, `tab`, `exclude`, `readonly`, `hidden`, `element`, `create` | the `"form"` object of the same comment (`multi` is consumed by the generator) |
+| `belongsToMany("project")` | `table` | the other table (schema) |
+| `through("employee_project")` | the relation's name | the linker table |
+| `keys("employee_id", "project_id")` | `owner`, `other` | the linker column that points at this table, then the one that points at the other table |
+| `label("Projects")` | `label` | the `setLabel` of the comment on the **`other` column**, else the other table's name in plural (`Util::pluralLabel()`: "Project" gives "Projects", "Category" "Categories", "Address" "Addresses") |
+| `hint("...")` | `hint` | `setHint` of the same comment (only when set) |
+| `required()` | `required` | `"setRequired": true` in the same comment (only when true) |
+| `checkboxes()`, `chips()`, `dualList()`, `picker("...")` | `form.element` | `"element"` in the `"form"` object of the same comment |
+| `creatable()` | `form.create` | `"create"` in the same `"form"` object |
+| `group("...")`, `tab("...")`, `order(n)` | `form.group`, `form.tab`, `form.order` | the same `"form"` object |
+| `form([...])` | `form.exclude`, `form.readonly`, `form.hidden` | the rest of the `"form"` object (`multi` is consumed by the generator) |
 
 The comment that configures a side's picker is the one on the linker column pointing **at the other table**: the
 Employee form's picker is labelled by `employee_project.project_id` ("Projects"), the Project form's picker by
 `employee_project.employee_id` ("Team members"). That way each comment describes the rows the picker offers.
 
-A fuller example: a `project_tag(id, project_id, tag_id)` linker whose `tag_id` comment is
+A fuller example: a `project_tag(id, project_id, tag_id)` linker, marked `{"linker": true}`, whose `tag_id`
+comment is
 
 ```json
 {"fields":{"setLabel":"Tags","setHint":"Pick a few","setRequired":true},
@@ -723,15 +843,15 @@ A fuller example: a `project_tag(id, project_id, tag_id)` linker whose `tag_id` 
 generates in `BaseProject`:
 
 ```php
-$this->getTable()->addManyToMany("project_tag", ['owner' => 'project_id', 'other' => 'tag_id', 'table' => 'tag', 'label' => 'Tags', 'hint' => 'Pick a few', 'required' => true, 'form' => ['element' => 'Laf\\UI\\Form\\Input\\Autocomplete', 'create' => true, 'group' => 'Classification']]);
+$this->belongsToMany("tag")->through("project_tag")->keys("project_id", "tag_id")->label("Tags")->hint("Pick a few")->required()->chips()->creatable()->group("Classification");
 ```
 
 Pickers: `element` may be `Checkboxes` / `CheckboxCollection` (the default for small tables), `Autocomplete`
 (chips with search; the default above `form.select_autocomplete_threshold` rows) or `DualList` (two lists with
-Add / Remove buttons). The relation's API (`$employee->manyToMany('employee_project')->sync([...])`) and the
-pickers are documented in [08-relations.md](08-relations.md).
+Add / Remove buttons). The relation's API (`$employee->manyToMany('employee_project')->sync([...])`), the pickers
+and the hand-written declaration are documented in [08-relations.md](08-relations.md).
 
-When the generator writes **no** relation:
+When the generator writes **no** relation for a marked linker table:
 
 - the comment on the `other` column says `"form":{"multi":false}`: the relation is left out on that side
   (use it for a linker that is maintained elsewhere, or for one side only);
@@ -740,9 +860,11 @@ When the generator writes **no** relation:
   `table project: linker table project_tag has a required column without a default, no multi-value picker`.
   Give the column a default or make it nullable to get the picker.
 
+### Junction tabs on generated pages
+
 On the generated pages, a linker table is shown as the table behind it: the employee view page gets a "Project"
 tab listing the employee's projects (joined through `employee_project`), with View buttons that open the project
-page.
+page. These tabs follow the linker rule alone, whether the table is marked or not.
 
 ## PageGenerator
 
@@ -885,7 +1007,7 @@ MySQL-only fields itself:
 
 | Method | Returns |
 |---|---|
-| `inspect(): void` | Loads columns, foreign keys and referencing tables |
+| `inspect(): void` | Loads columns, foreign keys, referencing tables, unique keys and the table comment |
 | `isInspected(): bool` | Whether `inspect()` has run (`AbstractTableInspector`) |
 | `getTable(): string` / `setTable(string $table): static` | The table name (`setTable()` resets the inspected state) |
 | `getColumns(): array` / `setColumns(array $columns): static` | Column name => row |
@@ -896,6 +1018,8 @@ MySQL-only fields itself:
 | `populateReferencingTables(): void` | Reloads just the referencing tables |
 | `getPrimaryColumnName(): ?string`, `getPrimaryColumnNames(): array` | First / all primary key columns; `setPrimaryColumnName(string\|array\|null)` replaces them |
 | `getDisplayColumnName(): string` | The [display column](#display-columns); throws `RuntimeException` when the table has no columns (does not exist) |
+| `getUniqueKeys(): array`, `setUniqueKeys(array): static` | Unique indexes on plain columns (single and multi-column, primary key excluded): index name => columns ([see above](#unique-keys-over-several-columns)). `AbstractTableInspector` only, not part of `TableInspectorInterface`: an inspector without it reports none |
+| `getTableComment(): ?string`, `setTableComment(?string): static` | The table's own comment (MySQL `TABLE_COMMENT`, PostgreSQL `COMMENT ON TABLE`), null when empty; `{"linker": true}` marks a [linker table](#linker-tables-and-many-to-many-relations). `AbstractTableInspector` only: an inspector without it reports no comment, so no table counts as marked |
 
 `JunctionDetector::detect(TableInspectorInterface $junction, string $currentTable, ?string $viaColumn = null): ?array`
 applies the linker rule to an inspected table. For `employee_project` seen from `employee`:
@@ -921,11 +1045,13 @@ from code, or with injected inspectors to test generation without a database.
 
 | Method | What it does |
 |---|---|
-| `__construct(Table $table, array $config, ?TableInspectorInterface $tableInspector = null)` | Config keys `namespace`, `base_class_dir`, `class_dir`, `rewrite_class` |
+| `__construct(Table $table, array $config, ?TableInspectorInterface $tableInspector = null)` | Config keys `namespace`, `base_class_dir`, `class_dir`, `rewrite_class`, `many_to_many` (`marked`, `auto`, `off`; default Settings `generator.many_to_many`, else `marked`) |
 | `processBaseClass(): static` / `saveBaseClassToFile(): static` | Build / build and write the Base class |
 | `processClass(): static` / `saveClassToFile(): static` | Build / write the model class (only when missing or `rewrite_class` is set) |
-| `generateFields(): string`, `generateForeignKeys(): string`, `generateManyToMany(): string` | The parts of `buildClass()` |
-| `detectManyToMany(): array` | Linker table => `addManyToMany()` definition |
+| `generateFields(): string`, `generateForeignKeys(): string`, `generateUniqueKeys(): string`, `generateManyToMany(): string` | The parts of `buildClass()` |
+| `detectManyToMany(): array` | Linker table => definition (the array `Table::addManyToMany()` takes), for the linker tables the mode lets through; records the notes |
+| `static renderBelongsToMany(string $junction, array $definition): string` | One definition as the generated fluent line, without the `;`: `$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects")` |
+| `getManyToManyMode(): string` | The mode in effect: `MANY_TO_MANY_MARKED` (`'marked'`), `MANY_TO_MANY_AUTO` (`'auto'`) or `MANY_TO_MANY_OFF` (`'off'`) |
 | `addTableInspector(TableInspectorInterface $inspector): static` | Metadata of another table (a linker), e.g. in tests |
 | `getTableInspector()` / `setTableInspector(TableInspectorInterface $inspector): static` | The table's own inspector |
 | `getTableColumns(): array`, `populateForeignKeys(): void`, `getFkTable($column): string` | The inspected columns; the referenced table of a column (`''` when not a foreign key) |
@@ -933,6 +1059,7 @@ from code, or with injected inspectors to test generation without a database.
 | `getBaseClassFile()` / `setBaseClassFile()`, `getClassFile()` / `setClassFile()` | The generated sources |
 | `getTable()` / `setTable(Table $table)`, `getConfig()` / `setConfig(array $config)` | Accessors |
 | `getWarnings(): array` | Comment and linker warnings of the last `processBaseClass()` |
+| `getNotices(): array` | Notes of the last `processBaseClass()`: linker tables found but not marked |
 | `static exportArray(array $value): string` | Short-array PHP source of an array (used for form options and definitions) |
 
 Generating one table from code, without the database, with a hand-made inspector (any class implementing
@@ -947,14 +1074,15 @@ $generator = new ClassGenerator(
     ['namespace' => 'MyApp', 'base_class_dir' => '/tmp/MyApp/Base', 'class_dir' => '/tmp/MyApp'],
     $projectInspector                                   // returns the column rows shown above
 );
-$generator->addTableInspector($projectTagInspector);    // the linker table, for addManyToMany()
+$generator->addTableInspector($projectTagInspector);    // the linker table (getTableComment() = {"linker": true}), for belongsToMany()
 echo $generator->processBaseClass()->getBaseClassFile();
 print_r($generator->getWarnings());
+print_r($generator->getNotices());
 ```
 
 `ColumnComment` (the comment parser) is public too: `ColumnComment::parse(?string)`, `fieldSetters(?string,
 array &$warnings)`, `typeOverride(?string)`, `displayField(?string, string $column, array $columnNames)`,
-`formOptions(?string, array &$warnings)`, and the constants `FORM_KEYS`, `FORM_MODE_KEYS`, `FORM_BOOL_KEYS`.
+`formOptions(?string, array &$warnings)`, `linker(?string $tableComment): ?bool` (the table marker), and the constants `FORM_KEYS`, `FORM_MODE_KEYS`, `FORM_BOOL_KEYS`.
 
 ## Warnings, plan() and CI
 
@@ -969,9 +1097,15 @@ lines, in `DatabaseGenerator::getWarnings()`, and make `laf-generate --strict` e
 | `employee: column comment: "Foo" is not a form element class` | an `element` that does not resolve |
 | `employee: table employee: several columns name a display field; "x" wins` | `setDisplayField` on more than one column |
 | `project: table project: linker table project_tag has a required column without a default, no multi-value picker` | see [linker tables](#linker-tables-and-many-to-many-relations) |
+| `invoice: table invoice is marked {"linker": true} but is no linker table: ...; no picker` | the table comment marks a table that does not follow the [linker rule](#the-linker-rule) |
 | `project: table project: cannot inspect project_tag (...)` | a referencing table could not be read |
 | `table log has no primary key: the generated page cannot view, update or delete rows` | page generator |
 | `log: no generated page to install (...)` | `installMissingPages()` without a generated page |
+
+**Notes** are not warnings. `Note: employee_project looks like a linker table (employee ⇄ project): mark it with
+the table comment {"linker": true} for many-to-many pickers` says that an unmarked table follows the linker rule;
+it appears in `getNotices()`, survives `--quiet` and never changes the exit code. Mark the table, or comment it
+`{"linker": false}` when it is not meant for pickers (that also silences the note).
 
 A CI check that the committed Base classes match the schema:
 
@@ -980,9 +1114,9 @@ vendor/bin/laf-generate --bootstrap=app/bootstrap.php --classes --strict -q
 git diff --exit-code app/lib/MyApp/Base
 ```
 
-> **Note:** The element name `TransferList` (an alias of `DualList` accepted at runtime by `ManyToMany`) is not
-> accepted in a column comment: the generator drops it with a "not a form element class" warning. Use
-> `"element":"DualList"` in comments.
+> **Note:** Besides the form element classes, `"element"` takes the picker aliases of a many-to-many relation
+> (`chips`, `dual`, `TransferList`, `Checkboxes`): `FormLayout::resolveElementClass()` falls back to
+> `ManyToMany::resolveElementClass()`.
 
 ## See also
 

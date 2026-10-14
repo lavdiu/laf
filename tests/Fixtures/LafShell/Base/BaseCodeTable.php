@@ -87,11 +87,6 @@ class BaseCodeTable extends Database\BaseObject
 		/**
 		 * Generating Foreign keys
 		 */
-		/**
-		 * Many-to-many relations through linker tables
-		 */
-		$this->getTable()->addManyToMany("link_table", ['owner' => 'code', 'other' => 'left_id', 'table' => 'dummy_table', 'label' => 'Dummy Tables']);
-
 	}
 
 	/**

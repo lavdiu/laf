@@ -447,6 +447,9 @@ class ManyToMany
         if ($element instanceof ManyToManyAutocomplete && $this->getFormOption('create') === true) {
             $element->setAllowCreate(true);
         }
+        if (isset($this->definition['max']) && is_int($this->definition['max'])) {
+            $element->setMaxItems($this->definition['max']);
+        }
         $this->formElement = $element;
         return $element;
     }
@@ -467,12 +470,14 @@ class ManyToMany
         $short = strtolower((string)preg_replace('/^.*\\\\/', '', trim($name)));
         $aliases = [
             'autocomplete' => ManyToManyAutocomplete::class,
+            'chips' => ManyToManyAutocomplete::class,
             'manytomanyautocomplete' => ManyToManyAutocomplete::class,
             'checkboxcollection' => ManyToManyCheckboxes::class,
             'checkboxes' => ManyToManyCheckboxes::class,
             'checkbox' => ManyToManyCheckboxes::class,
             'manytomanycheckboxes' => ManyToManyCheckboxes::class,
             'duallist' => ManyToManyDualList::class,
+            'dual' => ManyToManyDualList::class,
             'transferlist' => ManyToManyDualList::class,
             'manytomanyduallist' => ManyToManyDualList::class,
         ];
