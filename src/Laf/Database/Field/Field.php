@@ -43,9 +43,19 @@ class Field
 
     private ?int $minLength;
 
-    private ?int $minValue = null;
+    /** @var int|float|string|null lower bound of a numeric value (a numeric string keeps decimals exact) */
+    private int|float|string|null $minValue = null;
 
-    private ?int $maxValue = null;
+    /** @var int|float|string|null upper bound of a numeric value */
+    private int|float|string|null $maxValue = null;
+
+    /** Regular expression a non-empty value must match (preg syntax, with delimiters) */
+    private ?string $pattern = null;
+
+    private ?string $patternMessage = null;
+
+    /** @var array<int, callable> fn(mixed $value, Field $field): null|bool|string|string[] */
+    private array $validators = [];
 
     private ?int $incrementStep;
 
@@ -247,20 +257,101 @@ class Field
     }
 
     /**
-     * Constraint check for the current value: required, length, range, precision.
+     * Constraint check for the current value: required, the type's rules (length, range,
+     * precision), minimum length, pattern and the validators added with addValidator().
+     * Minimum length, pattern and validators only look at a non-empty value (an empty one is
+     * the required rule's business).
      * @return string[] empty when valid
      */
     public function validate(): array
     {
         $messages = [];
         $label = $this->getLabel() ?: $this->getName();
-        if ($this->isRequired() && !$this->isPrimaryKey() && ($this->value === null || $this->value === '')) {
+        $empty = $this->value === null || $this->value === '';
+        if ($this->isRequired() && !$this->isPrimaryKey() && $empty) {
             $messages[] = sprintf('%s is required', $label);
         }
         if ($this->type !== null && $this->value !== null) {
             $messages = array_merge($messages, $this->type->validate($this->value, $this));
         }
+        if ($empty) {
+            return $messages;
+        }
+        if (is_scalar($this->value) && !is_bool($this->value)) {
+            $text = (string)$this->value;
+            if (is_int($this->minLength) && $this->minLength > 0 && mb_strlen($text) < $this->minLength) {
+                $messages[] = sprintf('%s must be at least %d characters', $label, $this->minLength);
+            }
+            if ($this->pattern !== null && preg_match($this->pattern, $text) !== 1) {
+                $messages[] = $this->patternMessage ?? sprintf('%s has an invalid format', $label);
+            }
+        }
+        foreach ($this->validators as $validator) {
+            $result = $validator($this->value, $this);
+            if ($result === null || $result === true || $result === [] || $result === '') {
+                continue;
+            }
+            if ($result === false) {
+                $messages[] = $this->invalidValueErrorMessage ?? sprintf('%s is invalid', $label);
+                continue;
+            }
+            foreach ((array)$result as $message) {
+                $messages[] = (string)$message;
+            }
+        }
         return $messages;
+    }
+
+    /**
+     * Adds a rule checked by validate() (forms, BaseObject::validate(), store() with validation on):
+     *   $field->addValidator(fn ($value) => str_ends_with($value, '.al') ? null : 'Only .al addresses');
+     * The callable gets the value and the field and returns null/true (valid), false (invalid, the
+     * field's invalid-value message or "%s is invalid"), a message, or a list of messages.
+     * Not called for an empty value.
+     */
+    public function addValidator(callable $validator): static
+    {
+        $this->validators[] = $validator;
+        return $this;
+    }
+
+    /** Removes the rules added with addValidator() */
+    public function clearValidators(): static
+    {
+        $this->validators = [];
+        return $this;
+    }
+
+    /**
+     * @return array<int, callable>
+     */
+    public function getValidators(): array
+    {
+        return $this->validators;
+    }
+
+    /**
+     * A regular expression a non-empty value must match, e.g. setPattern('/^[A-Z]{2}\d{4}$/', 'Code is two letters and four digits')
+     * @throws \InvalidArgumentException when the expression does not compile
+     */
+    public function setPattern(?string $pattern, ?string $message = null): static
+    {
+        if ($pattern !== null && @preg_match($pattern, '') === false) {
+            throw new \InvalidArgumentException(sprintf('Invalid pattern for field %s: %s', (string)$this->name, $pattern));
+        }
+        $this->pattern = $pattern;
+        $this->patternMessage = $message;
+        return $this;
+    }
+
+    public function getPattern(): ?string
+    {
+        return $this->pattern;
+    }
+
+    public function getPatternMessage(): ?string
+    {
+        return $this->patternMessage;
     }
 
     /**
@@ -721,39 +812,50 @@ class Field
     }
 
     /**
-     * @return int
+     * @return int|float|string|null as given to setMinValue()
      */
-    public function getMinValue(): ?int
+    public function getMinValue(): int|float|string|null
     {
         return $this->minValue;
     }
 
     /**
-     * @param int $minValue
-     * @return static
+     * Lower bound of a numeric value; a numeric string ('0.01') keeps a decimal bound exact, null removes it
+     * @throws \InvalidArgumentException for a non-numeric value
      */
-    public function setMinValue(int $minValue): static
+    public function setMinValue(int|float|string|null $minValue): static
     {
-        $this->minValue = $minValue;
+        $this->minValue = $this->numericBound($minValue);
         return $this;
     }
 
     /**
-     * @return int
+     * @return int|float|string|null as given to setMaxValue()
      */
-    public function getMaxValue(): ?int
+    public function getMaxValue(): int|float|string|null
     {
         return $this->maxValue;
     }
 
     /**
-     * @param int $maxValue
-     * @return static
+     * Upper bound of a numeric value; null removes it
+     * @throws \InvalidArgumentException for a non-numeric value
      */
-    public function setMaxValue(int $maxValue): static
+    public function setMaxValue(int|float|string|null $maxValue): static
     {
-        $this->maxValue = $maxValue;
+        $this->maxValue = $this->numericBound($maxValue);
         return $this;
+    }
+
+    private function numericBound(int|float|string|null $bound): int|float|string|null
+    {
+        if (is_string($bound)) {
+            $bound = trim($bound);
+            if (!is_numeric($bound)) {
+                throw new \InvalidArgumentException(sprintf('Field %s: a minimum or maximum must be numeric, got "%s"', (string)$this->name, $bound));
+            }
+        }
+        return $bound;
     }
 
     /**

@@ -39,6 +39,17 @@ environment half (`Settings::loadFromEnvironment()` / `loadEnvFile()`; the datab
 `Form::buildRequest()` (the test base class is open). The exception marker interface (X10) was dropped as lowest
 value.
 
+Fourth pass (2026-10-13, user request "validate the store method, foreign-key autocomplete"): D6 / F6 done.
+`Field::setMinLength()` is checked now, `setPattern()`, `addValidator()`, decimal bounds (`setMinValue('0.01')`),
+the model hook `validateRecord()` (in `validate()` and in forms), opt-in validation inside `store()`
+(`setValidateOnStore()` / Settings `orm.validate_on_store`, every field on insert, changed fields on update) with
+`Laf\Exception\ValidationException` as the parent of `FormValidationException`. Kept opt-in because asm and
+routerarena rows may already hold values that break rules nobody enforced before. F9 done: `Input\Autocomplete`
+(hidden key + search box, vanilla script printed once), `Form::handleLookupRequest()` called by generated pages,
+Settings `form.select_autocomplete_threshold`, demo `sample_files/autocomplete_demo.php`. Not done: replacing
+asm's 26 jQuery UI autocompletes (app work; they keep working), a "create new" entry in the list, multi-value
+autocomplete.
+
 | # | Defect | Evidence | Effect |
 |---|---|---|---|
 | D1 | `softDelete()` writes `record_status_id = 0` unconditionally | `BaseObject.php:923`; asm `RecordStatus::DELETED = 5`, its `record_status` table holds ids 1-7 (migration 2020-01-19), asm calls `softDelete()` in 128 files and has a foreign key on the column in 5 tables; routerarena uses `DELETED = 0` | On asm's FK-constrained tables `setFieldValue()` throws `InvalidForeignKeyValue` (`BaseObject.php:153-157`); on the others a status asm never treats as deleted is written. Same code in asm's vendor copy. |

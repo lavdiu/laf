@@ -10,6 +10,7 @@ use Laf\Exception\FormValidationException;
 use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
 use Laf\Exception\UniqueFieldDuplicateValueException;
+use Laf\Exception\ValidationException;
 use Laf\Filesystem\Document;
 use Laf\UI\Component\Link;
 use Laf\UI\ComponentInterface;
@@ -18,6 +19,7 @@ use Laf\UI\Container\TabContainer;
 use Laf\UI\Container\TabContent;
 use Laf\UI\Form\Control\Button;
 use Laf\UI\Form\Control\SubmitButton;
+use Laf\UI\Form\Input\Autocomplete;
 use Laf\UI\Form\Input\File;
 use Laf\UI\Traits\ComponentTrait;
 use Laf\Util\Settings;
@@ -189,6 +191,11 @@ class Form implements ComponentInterface
         $pk = $object->getTable()->getPrimaryKey();
         $pkField = $pk->getFirstField();
 
+        // the form has just run the same rules: the write does not repeat them
+        $validateOnStore = $object->getValidateOnStore();
+        if ($this->validateOnSubmit) {
+            $object->setValidateOnStore(false);
+        }
         try {
             if ($pk->hasValue()) {
                 if ($pkField !== null && !$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
@@ -201,10 +208,76 @@ class Form implements ComponentInterface
             }
         } catch (UniqueFieldDuplicateValueException | MissingFieldValueException $ex) {
             throw $this->validationExceptionFromWrite($ex);
+        } catch (ValidationException $ex) {
+            $this->setErrors(self::formErrors($ex->getErrors()));
+            throw new FormValidationException($this->errors, $ex->getMessage(), 0, $ex);
+        } finally {
+            $object->setValidateOnStore($validateOnStore);
         }
 
         $object->reload();
         return $object->getRecordId();
+    }
+
+    /**
+     * Answers the search of an Autocomplete on this form (?laf_lookup=table.field&laf_q=text) with
+     * JSON {"results": [{"value", "label"}], "more": bool} and exits; call it before any output, after
+     * the form is built (generated pages do). Only autocomplete fields on this form are answered.
+     * @param array<string, mixed>|null $query the request parameters (default $_GET)
+     * @param bool $terminate false = print the answer and return instead of exiting (tests)
+     * @return bool false when the request is not a lookup
+     */
+    public function handleLookupRequest(?array $query = null, bool $terminate = true): bool
+    {
+        $query = $query ?? $_GET;
+        $key = $query[Autocomplete::REQUEST_KEY] ?? null;
+        if (!is_string($key) || $key === '') {
+            return false;
+        }
+        $term = $query[Autocomplete::REQUEST_TERM] ?? '';
+        $term = is_string($term) ? $term : '';
+
+        $element = null;
+        foreach ($this->getFieldElements() as $candidate) {
+            if ($candidate instanceof Autocomplete && $candidate->getLookupKey() === $key) {
+                $element = $candidate;
+                break;
+            }
+        }
+        if ($element === null) {
+            $status = 404;
+            $body = ['results' => [], 'more' => false, 'error' => 'Unknown lookup'];
+        } else {
+            try {
+                $status = 200;
+                $body = $element->search($term);
+            } catch (\Throwable $ex) {
+                $status = 500;
+                $body = ['results' => [], 'more' => false, 'error' => 'Lookup failed'];
+            }
+        }
+
+        if ($terminate) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+        }
+        if (!headers_sent()) {
+            http_response_code($status);
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        echo json_encode($body, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        if ($terminate) {
+            $this->terminateRequest();
+        }
+        return true;
+    }
+
+    /** End of a lookup request; overridable */
+    protected function terminateRequest(): void
+    {
+        exit;
     }
 
     /**
@@ -310,8 +383,33 @@ class Form implements ComponentInterface
                 $this->addError($name, $message);
             }
         }
+        // the model's own rules (BaseObject::validateRecord()), once the fields are valid
+        if (!$this->hasErrors()) {
+            foreach (self::formErrors($this->getObject()->recordErrors()) as $name => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($name, $message);
+                }
+            }
+        }
         $this->pushErrorsToElements();
         return $this->errors;
+    }
+
+    /**
+     * Model errors keyed for the form: record-level messages go to the form's own key
+     * @param array<string, string[]> $errors
+     * @return array<string, string[]>
+     */
+    private static function formErrors(array $errors): array
+    {
+        $result = [];
+        foreach ($errors as $name => $messages) {
+            $key = $name === ValidationException::RECORD_KEY ? self::FORM_ERROR_KEY : (string)$name;
+            foreach ($messages as $message) {
+                $result[$key][] = $message;
+            }
+        }
+        return $result;
     }
 
     /**

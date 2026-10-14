@@ -9,6 +9,7 @@ use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
 use Laf\Exception\RecordNotFoundException;
 use Laf\Exception\UniqueFieldDuplicateValueException;
+use Laf\Exception\ValidationException;
 use Laf\UI\Component\Dropdown;
 use Laf\UI\Component\Link;
 use Laf\UI\Form\Form;
@@ -67,6 +68,9 @@ class BaseObject implements \JsonSerializable
     private ?LoggerInterface $logger = null;
 
     private bool $auditLoggingEnabled = true;
+
+    /** null = Settings orm.validate_on_store (default false) */
+    private ?bool $validateOnStore = null;
 
     /**
      * @param int|string|array|null $id generated subclasses load the row when it is not empty
@@ -736,10 +740,14 @@ class BaseObject implements \JsonSerializable
     /* ------------------------------------------------------------------ */
 
     /**
-     * Stores the data in the database: insert when isNew(), update otherwise
+     * Stores the data in the database: insert when isNew(), update otherwise.
+     * With validation on store (setValidateOnStore(true) or Settings orm.validate_on_store) the
+     * field rules and validateRecord() are checked first: every field on insert, the changed
+     * ones on update (see assertValidForStore()).
      * @throws DatabaseException
      * @throws MissingFieldValueException
      * @throws UniqueFieldDuplicateValueException
+     * @throws ValidationException
      */
     public function store(): bool
     {
@@ -754,6 +762,7 @@ class BaseObject implements \JsonSerializable
      * @throws DatabaseException
      * @throws MissingFieldValueException
      * @throws UniqueFieldDuplicateValueException
+     * @throws ValidationException with validation on store
      */
     public function insert()
     {
@@ -785,6 +794,9 @@ class BaseObject implements \JsonSerializable
 
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
+        if ($this->isValidateOnStore()) {
+            $this->assertValidForStore(true);
+        }
 
         $columns = $placeholders = $bindings = [];
         foreach ($table->getFields() as $field) {
@@ -852,6 +864,7 @@ class BaseObject implements \JsonSerializable
      * @throws DatabaseException
      * @throws MissingFieldValueException
      * @throws UniqueFieldDuplicateValueException
+     * @throws ValidationException with validation on store
      */
     public function update()
     {
@@ -879,6 +892,9 @@ class BaseObject implements \JsonSerializable
 
         $this->checkFieldsForMissingRequiredValues();
         $this->checkUniqueFieldsForDuplicateValues();
+        if ($this->isValidateOnStore()) {
+            $this->assertValidForStore(false);
+        }
 
         $pk = $this->primaryKey();
         $assignments = $bindings = [];
@@ -1090,8 +1106,10 @@ class BaseObject implements \JsonSerializable
 
     /**
      * Constraint check of every field without touching the database row:
-     * required, type rules (length, range) and single-column uniqueness.
-     * @return array<string, string[]> column => messages, empty when valid
+     * required, field rules (type, length, range, pattern, validators), single-column
+     * uniqueness and the model's validateRecord().
+     * @return array<string, string[]> column => messages (ValidationException::RECORD_KEY for
+     *         record-level messages), empty when valid
      */
     public function validate(): array
     {
@@ -1105,6 +1123,104 @@ class BaseObject implements \JsonSerializable
         foreach ($this->uniqueFields() as $name => $field) {
             if ($this->isDuplicateValue($field)) {
                 $errors[$name][] = sprintf('%s must be unique: the value already exists', $field->getLabel() ?: $name);
+            }
+        }
+        return self::mergeErrors($errors, $this->recordErrors());
+    }
+
+    /**
+     * Rules that span fields or need the database, checked by validate(), by forms and by
+     * store() with validation on. Override in the model class:
+     *
+     *   protected function validateRecord(): array
+     *   {
+     *       if ($this->getEndDateVal() !== null && $this->getEndDateVal() < $this->getStartDateVal()) {
+     *           return ['end_date' => 'End date must be after the start date'];
+     *       }
+     *       return [];
+     *   }
+     *
+     * @return array<string, string|string[]> field name (or ValidationException::RECORD_KEY) => message(s)
+     */
+    protected function validateRecord(): array
+    {
+        return [];
+    }
+
+    /**
+     * validateRecord() with every entry as a list of strings
+     * @return array<string, string[]>
+     */
+    public function recordErrors(): array
+    {
+        $errors = [];
+        foreach ($this->validateRecord() as $name => $messages) {
+            foreach ((array)$messages as $message) {
+                if ((string)$message !== '') {
+                    $errors[$name === '' ? ValidationException::RECORD_KEY : (string)$name][] = (string)$message;
+                }
+            }
+        }
+        return $errors;
+    }
+
+    /**
+     * Validation inside store()/insert()/update() for this object: true or false, or null to follow
+     * Settings orm.validate_on_store (default false; required and unique values are always checked)
+     */
+    public function setValidateOnStore(?bool $validate): static
+    {
+        $this->validateOnStore = $validate;
+        return $this;
+    }
+
+    /** The value given to setValidateOnStore(): null = follow Settings */
+    public function getValidateOnStore(): ?bool
+    {
+        return $this->validateOnStore;
+    }
+
+    public function isValidateOnStore(): bool
+    {
+        return $this->validateOnStore ?? Settings::getBool('orm.validate_on_store', false);
+    }
+
+    /**
+     * Throws when a field rule or validateRecord() fails: on insert every field is checked, on
+     * update only the changed ones (rows written before a rule existed stay editable).
+     * Required and unique values are checked separately by the write and keep their exceptions.
+     * @throws ValidationException
+     */
+    protected function assertValidForStore(bool $inserting): void
+    {
+        $errors = [];
+        foreach ($this->getTable()->getFields() as $field) {
+            if (!$inserting && !$field->hasChanged()) {
+                continue;
+            }
+            $messages = $field->validate();
+            if (count($messages) > 0) {
+                $errors[$field->getName()] = $messages;
+            }
+        }
+        $errors = self::mergeErrors($errors, $this->recordErrors());
+        if (count($errors) > 0) {
+            throw (new ValidationException($errors))->setTableName($this->getTable()->getName());
+        }
+    }
+
+    /**
+     * @param array<string, string[]> $errors
+     * @param array<string, string[]> $more
+     * @return array<string, string[]>
+     */
+    private static function mergeErrors(array $errors, array $more): array
+    {
+        foreach ($more as $name => $messages) {
+            foreach ($messages as $message) {
+                if (!in_array($message, $errors[$name] ?? [], true)) {
+                    $errors[$name][] = $message;
+                }
             }
         }
         return $errors;

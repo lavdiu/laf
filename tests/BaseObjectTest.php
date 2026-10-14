@@ -1440,6 +1440,80 @@ class BaseObjectTest extends TestCase
 			'beforeDelete:hard', 'afterDelete:hard',
 		], $row->calls);
 	}
+
+	private function seedCodes(): void
+	{
+		foreach (['A1' => 'Alpha Co', 'B2' => 'beta 100%', 'C3' => 'Gamma', 'D4' => 'Delta 100x'] as $code => $name) {
+			$row = new CodeTable();
+			$row->auditLogDisable()->setCodeVal($code)->setNameVal($name)->insert();
+		}
+	}
+
+	public function testAutocompleteSearchesTheReferencedTable()
+	{
+		$this->seedCodes();
+		$link = new LinkTable();
+		$link->getCodeFld()->setFormElementClass('Autocomplete');
+		/** @var \Laf\UI\Form\Input\Autocomplete $element */
+		$element = $link->getCodeFld()->getFormElement();
+
+		$this->assertSame(['results' => [['value' => 'A1', 'label' => 'Alpha Co']], 'more' => false], $element->search('ALP'), 'case-insensitive');
+		$this->assertSame([['value' => 'B2', 'label' => 'beta 100%']], $element->search('100%')['results'], '% matches literally');
+		$this->assertSame([], $element->search('c3')['results'], 'the display column only by default');
+		$this->assertSame([['value' => 'C3', 'label' => 'Gamma']], $element->setSearchColumns(['code', 'name', 'no_such'])->search('c3')['results']);
+
+		$all = $element->setLimit(3)->search('');
+		$this->assertSame(['Alpha Co', 'beta 100%', 'Delta 100x'], array_column($all['results'], 'label'), 'ordered by the display column');
+		$this->assertTrue($all['more']);
+
+		$link->getCodeFld()->setDbSelectionCriteria(['name' => 'Gamma']);
+		$this->assertSame(['C3'], array_column($element->search('')['results'], 'value'), 'selection criteria apply');
+		$link->getCodeFld()->setDbSelectionCriteria([]);
+
+		$link->getCodeFld()->setValueRaw('C3');
+		$this->assertSame('Gamma', $element->getDisplayValue());
+		$this->assertSame('Delta 100x', (fn() => $this->labelFor('D4'))->call($element), 'one row read for another value');
+		$this->assertSame('ZZ', (fn() => $this->labelFor('ZZ'))->call($element), 'an unknown value shows itself');
+	}
+
+	public function testAutocompleteReplacesTheSelectAboveTheThreshold()
+	{
+		$this->seedCodes();
+		\Laf\UI\Form\Input\Autocomplete::resetRequestState();
+		try {
+			Settings::set('form.select_autocomplete_threshold', 10);
+			$this->assertNotInstanceOf(\Laf\UI\Form\Input\Autocomplete::class, (new LinkTable())->getCodeFld()->getFormElement());
+			\Laf\UI\Form\Input\Autocomplete::resetRequestState();
+			Settings::set('form.select_autocomplete_threshold', 3);
+			$this->assertInstanceOf(\Laf\UI\Form\Input\Autocomplete::class, (new LinkTable())->getCodeFld()->getFormElement());
+		} finally {
+			Settings::remove('form.select_autocomplete_threshold');
+			\Laf\UI\Form\Input\Autocomplete::resetRequestState();
+		}
+	}
+
+	public function testValidationOnStoreRefusesTheWriteAndLeavesTheRow()
+	{
+		$row = new DummyTable();
+		$row->auditLogDisable()->setValidateOnStore(true);
+		$row->getVarcharField45Fld()->setPattern('/^[a-z]+$/', 'Lower-case letters only');
+		$row->setRequiredFieldVal('req')->setVarcharField45Val('valid');
+		$this->assertTrue($row->store());
+		$id = $row->getRecordId();
+
+		$row->setVarcharField45Val('Not Valid');
+		try {
+			$row->store();
+			$this->fail('expected a ValidationException');
+		} catch (\Laf\Exception\ValidationException $ex) {
+			$this->assertSame(['varchar_field45' => ['Lower-case letters only']], $ex->getErrors());
+		}
+		$this->assertSame('valid', Db::getInstance()->getOne('SELECT varchar_field45 FROM dummy_table WHERE id = :id', [':id' => $id]));
+
+		$row->setValidateOnStore(false);
+		$this->assertTrue($row->store(), 'validation off: the write goes through');
+		$this->assertSame('Not Valid', Db::getInstance()->getOne('SELECT varchar_field45 FROM dummy_table WHERE id = :id', [':id' => $id]));
+	}
 }
 
 /**
