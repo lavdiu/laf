@@ -33,6 +33,14 @@ final class JunctionDetector
         $extraColumns = 0;
         $insertable = true;
         foreach ($junction->getColumns() as $column) {
+            if (in_array($column['COLUMN_NAME'], self::METADATA_COLUMNS, true)) {
+                // row metadata, also when it is a foreign key (record_status_id → record_status,
+                // created_by → person): never one of the two linker keys, never data
+                if (!self::canBeOmitted($column)) {
+                    $insertable = false;
+                }
+                continue;
+            }
             if (self::isForeignKey($column)) {
                 $foreignKeys[] = $column;
                 continue;

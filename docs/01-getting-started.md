@@ -197,7 +197,7 @@ The example schema used throughout the documentation is shipped in
 | `company` | a standalone table: unique `name`, `vat_number`, `email`, `phone`, `record_status_id` (soft delete), `created_*` / `updated_*` metadata |
 | `employee` | foreign key `company_id → company` (one company per employee), unique `email`, `birth_date`, `salary` decimal, `is_active` boolean, `notes` text |
 | `project` | a standalone table: unique `name`, `starts_on`, `budget` |
-| `employee_project` | a linker table: employees ⇄ projects, many-to-many |
+| `employee_project` | a linker table: employees ⇄ projects, many-to-many (marked with the table comment `{"linker": true}`) |
 
 MySQL / MariaDB:
 
@@ -255,7 +255,7 @@ CREATE TABLE `employee_project` (
   KEY `employee_project_project_fk` (`project_id`),
   CONSTRAINT `employee_project_employee_fk` FOREIGN KEY (`employee_id`) REFERENCES `employee` (`id`) ON DELETE CASCADE,
   CONSTRAINT `employee_project_project_fk` FOREIGN KEY (`project_id`) REFERENCES `project` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='{"linker": true}';
 ```
 
 PostgreSQL (the comments move to `COMMENT ON COLUMN`, `SERIAL` replaces `AUTO_INCREMENT`, `BOOLEAN` replaces
@@ -315,6 +315,7 @@ CREATE TABLE employee_project (
   project_id INTEGER NOT NULL REFERENCES project (id) ON DELETE CASCADE,
   CONSTRAINT employee_project_unique UNIQUE (employee_id, project_id)
 );
+COMMENT ON TABLE employee_project IS '{"linker": true}';
 COMMENT ON COLUMN employee_project.employee_id IS '{"fields":{"setLabel":"Team members"}}';
 COMMENT ON COLUMN employee_project.project_id IS '{"fields":{"setLabel":"Projects"}}';
 ```
@@ -331,8 +332,11 @@ A few schema habits pay off with LAF, and the example follows them:
 - **A single-column primary key** (`id`, auto-increment / serial). Composite keys work in the model layer, but
   the generated pages need one key column to build view / update / delete links.
 - **Real foreign key constraints.** The generator only sees relations the database declares: they become
-  `ForeignKey` objects, `getCompanyIdObj()` accessors, select boxes on forms, related-record tabs on pages and,
-  for a linker table like `employee_project`, many-to-many pickers on both sides.
+  `ForeignKey` objects, `getCompanyIdObj()` accessors, select boxes on forms and related-record tabs on pages.
+- **The table comment `{"linker": true}` on a linker table.** `employee_project` only connects employees and
+  projects. The comment tells the generator to turn it into a many-to-many picker on both sides' forms; without
+  it the generator prints a `Note:` and writes no picker (see
+  [02-code-generation.md](02-code-generation.md#linker-tables-and-many-to-many-relations)).
 - **The metadata columns** `created_on`, `created_by`, `updated_on`, `updated_by` are filled automatically by
   `store()`, left out of insert/update forms and shown in a "Details" tab on view forms.
 - **`record_status_id`** is LAF's soft-delete convention: `softDelete()` sets it to 0, and the generated page
@@ -455,14 +459,16 @@ $field->setLabel('Active');                   // from the column comment
 $field->setRequired(false);                   // from the column comment
 ```
 
-and how the linker table became a many-to-many relation on both sides:
+and how the marked linker table became a many-to-many relation on both sides:
 
 ```php
 // BaseEmployee
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects']);
+$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects");
 // BaseProject
-$this->getTable()->addManyToMany("employee_project", ['owner' => 'project_id', 'other' => 'employee_id', 'table' => 'employee', 'label' => 'Team members']);
+$this->belongsToMany("employee")->through("employee_project")->keys("project_id", "employee_id")->label("Team members");
 ```
+
+The same fluent declaration works by hand in a model class (see [08-relations.md](08-relations.md)).
 
 Rerun the same command whenever the schema changes: the Base classes and the cached pages follow the database,
 your model classes and live pages are kept. [02-code-generation.md](02-code-generation.md) covers every option.

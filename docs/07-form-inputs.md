@@ -183,7 +183,8 @@ type is `ComponentInterface`):
 | `setErrors(array)`, `addError(string)`, `getErrors()`, `hasErrors()`, `clearErrors()` | validation messages (the form manages them) |
 | `addAttribute()`, `setAttribute()`, `removeAttribute()`, `getAttribute()`, `getAttributes()` | the raw attribute bag |
 | `addCssClass()`, `addCssClasses(...)`, `removeCssClass()`, `setCssStyleItem()` | classes / style of the control |
-| `addWrapperCssClass()`, `setWrapperCssStyleItem()`, `setWrapperAttribute()` | classes / style / attributes of the `_container` div |
+| `addWrapperCssClass()`, `setWrapperCssStyleItem()` | classes / style of the `_container` div |
+| `setWrapperAttribute()` | stored, but **not drawn** on inputs: the wrapper attribute bag also holds the label and the hint, and `setWrapperAttributes([...])` replaces them (see [19-extending.md](19-extending.md#wrapper-attributes)) |
 | `setDrawMode(?string)`, `setFormRowDisplayMode(string)` | see above |
 
 `Text` adds, for every input:

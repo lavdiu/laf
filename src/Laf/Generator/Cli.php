@@ -26,7 +26,7 @@ final class Cli
     public const DEFAULT_EXCLUDED = ['audit_log', 'sql_error', 'object_list', 'phinx_*'];
 
     private const FLAGS = ['classes', 'pages', 'install-pages', 'force', 'list', 'strict', 'quiet', 'help'];
-    private const VALUES = ['bootstrap', 'lib', 'tables', 'exclude', 'labels'];
+    private const VALUES = ['bootstrap', 'lib', 'tables', 'exclude', 'labels', 'many-to-many'];
     private const SHORT = ['q' => 'quiet', 'h' => 'help', 'l' => 'list', 'f' => 'force'];
 
     /** @var resource */
@@ -96,6 +96,7 @@ final class Cli
             'tables' => [],
             'exclude' => self::DEFAULT_EXCLUDED,
             'labels' => null,
+            'many-to-many' => null,
         ];
         foreach (self::FLAGS as $flag) {
             $options[$flag] = false;
@@ -147,6 +148,9 @@ final class Cli
         if ($options['lib'] === '') {
             throw new \InvalidArgumentException('--lib needs a directory');
         }
+        if ($options['many-to-many'] !== null && !in_array($options['many-to-many'], ['marked', 'auto', 'off'], true)) {
+            throw new \InvalidArgumentException('--many-to-many takes marked, auto or off');
+        }
         return $options;
     }
 
@@ -171,6 +175,9 @@ Generates the Base and model classes and the CRUD pages of the connected databas
   --list, -l         dry run: print the tables and the files a run would write
   --labels=FILE      .php (returning an array) or .json file with page label translations
                      (default: Settings settings.label.translations)
+  --many-to-many=M   linker tables that become many-to-many pickers: marked (default: only
+                     tables commented {"linker": true}), auto (every table the rule finds) or off
+                     (default: Settings generator.many_to_many, else marked)
   --strict           exit code 1 when the generator reported warnings
   --quiet, -q        print only warnings and the summary
   --help, -h         this text
@@ -224,6 +231,7 @@ TXT;
             ->setLabelTranslations($labels)
             ->setGenerateAutoloader(false)
             ->setInstallMissingPages((bool)$options['install-pages'])
+            ->setManyToManyMode($options['many-to-many'])
             ->setOutput(function (string $line): void {
                 $this->progress($line);
             });
@@ -339,7 +347,7 @@ TXT;
         if ($line === '') {
             return;
         }
-        if ($this->quiet && strncmp($line, 'Warning:', 8) !== 0) {
+        if ($this->quiet && strncmp($line, 'Warning:', 8) !== 0 && strncmp($line, 'Note:', 5) !== 0) {
             return;
         }
         $this->out($line);

@@ -55,5 +55,6 @@ CREATE TABLE employee_project (
   project_id INTEGER NOT NULL REFERENCES project (id) ON DELETE CASCADE,
   CONSTRAINT employee_project_unique UNIQUE (employee_id, project_id)
 );
+COMMENT ON TABLE employee_project IS '{"linker": true}';
 COMMENT ON COLUMN employee_project.employee_id IS '{"fields":{"setLabel":"Team members"}}';
 COMMENT ON COLUMN employee_project.project_id IS '{"fields":{"setLabel":"Projects"}}';

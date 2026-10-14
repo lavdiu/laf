@@ -13,7 +13,7 @@ generator output `docs/examples/generated/`. Examples were run against a scratch
 | B3 | `Link` (attributes array) | `class` passed in the attributes array is dropped; the generated view page passes its Update/Delete button classes that way, so they never render. |
 | B4 | `Alert::draw()`, `TabItem::draw()` | Ignore classes added with `addCssClass()`. |
 | B5 | generated save handler + `CsrfTokenException` | `CsrfTokenException` is not a `FormValidationException`; the generated save path lets a bad token surface as an uncaught exception. |
-| B6 | `src/Laf/Generator/ColumnComment.php:149` | `"element":"TransferList"` in a column comment is dropped with a warning (`FormLayout::resolveElementClass()` lacks the alias `ManyToMany` accepts). CLAUDE.md advertises it. |
+| B6 (fixed 2026-10-14: FormLayout falls back to the picker aliases) | `src/Laf/Generator/ColumnComment.php:149` | `"element":"TransferList"` in a column comment is dropped with a warning (`FormLayout::resolveElementClass()` lacks the alias `ManyToMany` accepts). CLAUDE.md advertises it. |
 | B7 | `PhpGrid.php:639` | `setRowsPerPage(0)` becomes 10 when the request has no `limit`, contrary to its docblock (0 = all rows). |
 | B8 | `PhpGrid.php:441`, `GridRequest.php:55` | A client can always request `limit=0` (all rows) despite `setMaxRowsPerPage()` / `setAllowExport(false)`. |
 | B9 | `autocomplete.js:745-771` | `LafAutocomplete.set/clear/add/remove` do not handle a dual list (`clear` throws); only `values()` does. `autocomplete.js:589` "At most N" is hard-coded English, not in `setTexts()`. |
@@ -46,3 +46,21 @@ generator output `docs/examples/generated/`. Examples were run against a scratch
   `[]` while `Query::where()` throws; `Query::delete()` skips hooks and the audit log.
 - CLAUDE.md says PostgreSQL tests use postgres/postgres; `docker-compose.yml` uses root/root on 5433.
 - Default date format `F d, Y` (English month names) unless `locale.*` is set.
+
+## Second round (2026-10-14, extending chapter)
+
+- `src/Laf/UI/Traits/FormElementTrait.php:94-113`: an input's label and hint live in the wrapper attribute bag, which is
+  never drawn: `setWrapperAttributes([...])` silently drops label + hint; `addWrapperAttribute('data-x', …)` is not output.
+- `Text::isStringField()`: custom types not extending TypeVarchar/TypeJson/TypeUuid/TypeEnum/TypeBlob get no
+  `maxlength`/`minlength` attributes.
+- `Text.php:427`: double space in the inline wrapper class (`'mb-3  col-md-6'`), harmless.
+- `BaseObject::setLogger()` logs "Loading Logger" on every object (noisy with per-model loggers).
+- Grid cell attributes accept `on*` names (developer-defined values only).
+- Forms: on an INSERT form a `NOT NULL DEFAULT 1` boolean (`employee.is_active`) is drawn unticked and posts 0, so the
+  database default never applies through forms (tutorial works around it in `configureForm()`).
+- Generated pages call `Flash::drain()` before the delete/redirect branch: a request that only redirects swallows a
+  message queued by the previous request.
+- asm `app/pages/person.page` (6 tabs) and routerarena (24 tabs) pass `<i>` markup as `TabItem` titles, which are
+  escaped since `14f8f70`: asm (locked at `3b83f6f`) shows the markup as text today. Decision pending: raw titles in
+  LAF again, or move the icon into the second argument in the apps.
+- Fixed 2026-10-14: `JunctionDetector` counted metadata foreign keys (`record_status_id`, `created_by`) as linker keys.

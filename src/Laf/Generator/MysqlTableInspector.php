@@ -54,6 +54,30 @@ class MysqlTableInspector extends AbstractTableInspector
         }
     }
 
+    protected function populateTableComment(): void
+    {
+        $sql = "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t";
+        $comment = Db::getOne($sql, [':t' => $this->getTable()]);
+        $this->setTableComment(is_string($comment) ? $comment : null);
+    }
+
+    protected function populateUniqueKeys(): void
+    {
+        // SUB_PART = a prefix index (unique on the first n characters only): not a value rule, left out
+        $sql = "
+        SELECT
+            INDEX_NAME AS index_name,
+            CASE WHEN SUB_PART IS NULL THEN COLUMN_NAME ELSE NULL END AS column_name
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = :t
+            AND NON_UNIQUE = 0
+            AND INDEX_NAME <> 'PRIMARY'
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX
+        ";
+        $this->storeUniqueKeyRows(Db::getAllAssoc($sql, [':t' => $this->getTable()]));
+    }
+
     protected function populateForeignKeyData(): void
     {
         $sql = "

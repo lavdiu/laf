@@ -4,6 +4,7 @@ namespace Laf\Generator;
 
 use Laf\Database\Field\FieldTypeFactory;
 use Laf\Database\Table;
+use Laf\Util\Settings;
 use Laf\Util\Util;
 
 /**
@@ -40,11 +41,20 @@ class ClassGenerator
     /** @var string[] */
     private array $warnings = [];
 
+    /** @var string[] information that is no problem (a linker table that is not marked) */
+    private array $notices = [];
+
+    /** Linker tables become many-to-many relations: only marked ones, every one the rule finds, or none */
+    public const MANY_TO_MANY_MARKED = 'marked';
+    public const MANY_TO_MANY_AUTO = 'auto';
+    public const MANY_TO_MANY_OFF = 'off';
+
     /** @var array<string, TableInspectorInterface|null> inspectors of the other tables (linker tables), by name; null = could not be inspected */
     private array $inspectors = [];
 
     /**
-     * @param array<string, mixed> $config namespace, base_class_dir, class_dir, rewrite_class
+     * @param array<string, mixed> $config namespace, base_class_dir, class_dir, rewrite_class, many_to_many
+     *        (marked | auto | off, default Settings generator.many_to_many, else marked)
      * @param TableInspectorInterface|null $tableInspector inspected lazily; null = TableInspectorFactory::create()
      */
     public function __construct(Table $table, array $config, ?TableInspectorInterface $tableInspector = null)
@@ -62,11 +72,14 @@ class ClassGenerator
     public function processBaseClass(): static
     {
         $this->warnings = [];
+        $this->notices = [];
         $this->populateForeignKeys();
+        $this->checkLinkerMarker();
 
         $file = $this->renderBaseClassHeader();
         $file .= $this->generateFields();
         $file .= $this->generateForeignKeys();
+        $file .= $this->generateUniqueKeys();
         $file .= $this->generateManyToMany();
         $file .= "\n\t}\n";
         foreach ($this->getTableColumns() as $column) {
@@ -254,6 +267,29 @@ PHP;
     }
 
     /**
+     * The unique indexes over several columns of buildClass(), as Table::addUniqueKey(), so the model
+     * refuses a repeated combination before the INSERT and forms show it as a message; single-column
+     * unique indexes stay on the field (setUnique()). Empty when there is none, so older output stays
+     * byte-identical; an inspector without getUniqueKeys() reports none.
+     */
+    public function generateUniqueKeys(): string
+    {
+        $inspector = $this->inspector();
+        if (!method_exists($inspector, 'getUniqueKeys')) {
+            return '';
+        }
+        $columns = $inspector->getColumns();
+        $tmp = '';
+        foreach ($inspector->getUniqueKeys() as $name => $names) {
+            if (count($names) < 2 || array_diff($names, array_keys($columns)) !== []) {
+                continue;
+            }
+            $tmp .= "\n\t\t\$this->getTable()->addUniqueKey(" . self::stringLiteral((string)$name) . ", " . self::exportArray(array_values($names)) . ");";
+        }
+        return $tmp === '' ? '' : "\n\t\t/**\n\t\t * Unique keys over several columns\n\t\t */" . $tmp . "\n";
+    }
+
+    /**
      * The many-to-many relations of buildClass(): one addManyToMany() per linker table that points at
      * this table (JunctionDetector), configured by the comment of the linker's column that points at
      * the other table; empty when there is none, so older output stays byte-identical
@@ -262,9 +298,107 @@ PHP;
     {
         $tmp = '';
         foreach ($this->detectManyToMany() as $junction => $definition) {
-            $tmp .= "\n\t\t\$this->getTable()->addManyToMany(" . self::stringLiteral($junction) . ", " . self::exportArray($definition) . ");";
+            $tmp .= "\n\t\t" . self::renderBelongsToMany((string)$junction, $definition) . ';';
         }
         return $tmp === '' ? '' : "\n\t\t/**\n\t\t * Many-to-many relations through linker tables\n\t\t */" . $tmp . "\n";
+    }
+
+    /**
+     * One relation as the fluent declaration a developer would write:
+     * $this->belongsToMany('group')->through('person_group')->keys('person_id', 'group_id')->label('Groups')
+     * @param array<string, mixed> $definition
+     */
+    public static function renderBelongsToMany(string $junction, array $definition): string
+    {
+        $code = '$this->belongsToMany(' . self::stringLiteral((string)$definition['table']) . ')'
+            . '->through(' . self::stringLiteral($junction) . ')'
+            . '->keys(' . self::stringLiteral((string)$definition['owner']) . ', ' . self::stringLiteral((string)$definition['other']) . ')';
+        if (isset($definition['label']) && $definition['label'] !== '') {
+            $code .= '->label(' . self::stringLiteral((string)$definition['label']) . ')';
+        }
+        if (isset($definition['hint']) && $definition['hint'] !== '') {
+            $code .= '->hint(' . self::stringLiteral((string)$definition['hint']) . ')';
+        }
+        if (!empty($definition['required'])) {
+            $code .= '->required()';
+        }
+        if (isset($definition['max']) && is_int($definition['max'])) {
+            $code .= '->max(' . $definition['max'] . ')';
+        }
+        $form = is_array($definition['form'] ?? null) ? $definition['form'] : [];
+        if (isset($form['element']) && is_string($form['element'])) {
+            $short = strtolower((string)preg_replace('/^.*\\\\/', '', $form['element']));
+            $code .= match ($short) {
+                'autocomplete', 'manytomanyautocomplete', 'chips' => '->chips()',
+                'duallist', 'manytomanyduallist', 'transferlist', 'dual' => '->dualList()',
+                'checkboxcollection', 'checkboxes', 'checkbox', 'manytomanycheckboxes' => '->checkboxes()',
+                default => '->picker(' . self::stringLiteral($form['element']) . ')',
+            };
+            unset($form['element']);
+        }
+        if (array_key_exists('create', $form)) {
+            $code .= $form['create'] === true ? '->creatable()' : '->creatable(false)';
+            unset($form['create']);
+        }
+        foreach (['group' => 'group', 'tab' => 'tab'] as $key => $method) {
+            if (isset($form[$key]) && is_string($form[$key])) {
+                $code .= '->' . $method . '(' . self::stringLiteral($form[$key]) . ')';
+                unset($form[$key]);
+            }
+        }
+        if (isset($form['order']) && is_int($form['order'])) {
+            $code .= '->order(' . $form['order'] . ')';
+            unset($form['order']);
+        }
+        if ($form !== []) {
+            $code .= '->form(' . self::exportArray($form) . ')';
+        }
+        return $code;
+    }
+
+    /**
+     * How linker tables become relations: config many_to_many, else Settings generator.many_to_many, else marked
+     */
+    public function getManyToManyMode(): string
+    {
+        $mode = $this->config['many_to_many'] ?? Settings::getString('generator.many_to_many', self::MANY_TO_MANY_MARKED);
+        $mode = strtolower(trim((string)$mode));
+        return in_array($mode, [self::MANY_TO_MANY_MARKED, self::MANY_TO_MANY_AUTO, self::MANY_TO_MANY_OFF], true) ? $mode : self::MANY_TO_MANY_MARKED;
+    }
+
+    /**
+     * Notices of the last processBaseClass(): linker tables found but not marked, and the like
+     * @return string[]
+     */
+    public function getNotices(): array
+    {
+        return $this->notices;
+    }
+
+    /**
+     * A table whose comment says {"linker": true} must follow the linker rule; else a warning says why
+     * no picker comes from it
+     */
+    private function checkLinkerMarker(): void
+    {
+        $inspector = $this->inspector();
+        $comment = method_exists($inspector, 'getTableComment') ? $inspector->getTableComment() : null;
+        if (ColumnComment::linker($comment) !== true || $this->getManyToManyMode() === self::MANY_TO_MANY_OFF) {
+            return;
+        }
+        $referenced = [];
+        foreach ($this->getTableColumns() as $column) {
+            if (JunctionDetector::isForeignKey($column) && !in_array($column['COLUMN_NAME'], JunctionDetector::METADATA_COLUMNS, true)) {
+                $referenced[] = (string)$column['FOREIGN_KEY']['referenced_table_name'];
+            }
+        }
+        $junction = $referenced === [] ? null : JunctionDetector::detect($inspector, $referenced[0]);
+        if ($junction === null) {
+            $this->warnings[] = sprintf(
+                'table %s is marked {"linker": true} but is no linker table: it needs exactly two foreign keys to two different tables and at most %d other columns besides the key and row metadata; no picker',
+                $this->getTable()->getName(), JunctionDetector::MAX_EXTRA_COLUMNS
+            );
+        }
     }
 
     /**
@@ -274,7 +408,8 @@ PHP;
     public function detectManyToMany(): array
     {
         $inspector = $this->inspector();
-        if (!$inspector->hasReferencingTables()) {
+        $mode = $this->getManyToManyMode();
+        if ($mode === self::MANY_TO_MANY_OFF || !$inspector->hasReferencingTables()) {
             return [];
         }
         $table = (string)$this->getTable()->getName();
@@ -290,6 +425,18 @@ PHP;
             }
             $junction = JunctionDetector::detect($junctionInspector, $table, (string)$reference['column_name']);
             if ($junction === null) {
+                continue;
+            }
+            $marker = ColumnComment::linker(method_exists($junctionInspector, 'getTableComment') ? $junctionInspector->getTableComment() : null);
+            if ($marker === false || ($mode === self::MANY_TO_MANY_MARKED && $marker !== true)) {
+                if ($marker === null) {
+                    $pair = [$table, (string)$junction['other_table']];
+                    sort($pair); // the same text from both sides, so a run prints it once
+                    $this->notices[] = sprintf(
+                        '%s looks like a linker table (%s ⇄ %s): mark it with the table comment {"linker": true} for many-to-many pickers',
+                        $junctionName, $pair[0], $pair[1]
+                    );
+                }
                 continue;
             }
             $comment = isset($junction['other_column']['COLUMN_COMMENT']) ? (string)$junction['other_column']['COLUMN_COMMENT'] : null;
@@ -367,16 +514,7 @@ PHP;
      */
     private static function pluralLabel(string $label): string
     {
-        if ($label === '') {
-            return $label;
-        }
-        if (preg_match('/[^aeiou]y$/i', $label)) {
-            return substr($label, 0, -1) . 'ies';
-        }
-        if (preg_match('/(s|x|z|ch|sh)$/i', $label)) {
-            return $label . 'es';
-        }
-        return $label . 's';
+        return Util::pluralLabel($label);
     }
 
     /**

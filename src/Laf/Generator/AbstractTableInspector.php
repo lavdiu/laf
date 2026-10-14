@@ -25,6 +25,12 @@ abstract class AbstractTableInspector implements TableInspectorInterface
     /** @var array<int, array<string, string>> */
     protected array $referencingTables = [];
 
+    /** @var array<string, string[]> unique index name => columns in index order (primary key excluded) */
+    protected array $uniqueKeys = [];
+
+    /** The table's own comment (MySQL TABLE_COMMENT, PostgreSQL COMMENT ON TABLE), null when it has none */
+    protected ?string $tableComment = null;
+
     protected bool $inspected = false;
 
     public function __construct(string $table)
@@ -38,10 +44,14 @@ abstract class AbstractTableInspector implements TableInspectorInterface
         $this->primaryColumnNames = [];
         $this->hasForeignKeys = false;
         $this->referencingTables = [];
+        $this->uniqueKeys = [];
+        $this->tableComment = null;
 
         $this->populateColumnsData();
         $this->populateForeignKeyData();
         $this->populateReferencingTables();
+        $this->populateUniqueKeys();
+        $this->populateTableComment();
         $this->inspected = true;
     }
 
@@ -218,6 +228,80 @@ abstract class AbstractTableInspector implements TableInspectorInterface
             'constraint_name' => (string)($row['constraint_name'] ?? ''),
         ];
         $this->referencingTables[] = $entry + array_change_key_case($entry, CASE_UPPER);
+    }
+
+    /**
+     * The table's unique indexes on plain columns (primary key, partial, prefix and expression
+     * indexes left out), single-column ones included; ClassGenerator writes the ones over
+     * several columns as Table::addUniqueKey()
+     * @return array<string, string[]> index name => columns in index order
+     */
+    public function getUniqueKeys(): array
+    {
+        return $this->uniqueKeys;
+    }
+
+    /**
+     * @param array<string, string[]> $uniqueKeys index name => columns
+     */
+    public function setUniqueKeys(array $uniqueKeys): static
+    {
+        $this->uniqueKeys = $uniqueKeys;
+        return $this;
+    }
+
+    /**
+     * Collect index rows (index_name, column_name; null column = an expression or prefix part,
+     * which drops the whole index) in index order into $uniqueKeys
+     * @param array<int, array<string, mixed>> $rows
+     */
+    protected function storeUniqueKeyRows(array $rows): void
+    {
+        $keys = $dropped = [];
+        foreach ($rows as $row) {
+            $row = array_change_key_case($row, CASE_LOWER);
+            $index = (string)$row['index_name'];
+            $column = $row['column_name'] ?? null;
+            if ($column === null || $column === '' || !array_key_exists((string)$column, $this->columns)) {
+                $dropped[$index] = true;
+                continue;
+            }
+            $keys[$index][] = (string)$column;
+        }
+        foreach ($keys as $index => $columns) {
+            if (!isset($dropped[$index])) {
+                $this->uniqueKeys[(string)$index] = $columns;
+            }
+        }
+    }
+
+    /**
+     * Load the unique indexes (engine query); the default reads none, so an inspector written
+     * before this method existed keeps working
+     */
+    protected function populateUniqueKeys(): void
+    {
+    }
+
+    /**
+     * The table's comment; {"linker": true} marks a linker table (ColumnComment::linker())
+     */
+    public function getTableComment(): ?string
+    {
+        return $this->tableComment;
+    }
+
+    public function setTableComment(?string $comment): static
+    {
+        $this->tableComment = $comment === null || trim($comment) === '' ? null : $comment;
+        return $this;
+    }
+
+    /**
+     * Load the table comment (engine query); the default reads none
+     */
+    protected function populateTableComment(): void
+    {
     }
 
     abstract protected function populateColumnsData(): void;

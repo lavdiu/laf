@@ -114,6 +114,11 @@ class BaseEmployeeProject extends Database\BaseObject
 				->setOnDelete('CASCADE')
 		);
 
+		/**
+		 * Unique keys over several columns
+		 */
+		$this->getTable()->addUniqueKey("employee_project_unique", ['employee_id', 'project_id']);
+
 	}
 
 	/**

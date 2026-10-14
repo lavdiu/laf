@@ -26,7 +26,7 @@ All outputs below come from real runs against the shared schema (see [03-models.
 | Rule | Source | Checked by |
 |---|---|---|
 | required | `NOT NULL` without auto-increment (column comment `{"fields":{"setRequired":false}}` turns it off) | `store()` always (`MissingFieldValueException`), `validate()`, forms |
-| unique | single-column `UNIQUE` index | `store()` always (`UniqueFieldDuplicateValueException`), `validate()`, forms |
+| unique | a `UNIQUE` index: single column (`setUnique()`) or several columns (`Table::addUniqueKey()`) | `store()` always (`UniqueFieldDuplicateValueException`), `validate()`, forms (as a message, also when only the database knows the index) |
 | maximum length | `varchar(n)` / `char(n)` | `validate()`, forms, validation on store |
 | integer range | the integer size (`int`: -2147483648..2147483647, unsigned variants) | same |
 | decimal digits | `decimal(p, s)`: at most `p - s` digits before the point | same |
@@ -154,7 +154,7 @@ every entry as a list and `''` mapped to `ValidationException::RECORD_KEY` (`'_r
 ## Checking a record: validate()
 
 `$model->validate()` runs, without writing anything: every field's rules (required, type, length, range, pattern,
-validators), the single-column unique checks against the database, and `validateRecord()`. It returns
+validators), the unique checks against the database (unique columns and unique combinations), and `validateRecord()`. It returns
 column => list of messages, empty when valid:
 
 ```php
@@ -184,6 +184,12 @@ A blank object reports its required fields:
 $dup = new Company();
 $dup->setNameVal('Acme');           // a company with this name exists
 $dup->validate();                   // ['name' => ['Name must be unique: the value already exists']]
+
+$link = new EmployeeProject();      // employee 32 is already on project 11
+$link->setEmployeeIdVal(32)->setProjectIdVal(11);
+$link->validate();
+// ['employee_id' => ['Team members, Projects must be unique together: the combination already exists']]
+$link->duplicateUniqueKeys();       // [['employee_id', 'project_id']]
 ```
 
 Use `validate()` in imports and APIs to report every problem at once instead of stopping at the first exception.
@@ -340,8 +346,11 @@ Things to know:
   them before submitting; the server check still runs.
 - Record-level messages (`RECORD_KEY`) appear in the summary under the form's own key `Form::FORM_ERROR_KEY`
   (`'_form'`).
-- Missing required and duplicate unique values refused by the write also come back as `FormValidationException`
-  with the message on the field.
+- Taken unique values and combinations are reported with the other field messages ("E-mail: this value is already
+  in use"). A unique violation that only the database detects comes back the same way, never as an error page (see
+  [06-forms.md](06-forms.md#unique-values)).
+- Missing required values refused by the write also come back as `FormValidationException` with the message on the
+  field.
 - The form switches off validation on store for its own write, so the rules do not run twice.
 
 Error summary placement, `addError()`, `setValidateOnSubmit(false)` and the full submission flow are covered in

@@ -6,6 +6,7 @@ use Laf\Database\BaseObject;
 use Laf\Database\Field\Field;
 use Laf\Database\Field\TypeBool;
 use Laf\Exception\CsrfTokenException;
+use Laf\Exception\DatabaseException;
 use Laf\Exception\FormValidationException;
 use Laf\Exception\InvalidValueException;
 use Laf\Exception\MissingFieldValueException;
@@ -121,6 +122,9 @@ class Form implements ComponentInterface
     /** @var array<string, array<int, string>> relation name => keys posted for it, from the last applySubmittedValues() */
     protected array $relationValues = [];
 
+    /** @var array<int, string[]> columns of each unique key the last validate() found taken */
+    private array $duplicateKeys = [];
+
     private ?int $lookupStatus = null;
 
     /** @var array|null request data set with setRequest(); null reads the superglobals */
@@ -186,13 +190,18 @@ class Form implements ComponentInterface
         }
 
         $this->applySubmittedValues($documentHandlerClass);
+        $this->duplicateKeys = [];
         if ($this->validateOnSubmit) {
             $this->validate();
         } else {
             $this->pushErrorsToElements();
         }
         if ($this->hasErrors()) {
-            throw new FormValidationException($this->errors);
+            // a taken unique value keeps the exception the write would have raised as the previous one
+            $previous = $this->duplicateKeys === [] ? null
+                : (new UniqueFieldDuplicateValueException(sprintf('Unique values already in use: %s', implode('; ', array_map(fn(array $names) => implode(', ', $names), $this->duplicateKeys)))))
+                    ->setFieldNames($this->duplicateKeys[0]);
+            throw new FormValidationException($this->errors, '', 0, $previous);
         }
 
         $object = $this->getObject();
@@ -217,6 +226,15 @@ class Form implements ComponentInterface
         } catch (ValidationException $ex) {
             $this->setErrors(self::formErrors($ex->getErrors()));
             throw new FormValidationException($this->errors, $ex->getMessage(), 0, $ex);
+        } catch (DatabaseException $ex) {
+            // a unique index the model does not know (or another request that stored the same value
+            // first): the database's refusal becomes a message, other statement failures stay exceptions
+            if (!$ex->isUniqueViolation()) {
+                throw $ex;
+            }
+            throw $this->validationExceptionFromWrite(
+                (new UniqueFieldDuplicateValueException($ex->getMessage(), 0, $ex))->setFieldNames($object->uniqueViolationFieldNames($ex))
+            );
         } finally {
             $object->setValidateOnStore($validateOnStore);
         }
@@ -557,6 +575,21 @@ class Form implements ComponentInterface
                 $this->addError($name, $message);
             }
         }
+        // values another row already holds (unique fields and unique combinations), reported with the
+        // other messages instead of after them; keys with an invalid column wait for a valid value
+        $clean = array_values(array_filter($editable, fn(string $name) => !isset($this->errors[$name])));
+        try {
+            $duplicates = $this->getObject()->duplicateUniqueKeys($clean);
+        } catch (\Throwable $lookupFailed) {
+            $duplicates = []; // the write still refuses a duplicate (processForm() shows it)
+        }
+        $duplicates = array_values(array_filter($duplicates, fn(array $names) => array_intersect($names, array_keys($this->errors)) === []));
+        $this->duplicateKeys = $duplicates;
+        foreach ($this->uniqueErrors($duplicates) as $name => $messages) {
+            foreach ($messages as $message) {
+                $this->addError($name, $message);
+            }
+        }
         $this->validateRelations();
         // the model's own rules (BaseObject::validateRecord()), once the fields are valid
         if (!$this->hasErrors()) {
@@ -568,6 +601,34 @@ class Form implements ComponentInterface
         }
         $this->pushErrorsToElements();
         return $this->errors;
+    }
+
+    /**
+     * One message per duplicate unique key, on the key's first column the form edits; a key with no
+     * column on the form gets a form-level message
+     * @param array<int, string[]> $keys columns of each duplicate key (BaseObject::duplicateUniqueKeys())
+     * @return array<string, string[]>
+     */
+    protected function uniqueErrors(array $keys): array
+    {
+        $editable = $this->editableFieldNamesFor($this->verifiedFieldList());
+        $errors = [];
+        foreach ($keys as $names) {
+            $onForm = array_values(array_intersect($names, $editable));
+            $labels = implode(' + ', array_map(fn(string $name) => $this->fieldLabel($name), $names));
+            $message = count($names) === 1
+                ? sprintf('%s: this value is already in use', $labels)
+                : sprintf('%s: this combination is already in use', $labels);
+            $errors[$onForm[0] ?? self::FORM_ERROR_KEY][] = $message;
+        }
+        return $errors;
+    }
+
+    /** The field's label, else its name */
+    private function fieldLabel(string $name): string
+    {
+        $table = $this->getObject()->getTable();
+        return $table->hasField($name) ? ($table->getField($name)->getLabel() ?: $name) : $name;
     }
 
     /**
@@ -1687,14 +1748,15 @@ class Form implements ComponentInterface
     protected function validationExceptionFromWrite(\Exception $ex): FormValidationException
     {
         $errors = [];
-        $names = method_exists($ex, 'getFieldNames') ? $ex->getFieldNames() : [];
-        $table = $this->getObject()->getTable();
-        foreach ($names as $name) {
-            $name = (string)$name;
-            $label = $table->hasField($name) ? ($table->getField($name)->getLabel() ?: $name) : $name;
-            $errors[$name][] = $ex instanceof UniqueFieldDuplicateValueException
-                ? sprintf('%s: this value is already in use', $label)
-                : sprintf('%s is required', $label);
+        $names = method_exists($ex, 'getFieldNames') ? array_map('strval', $ex->getFieldNames()) : [];
+        if ($ex instanceof UniqueFieldDuplicateValueException) {
+            $errors = $names === []
+                ? [self::FORM_ERROR_KEY => ['A record with these values already exists']]
+                : $this->uniqueErrors([$names]);
+        } else {
+            foreach ($names as $name) {
+                $errors[$name][] = sprintf('%s is required', $this->fieldLabel($name));
+            }
         }
         if ($errors === []) {
             $errors[self::FORM_ERROR_KEY][] = $ex->getMessage();

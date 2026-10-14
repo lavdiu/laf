@@ -141,7 +141,7 @@ SELECT * FROM (
 	SELECT
 		  `employee_project`.`id` AS `employee_project_id`
 		, `employee_project`.`employee_id` AS `employee_project_employee_id`
-		, `employee`.`company_id` AS `employee_company_id`
+		, `employee`.`email` AS `employee_email`
 		, `employee_project`.`project_id` AS `employee_project_project_id`
 		, `project`.`name` AS `project_name`
 	FROM `employee_project`
@@ -152,7 +152,7 @@ SELECT * FROM (
 
 		$grid->addColumn(((new Column('employee_project_id', 'Id', true, true, sprintf('?module=%s&action=view&id={employee_project_id}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));
 		$grid->addColumn(new Column('employee_project_employee_id', 'Employee Id', false));
-		$grid->addColumn(new Column('employee_company_id', 'Employee', true));
+		$grid->addColumn(new Column('employee_email', 'Employee', true));
 		$grid->addColumn(new Column('employee_project_project_id', 'Project Id', false));
 		$grid->addColumn(new Column('project_name', 'Project', true));
 

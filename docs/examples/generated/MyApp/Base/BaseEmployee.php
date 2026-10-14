@@ -224,7 +224,7 @@ class BaseEmployee extends Database\BaseObject
 		/**
 		 * Many-to-many relations through linker tables
 		 */
-		$this->getTable()->addManyToMany("employee_project", ['owner' => 'employee_id', 'other' => 'project_id', 'table' => 'project', 'label' => 'Projects']);
+		$this->belongsToMany("project")->through("employee_project")->keys("employee_id", "project_id")->label("Projects");
 
 	}
 

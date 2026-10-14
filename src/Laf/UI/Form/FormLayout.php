@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Laf\UI\Form;
 
 use Laf\Database\Field\Field;
+use Laf\Database\ManyToMany;
 use Laf\Database\Table;
 use Laf\UI\Container\Div;
 use Laf\UI\Container\Fieldset;
@@ -338,7 +339,12 @@ final class FormLayout
                 return $candidate;
             }
         }
-        throw new \InvalidArgumentException(sprintf('"%s" is not a form element class', $name));
+        try {
+            // the picker aliases of a many-to-many relation (chips, dual, TransferList, Checkboxes)
+            return ManyToMany::resolveElementClass($name);
+        } catch (\InvalidArgumentException $notAPicker) {
+            throw new \InvalidArgumentException(sprintf('"%s" is not a form element class', $name));
+        }
     }
 
     /* ───────────── the generator's layout ───────────── */

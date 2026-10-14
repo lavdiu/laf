@@ -113,6 +113,11 @@ class BaseM2mPersonGroup extends Database\BaseObject
 				->setReferencingField("id")
 		);
 
+		/**
+		 * Unique keys over several columns
+		 */
+		$this->getTable()->addUniqueKey("m2m_person_group_unique", ['person_id', 'group_id']);
+
 	}
 
 	/**

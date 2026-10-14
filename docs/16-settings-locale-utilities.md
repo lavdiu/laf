@@ -201,6 +201,9 @@ return [
     'orm' => [
         'validate_on_store' => false,             // field rules + validateRecord() inside store()/insert()/update()
     ],
+    'generator' => [
+        'many_to_many' => 'marked',               // linker tables that become pickers: marked ({"linker": true}) | auto | off
+    ],
     'upload' => [
         'documents_directory' => __DIR__ . '/../public/document/',
         'allowed_mime_types' => ['image/*', 'application/pdf'],

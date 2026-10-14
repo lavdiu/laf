@@ -54,18 +54,25 @@ vendor/bin/laf-generate --bootstrap=app/bootstrap.php --list                    
 (what a run would write), `getGeneratedFiles()`, `getInstalledPages()`, `getWarnings()`. Per table: `ClassGenerator` / `PageGenerator` (`new X(new Table($name), $config)`, optional injected
 `TableInspectorInterface`; `TableInspectorFactory::create($table)` picks `MysqlTableInspector` or `PostgresTableInspector`). Column metadata is the
 same shape on both engines (upper-case information_schema keys + `FOREIGN_KEY`; PostgreSQL reads the current schema,
-`COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`). JSON column comments
+`COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`; `getUniqueKeys()` = unique
+indexes on plain columns, those over several columns become `$this->getTable()->addUniqueKey('name', ['a', 'b'])` in the
+Base class; partial, expression and MySQL prefix indexes are left out). JSON column comments
 drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","setRequired":false,"setType":"uuid",
 "setDisplayField":"label_al"},"form":{"readonly":"update","hidden":true,"exclude":["view"],"group":"Address",
 "tab":"Pricing","order":20,"element":"TextArea","create":true}}` (see `Laf\Generator\ColumnComment`; `form` lands in
 `Field::setFormOptions()` and is read by `FormLayout::auto()`; `"create"` lets an FK autocomplete add rows). Linker
-tables (`Laf\Generator\JunctionDetector`: exactly two foreign keys to two different tables, at most two data columns
-besides the key and row metadata, e.g. asm's `person_group(id, person_id, group_id)`) become
-`$this->getTable()->addManyToMany('person_group', ['owner' => 'person_id', 'other' => 'group_id', 'table' => 'group',
-'label' => 'Groups'])` in both sides' Base classes, so their forms get a multi-value picker by themselves; the comment
-of the linker column that points at the picked table configures it (`setLabel`/`setHint`/`setRequired`, the form hints,
-`"element":"Autocomplete"`, `"create":true`) and `"form":{"multi":false}` leaves it out. A linker with a required data
-column without a default gets no picker (warning). `ClassGenerator::addTableInspector()` injects other tables' metadata
+tables are OPT-IN: a table whose own comment says `{"linker": true}` (MySQL `COMMENT='…'`, PostgreSQL `COMMENT ON TABLE`;
+inspectors `getTableComment()`) and that passes `Laf\Generator\JunctionDetector` (exactly two foreign keys to two
+different tables, at most two data columns besides the key and row metadata; metadata columns never count, even as
+foreign keys; e.g. asm's `person_group(id, person_id, group_id)`) becomes
+`$this->belongsToMany("group")->through("person_group")->keys("person_id", "group_id")->label("Groups");` in both sides'
+Base classes, so both forms get a multi-value picker; the comment of the linker column that points at the picked table
+configures it (`setLabel`/`setHint`/`setRequired`, the form hints, `"element":"Autocomplete"`, `"create":true`) and
+`"form":{"multi":false}` leaves that side out. Mode: Settings `generator.many_to_many` / `DatabaseGenerator::setManyToManyMode()`
+/ ClassGenerator config `many_to_many` / `laf-generate --many-to-many=` = `marked` (default), `auto` (every table the rule
+finds unless commented `{"linker": false}`), `off`. In `marked` mode an unmarked match is a "Note:" (`getNotices()`, not a
+warning); a marked table that fails the rule, and a linker with a required data column without a default, get a warning
+and no picker. `ClassGenerator::addTableInspector()` injects other tables' metadata
 (tests). Generated pages get the form from
 `$obj->getForm($drawMode)` (laid out by the model, see Forms), one related-records tab per foreign key column that
 points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, flash messages
@@ -191,7 +198,7 @@ All components support fluent interfaces and CSS/attribute management.
 
 #### 3. Code Generators (`src/Laf/Generator/`)
 
-- **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options; linker tables → `Table::addManyToMany()`)
+- **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options; marked linker tables → `belongsToMany()`; unique indexes over several columns → `Table::addUniqueKey()`)
 - **JunctionDetector**: the linker-table rule shared by ClassGenerator (many-to-many pickers) and PageGenerator (junction tabs)
 - **PageGenerator**: Creates complete CRUD pages with action-based routing (model-driven form layout, per-FK related tabs, CSRF-protected delete)
 - **DatabaseGenerator**: Orchestrates generation for entire database (table selection, output callback, file list)
@@ -304,9 +311,12 @@ unique column; the callback returns false to stop).
 **Write path**: `store()` = `insert()` when `isNew()` else `update()` (only changed fields; nothing changed = nothing written).
 Unset nullable columns are left out of the INSERT so database defaults apply (`reload()` reads them back). `created_on/by`
 and `updated_on/by` are filled automatically (user from `BaseObject::setActiveUserId()`, else `<package>\Person::getLoggedUserId()`).
-Required and single-column unique constraints are checked before the statement (`MissingFieldValueException`,
-`UniqueFieldDuplicateValueException`); statement failures throw `Laf\Exception\DatabaseException` (`getSql()`, `getSqlState()`,
-`isUniqueViolation()`, `isForeignKeyViolation()`, previous = the `PDOException`). Override the protected hooks
+Required values and unique keys (unique fields and `Table::addUniqueKey()` combinations; a key with an empty column never
+collides, on update only keys with a changed column) are checked before the statement (`MissingFieldValueException`,
+`UniqueFieldDuplicateValueException` with `getFieldNames()` = the key's columns; `duplicateUniqueKeys($fieldNames, $changedOnly)`
+lists taken keys without throwing); statement failures throw `Laf\Exception\DatabaseException` (`getSql()`, `getSqlState()`,
+`isUniqueViolation()`, `isForeignKeyViolation()`, previous = the `PDOException`; `$model->uniqueViolationFieldNames($ex)` =
+the violated index's columns from the PostgreSQL `Key (…)=` detail or the index name). Override the protected hooks
 `beforeInsert()`, `afterInsert()`, `beforeUpdate()`, `afterUpdate()`, `beforeDelete($mode)`, `afterDelete($mode)`, `afterLoad()`
 in a model class instead of `insert()`/`update()`. Group writes with `BaseObject::transaction(fn () => ...)` (nested calls
 join the outer transaction).
@@ -357,7 +367,11 @@ produces such an array with the markers, the CSRF token and the signed field lis
 `processForm()`). `processForm()` = `detectSubmission()` + CSRF
 (one token per session and form, `CsrfTokenException`) + `applySubmittedValues()` + `validate()` (opt-out
 `setValidateOnSubmit(false)`) + insert/update; a write refused for a missing required or a duplicate unique value is also a
-`FormValidationException` (message on the field, `getPrevious()` = the original exception). The drawn form posts a signed
+`FormValidationException` (message on the field, `getPrevious()` = the original exception). Unique values never end in an
+error page: `validate()` reports taken unique values and combinations with the other field messages ("E-mail: this value is
+already in use", "A + B: this combination is already in use" on the first edited column of the key; `getPrevious()` = a
+`UniqueFieldDuplicateValueException`), and a `DatabaseException::isUniqueViolation()` from the write (race, index the model does
+not know) becomes the same message on the violated columns (form-level when unknown); other database errors propagate. The drawn form posts a signed
 list of its editable elements (`{form}_fields`): a boolean drawn disabled or read-only, or not drawn at all, is left alone
 when absent, and `setRestrictToRenderedFields(true)` / Settings `form.restrict_to_rendered_fields` ignores posted fields
 outside that list (mass-assignment guard; values from `setSubmittedFieldValue()` always apply). When the form has errors it
@@ -387,7 +401,15 @@ shown in the list), 403 (bad token, field not editable, VIEW form), 404, 405 (GE
 stores a row of the referenced table with the display field = the text (+ the field's db selection criteria,
 `setValidateOnStore(true)`; an exact case-insensitive match is reused); `setCreateCallback(fn ($term, $el) =>
 BaseObject|['value', 'label']|'refusal')` for tables with other required columns.
-Several values come only from a linker table: `Laf\Database\ManyToMany` (`$person->manyToMany('person_group')`: `ids()`,
+Several values come only from a linker table. Declare the relation fluently (generated for marked linkers, or by hand in
+the model class constructor after `parent::__construct()`): `$this->belongsToMany('group')` (table or `Group::class`)
+`->through('person_group')` (optional: `{this}_{other}` / `{other}_{this}` with a model class, or a relation already declared
+for that table) `->keys('person_id', 'group_id')` (optional: from the linker model's foreign keys; needed when ambiguous)
+`->label()->hint()->required()->max(3)->checkboxes()|chips()|dualList()|picker($name)->creatable()->group()->tab()->order()
+->form([...])` (`Laf\Database\ManyToManyBuilder`; resolved lazily on the table's first relation read, so order does not
+matter; declaring an existing relation refines it, given options win; errors are `LogicException`s naming the fix;
+`Table::addManyToMany($junction, array)` still works). Relation: `Laf\Database\ManyToMany` (`$person->manyToMany('person_group')`
+or by the other table `manyToMany('group')`: `ids()`,
 `objects()`, `labels($ids)`, `options()`, `validIds()`, `sync($ids)` = adds/removes links through the linker's generated
 model in one transaction, audited, `diff()`), and its picker `getFormElement()`: `Input\ManyToManyCheckboxes` (default)
 or `Input\ManyToManyAutocomplete` (chips with remove buttons, Backspace removes the last, chosen rows left out of the
@@ -541,9 +563,10 @@ Each type provides:
   themselves when no connection can be made, and create their own tables (`dummy_table`, `code_table`, `link_table`,
   `status_table`, `audit_log`, `document`, `m2m_person`, `m2m_group`, `m2m_person_group`)
 - `tests/Fixtures/LafShell/` holds the models the unit suite uses without a database (`DummyTable`, `CodeTable`,
-  `LinkTable`, `Document`, `M2mPerson`, `M2mGroup`, `M2mPersonGroup`; `link_table` and `m2m_person_group` are linker
-  tables, so `DummyTable`/`CodeTable` and `M2mPerson`/`M2mGroup` carry many-to-many definitions and their forms draw
-  pickers that read the database: give unit tests static options or exclude the picker): the `Base/` classes are `ClassGenerator` output (`tests/Fixtures/regenerate.php` writes
+  `LinkTable`, `Document`, `M2mPerson`, `M2mGroup`, `M2mPersonGroup`; `m2m_person_group` is the marked linker table
+  (`{"linker": true}`, `UNIQUE (person_id, group_id)`), so `M2mPerson`/`M2mGroup` carry a `belongsToMany()` and their forms
+  draw pickers that read the database: give unit tests static options or exclude the picker; `link_table` has the linker
+  shape but is not marked, so it only produces a generator note): the `Base/` classes are `ClassGenerator` output (`tests/Fixtures/regenerate.php` writes
   them to `tests/Fixtures/generated/<engine>/` from the integration tables; copy them over after a generator change),
   the leaf classes are hand-kept
 - CI (`.github/workflows/ci.yml`): unit suite on PHP 8.1–8.5, PHPStan, integration suite on MariaDB and PostgreSQL

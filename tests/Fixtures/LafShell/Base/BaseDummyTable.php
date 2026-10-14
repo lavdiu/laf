@@ -284,11 +284,6 @@ class BaseDummyTable extends Database\BaseObject
 				->setReferencingField("id")
 		);
 
-		/**
-		 * Many-to-many relations through linker tables
-		 */
-		$this->getTable()->addManyToMany("link_table", ['owner' => 'left_id', 'other' => 'code', 'table' => 'code_table', 'label' => 'Code Tables']);
-
 	}
 
 	/**
