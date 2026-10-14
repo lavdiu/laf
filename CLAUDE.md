@@ -302,6 +302,19 @@ Required and single-column unique constraints are checked before the statement (
 in a model class instead of `insert()`/`update()`. Group writes with `BaseObject::transaction(fn () => ...)` (nested calls
 join the outer transaction).
 
+**Validation**: `Field::validate()` checks required, the type's rules (max length, range, precision), `setMinLength()`,
+`setPattern($regex, $message)` (refused when it does not compile), `setMinValue()` / `setMaxValue()` (int, float or a
+numeric string such as `'0.01'`, kept exact) and `addValidator(fn ($value, Field $f) => null|true|false|'message'|[...])`
+(`clearValidators()`); minimum length, pattern and validators skip an empty value. Rules across fields go in the model:
+`protected function validateRecord(): array` returns field => message(s) (`''` or `ValidationException::RECORD_KEY` for the
+record). `$obj->validate()` = every field + unique values + `validateRecord()`; forms run the field rules on their editable
+fields and then `validateRecord()` (record messages under `Form::FORM_ERROR_KEY`). Validation inside `store()`/`insert()`/
+`update()` is opt-in: `$obj->setValidateOnStore(true)` or Settings `orm.validate_on_store` (default false; the object's
+setting wins, `null` follows Settings). It checks every field on insert, only the changed ones on update (old rows stay
+editable), after the required/unique checks, and throws `Laf\Exception\ValidationException` (`getErrors()`, `getMessages()`,
+`getFieldNames()`, `getTableName()`) before any SQL. `FormValidationException` extends it (one catch covers both);
+`processForm()` turns a store refusal into form errors and does not run the rules twice.
+
 **Form Handling**:
 ```php
 $customer = new Customer(UrlParser::getId());
@@ -344,6 +357,20 @@ draws an alert above the fields (`setShowErrorSummary(false)`, `drawErrorSummary
 "not on the form"; `Select`/`Radio`/`CheckboxCollection` take `setOptions()` or the FK table; Date/DateTime/Time inputs show
 the locale format (`locale.*.format`) with a picker class, or native inputs with `setNativeInput(true)` / Settings
 `form.native_date_inputs`.
+`Autocomplete` (a `Select`) is the foreign-key input for big tables: a hidden input posts the key under the field's name,
+a text box searches the referenced table's display field (`setSearchColumns(['code', 'name'])`, contains, case-insensitive,
+wildcards escaped, the field's db selection criteria applied, `setLimit()` 20, `setMinChars()` 1, `setNoResultsText()`),
+or a custom source (`setLookupCallback(fn ($term, $limit, $el))` + `setLabelCallback(fn ($value, $el))`, or `setOptions()`).
+Chosen per field (`"element":"Autocomplete"` in the column comment, `FormLayout::element()`, `setFormElementClass()`) or for
+every foreign key whose table has more rows than Settings `form.select_autocomplete_threshold` (default 0 = off, counted
+once per request). The page answers the searches with `$form->handleLookupRequest()` before any output (generated pages
+do, after `getForm()`): `?laf_lookup=table.field&laf_q=text` gives JSON `{"results": [{"value", "label"}], "more"}` and
+exits, only for autocomplete fields of that form (404 JSON otherwise). The script (`Input/autocomplete.js`, vanilla,
+Bootstrap 5 dropdown, keyboard + ARIA combobox, labels as text) is printed inline once per request;
+`Autocomplete::setInlineScript(false)` + `getScriptPath()` for pages that serve it. Typed text that was not chosen
+reverts on blur, an emptied box clears the key, Enter never submits while the list is open; the hidden input fires
+`change` and the box `laf:autocomplete:select` ({value, label}); `LafAutocomplete.set(box, value, label)` / `.clear(box)`.
+Demo: `sample_files/autocomplete_demo.php`.
 Every input takes `setPrefix()` / `setSuffix()` (text addons, an input group; `*Html` variants are raw), `setSuggestions()`
 (a `<datalist>`), and the element's `setErrors()` is announced with `aria-describedby` / `aria-invalid`; `Checkbox::setSwitch(true)`
 draws a toggle; a checkbox never carries `required` (the hidden `0` satisfies NOT NULL). Opt-in inputs `Number` (type=number),
@@ -384,6 +411,8 @@ The `Settings` singleton stores all configuration. Common keys:
   default to 3306/mysql; engine accepts mysql, mariadb, postgres, postgresql, pgsql. A second connection reads
   `database.<name>.*` and is reached with `Db::getInstance('<name>')`.
 - `project.package_name`: Root namespace for generated classes
+- `orm.validate_on_store`: run the field rules and `validateRecord()` inside `store()` (default false)
+- `form.select_autocomplete_threshold`: foreign keys to tables with more rows get an `Autocomplete` (default 0 = off)
 - `settings.use_pretty_url`: Enable/disable pretty URLs (default: true)
 - `settings.label.translations`: UI label translations
 - Readers: `Settings::get($key)` throws `MissingConfigParamException`; `has()`, `getBool()`, `getString()`, `getInt()` take a

@@ -4,6 +4,7 @@ namespace Laf\Database\Field;
 
 use Laf\Exception\InvalidValueException;
 use Laf\UI\Form\FormElementInterface;
+use Laf\UI\Form\Input\Autocomplete;
 use Laf\UI\Form\Input\File;
 use Laf\UI\Form\Input\Hidden;
 use Laf\UI\Form\Input\Select;
@@ -34,7 +35,8 @@ abstract class AbstractFieldType implements FieldType
      * Input component for a field of this type.
      *
      * The column's role wins over its type: a foreign key is a Select (or a
-     * File upload when it points at the document table) whatever its type, and
+     * File upload when it points at the document table, or an Autocomplete when the
+     * referenced table has more rows than Settings form.select_autocomplete_threshold) whatever its type, and
      * an auto-increment primary key is Hidden. Everything else gets the type's
      * natural input from createFormElement().
      */
@@ -42,7 +44,7 @@ abstract class AbstractFieldType implements FieldType
     {
         $hasTable = $field->hasTable();
         if ($hasTable && $field->isForeignKey()) {
-            $element = $field->isDocumentField() ? new File() : new Select();
+            $element = $field->isDocumentField() ? new File() : (Autocomplete::suitsField($field) ? new Autocomplete() : new Select());
         } else if ($hasTable && $field->getTable()->getPrimaryKey() !== null && $field->isPrimaryKey() && $field->isAutoIncrement()) {
             $element = new Hidden();
         } else {

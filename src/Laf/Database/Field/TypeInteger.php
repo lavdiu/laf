@@ -132,10 +132,10 @@ class TypeInteger extends AbstractFieldType
             $messages[] = sprintf('%s must be at most %s', $label, $this->getMaxValue());
         }
         if ($field !== null) {
-            if ($field->getMinValue() !== null && $this->compareNumeric($v, (string)$field->getMinValue()) < 0) {
+            if ($field->getMinValue() !== null && $this->compareBound($v, $field->getMinValue()) < 0) {
                 $messages[] = sprintf('%s must be at least %s', $label, $field->getMinValue());
             }
-            if ($field->getMaxValue() !== null && $this->compareNumeric($v, (string)$field->getMaxValue()) > 0) {
+            if ($field->getMaxValue() !== null && $this->compareBound($v, $field->getMaxValue()) > 0) {
                 $messages[] = sprintf('%s must be at most %s', $label, $field->getMaxValue());
             }
         }
@@ -160,6 +160,15 @@ class TypeInteger extends AbstractFieldType
     }
 
     /** Compare two integer digit strings of any length: -1, 0, 1 */
+    /** An integer value against a field bound, which may be a decimal (setMinValue('0.5')) */
+    private function compareBound(string $value, int|float|string $bound): int
+    {
+        if (is_int($bound) || preg_match('/^[-+]?\d+$/', (string)$bound) === 1) {
+            return $this->compareNumeric($value, (string)$bound);
+        }
+        return (float)$value <=> (float)$bound;
+    }
+
     private function compareNumeric(string $a, string $b): int
     {
         if (function_exists('bccomp')) {

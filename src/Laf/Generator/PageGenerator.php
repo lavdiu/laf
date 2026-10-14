@@ -127,6 +127,9 @@ $action = UrlParser::getAction();
 ${instance} = new {class}($id);
 $form = ${instance}->getForm($action === 'new' ? DrawMode::INSERT : ($action === 'update' ? DrawMode::UPDATE : DrawMode::VIEW));
 {handLayout}
+// Searches of autocomplete fields are answered here (JSON) and end the request
+$form->handleLookupRequest();
+
 $html = {factoryShort}::{factoryMethod}();
 $page = new AdminPage();
 

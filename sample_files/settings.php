@@ -34,6 +34,10 @@ return [
     'form' => [
         'restrict_to_rendered_fields' => false,   // ignore posted fields the form did not draw
         'native_date_inputs' => false,            // <input type="date"> instead of the locale format + picker
+        'select_autocomplete_threshold' => 0,     // foreign keys to tables with more rows get an Autocomplete (0 = off)
+    ],
+    'orm' => [
+        'validate_on_store' => false,             // field rules + validateRecord() inside store()/insert()/update()
     ],
     'upload' => [
         'documents_directory' => __DIR__ . '/../public/document/',
