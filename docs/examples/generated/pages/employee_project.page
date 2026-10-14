@@ -1,0 +1,175 @@
+<?php
+
+use MyApp\EmployeeProject;
+use Laf\Exception\FormValidationException;
+use Laf\UI\Component\Alert;
+use Laf\UI\Component\Dropdown;
+use Laf\UI\Component\Link;
+use Laf\UI\Container\ContainerType;
+use Laf\UI\Container\Div;
+use Laf\UI\Container\HtmlContainer;
+use Laf\UI\Container\TabContainer;
+use Laf\UI\Container\TabItem;
+use Laf\UI\Flash;
+use Laf\UI\Form\DrawMode;
+use Laf\UI\Form\Form;
+use Laf\UI\Form\FormLayout;
+use Laf\UI\Grid\PhpGrid\ActionButton;
+use Laf\UI\Grid\PhpGrid\Column;
+use Laf\UI\Grid\PhpGrid\PhpGrid;
+use Laf\UI\Page\AdminPage;
+use Laf\Util\UrlParser;
+use MyApp\Factory;
+
+$id = UrlParser::getId();
+$action = UrlParser::getAction();
+$employeeproject = new EmployeeProject($id);
+$form = $employeeproject->getForm($action === 'new' ? DrawMode::INSERT : ($action === 'update' ? DrawMode::UPDATE : DrawMode::VIEW));
+/**
+ * The form is laid out by EmployeeProject::getFormLayout() (FormLayout::auto() by default).
+ * To change it here instead, apply a layout:
+ *
+ *	$form->applyLayout($form->getDrawMode(), FormLayout::auto($employeeproject->getTable())
+ *		->readOnly(['code'], [DrawMode::UPDATE])
+ *		->fieldset('Address', ['street', 'city'], 2));
+ *
+ * or build the components yourself (Div(['row']) / Div(['col-lg']) for columns):
+ *
+ *	$form->setComponents([])
+ *		->addComponent($employeeproject->getIdFormElement())
+ *		->addComponent($employeeproject->getEmployeeIdFormElement())
+ *		->addComponent($employeeproject->getProjectIdFormElement());
+ */
+// Searches of autocomplete fields are answered here (JSON) and end the request
+$form->handleLookupRequest();
+
+$html = Factory::GeneralPage();
+$page = new AdminPage();
+
+$page->setTitle("<a href='" . UrlParser::getListLink() . "' class='text-black text-decoration-none'>EmployeeProject</a>");
+$page->setTitleIcon('far fa-list-alt');
+
+// Messages queued by the previous request (Flash::success() / Flash::error(), drained once)
+foreach (Flash::drain() as $flashAlert) {
+	$page->addComponent($flashAlert);
+}
+
+if ($form->isSubmitted()) {
+	try {
+		$id = $form->processForm();
+		Flash::success('Record saved successfully');
+		UrlParser::redirectToViewPage($id);
+		exit;
+	} catch (FormValidationException $ex) {
+		// the form is drawn again below with the submitted values and the messages
+		$page->addComponent(new Alert('', 'The record was not saved, please correct the fields marked below', Alert::Type_Danger));
+	}
+}
+
+switch ($action) {
+	case 'update':
+		if (!$employeeproject->recordExists()) {
+			Flash::error('Record not found');
+			UrlParser::redirectToListPage();
+			exit;
+		}
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link('Cancel', UrlParser::getViewLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$html->addComponent($page);
+		echo $html->draw();
+		break;
+	case 'new':
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link('Cancel', UrlParser::getListLink(), 'fas fa-window-close', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$html->addComponent($page);
+		echo $html->draw();
+		break;
+	case 'delete':
+		// the delete links carry the form's CSRF token: a crafted link cannot delete
+		if (!$form->isValidCsrfToken($_GET[$form->getCsrfSessionKey()] ?? null)) {
+			Flash::error('The record was not deleted: the link is not valid, open the record and try again');
+			UrlParser::redirectToListPage();
+			exit;
+		}
+		if ($employeeproject->recordExists()) {
+			if ($employeeproject->canSoftDelete()) {
+				$employeeproject->softDelete();
+			} else {
+				$employeeproject->hardDelete();
+			}
+			Flash::success('Record deleted successfully');
+		} else {
+			Flash::error('Record not found');
+		}
+		UrlParser::redirectToListPage();
+		exit;
+	case 'view':
+		if (!$employeeproject->recordExists()) {
+			Flash::error('Record not found');
+			UrlParser::redirectToListPage();
+			exit;
+		}
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$page->addComponent($form);
+		$page->addLink(new Link('List', UrlParser::getListLink(), 'far fa-list-alt', [], ['btn', 'btn-sm', 'btn-outline-success']));
+
+		$dd = new Dropdown('Options', '', 'fa fa-cogs', true);
+		$dd->addCssClass('btn-outline-success')
+			->addCssClass('btn-sm');
+		$updateLink = new Link('Update', UrlParser::getUpdateLink(), 'fa fa-edit', ['class' => 'btn btn-sm btn-outline-warning']);
+		$deleteLink = new Link('Delete', $form->withCsrfToken(UrlParser::getDeleteLink()), 'fa fa-trash', ['class' => 'btn btn-sm btn-outline-danger']);
+		$deleteLink->setConfirmationMessage('Are you sure you want to delete this?');
+
+		$dd->addLink($updateLink)
+			->addLink($deleteLink);
+		$page->addLink($dd);
+
+		$html->addComponent($page);
+
+		echo $html->draw();
+		break;
+	case 'list':
+	default:
+
+		$grid = new PhpGrid('employee_project_list');
+		$grid->setTitle('Employee Project List')
+			->setRowsPerPage(10)
+			->setSqlQuery('
+SELECT * FROM (
+	SELECT
+		  `employee_project`.`id` AS `employee_project_id`
+		, `employee_project`.`employee_id` AS `employee_project_employee_id`
+		, `employee`.`company_id` AS `employee_company_id`
+		, `employee_project`.`project_id` AS `employee_project_project_id`
+		, `project`.`name` AS `project_name`
+	FROM `employee_project`
+	LEFT JOIN `employee` `employee` ON `employee_project`.`employee_id` = `employee`.`id`
+	LEFT JOIN `project` `project` ON `employee_project`.`project_id` = `project`.`id`
+	WHERE 1=1 
+) l1 ');
+
+		$grid->addColumn(((new Column('employee_project_id', 'Id', true, true, sprintf('?module=%s&action=view&id={employee_project_id}', UrlParser::getModule())))->setInnerElementCssClass('btn btn-sm btn-outline-success'))->setOuterElementCssStyle('width:100px;'));
+		$grid->addColumn(new Column('employee_project_employee_id', 'Employee Id', false));
+		$grid->addColumn(new Column('employee_company_id', 'Employee', true));
+		$grid->addColumn(new Column('employee_project_project_id', 'Project Id', false));
+		$grid->addColumn(new Column('project_name', 'Project', true));
+
+		$grid->addActionButton(new ActionButton('View', sprintf('?module=%s&action=view&id={employee_project_id}', UrlParser::getModule()), 'fa fa-eye'));
+		$grid->addActionButton(new ActionButton('Update', sprintf('?module=%s&action=update&id={employee_project_id}', UrlParser::getModule()), 'fa fa-edit'));
+		$deleteLink = new ActionButton('Delete', $form->withCsrfToken(sprintf('?module=%s&action=delete&id={employee_project_id}', UrlParser::getModule())), 'fa fa-trash');
+		$deleteLink->addAttribute('onclick', 'return confirm("Are you sure you want to delete this?")');
+		$grid->addActionButton($deleteLink);
+
+		if ($grid->isReadyToHandleRequests()) {
+			$grid->bootstrap();
+		}
+
+		$page->addComponent(new HtmlContainer($grid->draw()));
+		$page->addLink(new Link('Add new', UrlParser::getNewLink(), 'fa fa-plus-square', [], ['btn', 'btn-sm', 'btn-outline-success']));
+		$page->setContainerType(ContainerType::TYPE_FLUID);
+		$html->addComponent($page);
+		echo $html->draw();
+		break;
+}
