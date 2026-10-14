@@ -240,9 +240,22 @@ class GeneratorUnitTest extends TestCase
     /** @test */
     public function base_class_source_includes_comment_setters_form_options_and_quoted_values(): void
     {
-        $generator = new ClassGenerator(new Table('gen_item'), ['namespace' => 'GenUnit'], self::itemInspector());
+        $generator = (new ClassGenerator(new Table('gen_item'), ['namespace' => 'GenUnit'], self::itemInspector()))
+            ->addTableInspector(new FakeTableInspector('gen_line', [
+                ['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI', 'EXTRA' => 'auto_increment'],
+                ['COLUMN_NAME' => 'item_id', 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk('item_id', 'gen_item')],
+                ['COLUMN_NAME' => 'alt_item_id', 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk('alt_item_id', 'gen_item')],
+                ['COLUMN_NAME' => 'qty', 'DATA_TYPE' => 'int'],
+            ]))
+            ->addTableInspector(new FakeTableInspector('gen_item_tag', [
+                ['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI', 'EXTRA' => 'auto_increment'],
+                ['COLUMN_NAME' => 'item_id', 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk('item_id', 'gen_item')],
+                ['COLUMN_NAME' => 'tag_id', 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk('tag_id', 'gen_tag')],
+            ]));
         $source = (string)$generator->processBaseClass()->getBaseClassFile();
 
+        $this->assertStringContainsString("addManyToMany(\"gen_item_tag\", ['owner' => 'item_id', 'other' => 'tag_id', 'table' => 'gen_tag', 'label' => 'Gen Tags']);", $source);
+        $this->assertStringNotContainsString('"gen_line"', $source, 'two keys to the same table: a child table');
         $this->assertStringContainsString('namespace GenUnit\\Base;', $source);
         $this->assertStringContainsString('class BaseGenItem extends Database\\BaseObject', $source);
         $this->assertStringContainsString('new Table("gen_item")', $source);
@@ -289,6 +302,104 @@ class GeneratorUnitTest extends TestCase
         $this->assertSame(1, substr_count($source, '->setMaxLength('));
         $this->assertStringContainsString('->setMaxLength(10)', $source);
         $this->assertSame(1, $inspector->inspections, 'inspected once');
+    }
+
+    /**
+     * person ⇄ group through person_group (surrogate id, like asm), the person side
+     * @param array<string, mixed> $groupColumn extra keys of person_group.group_id (a comment)
+     * @param array<int, array<string, mixed>> $extraColumns more columns of person_group
+     */
+    private static function personGenerator(array $groupColumn = [], array $extraColumns = []): ClassGenerator
+    {
+        $person = new FakeTableInspector('person', [
+            ['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI', 'EXTRA' => 'auto_increment', 'IS_NULLABLE' => 'NO'],
+            ['COLUMN_NAME' => 'name', 'DATA_TYPE' => 'varchar', 'CHARACTER_MAXIMUM_LENGTH' => 50],
+        ], [['person_group', 'person_id'], ['invoice', 'person_id']]);
+        $personGroup = new FakeTableInspector('person_group', array_merge([
+            ['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI', 'EXTRA' => 'auto_increment', 'IS_NULLABLE' => 'NO'],
+            ['COLUMN_NAME' => 'person_id', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'FOREIGN_KEY' => self::fk('person_id', 'person')],
+            ['COLUMN_NAME' => 'group_id', 'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'FOREIGN_KEY' => self::fk('group_id', 'group')] + $groupColumn,
+        ], $extraColumns));
+        $invoice = new FakeTableInspector('invoice', [
+            ['COLUMN_NAME' => 'id', 'DATA_TYPE' => 'int', 'COLUMN_KEY' => 'PRI', 'EXTRA' => 'auto_increment'],
+            ['COLUMN_NAME' => 'person_id', 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk('person_id', 'person')],
+            ['COLUMN_NAME' => 'total', 'DATA_TYPE' => 'decimal'],
+            ['COLUMN_NAME' => 'issued_on', 'DATA_TYPE' => 'date'],
+            ['COLUMN_NAME' => 'note', 'DATA_TYPE' => 'text'],
+        ]);
+        return (new ClassGenerator(new Table('person'), ['namespace' => 'GenUnit'], $person))
+            ->addTableInspector($personGroup)
+            ->addTableInspector($invoice);
+    }
+
+    /** @test */
+    public function a_linker_table_becomes_a_many_to_many_definition_in_the_base_class(): void
+    {
+        $generator = self::personGenerator();
+        $relations = $generator->detectManyToMany();
+
+        $this->assertSame(['person_group'], array_keys($relations), 'the invoice child table is no linker');
+        $this->assertSame(['owner' => 'person_id', 'other' => 'group_id', 'table' => 'group', 'label' => 'Groups'], $relations['person_group']);
+
+        $source = (string)$generator->processBaseClass()->getBaseClassFile();
+        $this->assertStringContainsString("\$this->getTable()->addManyToMany(\"person_group\", ['owner' => 'person_id', 'other' => 'group_id', 'table' => 'group', 'label' => 'Groups']);", $source);
+        $this->assertParses($source, 'base class');
+    }
+
+    /** @test */
+    public function the_linker_column_comment_configures_or_switches_off_the_picker(): void
+    {
+        $comment = json_encode([
+            'fields' => ['setLabel' => 'Member of', 'setHint' => 'Pick the groups', 'setRequired' => true],
+            'form' => ['element' => 'Autocomplete', 'create' => true, 'tab' => 'Access', 'order' => 5],
+        ]);
+        $relations = self::personGenerator(['COLUMN_COMMENT' => $comment])->detectManyToMany();
+        $this->assertSame([
+            'owner' => 'person_id',
+            'other' => 'group_id',
+            'table' => 'group',
+            'label' => 'Member of',
+            'hint' => 'Pick the groups',
+            'required' => true,
+            'form' => ['element' => \Laf\UI\Form\Input\Autocomplete::class, 'create' => true, 'tab' => 'Access', 'order' => 5],
+        ], $relations['person_group']);
+
+        $off = self::personGenerator(['COLUMN_COMMENT' => '{"form":{"multi":false}}']);
+        $this->assertSame([], $off->detectManyToMany());
+        $this->assertStringNotContainsString('addManyToMany', (string)$off->processBaseClass()->getBaseClassFile());
+    }
+
+    /** @test */
+    public function a_linker_table_with_a_required_data_column_gets_no_picker(): void
+    {
+        $generator = self::personGenerator([], [['COLUMN_NAME' => 'role', 'DATA_TYPE' => 'varchar', 'IS_NULLABLE' => 'NO']]);
+        $this->assertSame([], $generator->detectManyToMany());
+        $this->assertStringContainsString('required column without a default', implode("\n", $generator->getWarnings()));
+
+        $withDefault = self::personGenerator([], [['COLUMN_NAME' => 'role', 'DATA_TYPE' => 'varchar', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'member']]);
+        $this->assertSame(['person_group'], array_keys($withDefault->detectManyToMany()));
+    }
+
+    /** @test */
+    public function junction_detector_rules(): void
+    {
+        $fk = static fn(string $c, string $t) => ['COLUMN_NAME' => $c, 'DATA_TYPE' => 'int', 'FOREIGN_KEY' => self::fk($c, $t)];
+        $composite = new FakeTableInspector('link', [$fk('a_id', 'a') + ['COLUMN_KEY' => 'PRI'], $fk('b_id', 'b') + ['COLUMN_KEY' => 'PRI'], ['COLUMN_NAME' => 'note', 'DATA_TYPE' => 'text']]);
+        $found = \Laf\Generator\JunctionDetector::detect($composite, 'a');
+        $this->assertSame(['link', 'b', 'a_id', 'b_id', true], [$found['junction_table'], $found['other_table'], $found['fk_to_current'], $found['fk_to_other'], $found['insertable']]);
+        $this->assertSame('a', \Laf\Generator\JunctionDetector::detect($composite, 'b')['other_table'], 'read from the other side');
+
+        $threeKeys = new FakeTableInspector('x', [$fk('a_id', 'a'), $fk('b_id', 'b'), $fk('c_id', 'c')]);
+        $this->assertNull(\Laf\Generator\JunctionDetector::detect($threeKeys, 'a'));
+
+        $wide = new FakeTableInspector('x', [$fk('a_id', 'a'), $fk('b_id', 'b'), ['COLUMN_NAME' => 'p', 'DATA_TYPE' => 'int'], ['COLUMN_NAME' => 'q', 'DATA_TYPE' => 'int'], ['COLUMN_NAME' => 'r', 'DATA_TYPE' => 'int']]);
+        $this->assertNull(\Laf\Generator\JunctionDetector::detect($wide, 'a'), 'a child table with its own data');
+
+        $sameParent = new FakeTableInspector('x', [$fk('from_id', 'a'), $fk('to_id', 'a')]);
+        $this->assertNull(\Laf\Generator\JunctionDetector::detect($sameParent, 'a'));
+
+        $unrelated = new FakeTableInspector('x', [$fk('b_id', 'b'), $fk('c_id', 'c')]);
+        $this->assertNull(\Laf\Generator\JunctionDetector::detect($unrelated, 'a'));
     }
 
     /** @test */

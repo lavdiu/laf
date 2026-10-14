@@ -9,17 +9,23 @@ use Laf\UI\Form\FormElementInterface;
  * stores several selections as a comma separated list (MySQL SET, varchar).
  * Posts name[]; Form joins the values with commas. An empty hidden value is
  * posted first so clearing every box is submitted too.
+ *
+ * A foreign key column holds one key, so on a foreign key the list is drawn as radios;
+ * several keys need a linker table (ManyToManyCheckboxes).
  */
 class CheckboxCollection extends Select implements FormElementInterface
 {
     public function drawUpdateMode(): string
     {
+        if ($this->isForeignKeyBound()) {
+            return $this->renderChoiceList('radio', false);
+        }
         return $this->renderChoiceList('checkbox', true);
     }
 
     protected function isMultiValued(): bool
     {
-        return true;
+        return !$this->isForeignKeyBound();
     }
 
     /**

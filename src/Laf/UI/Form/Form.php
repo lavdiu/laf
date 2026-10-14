@@ -61,6 +61,9 @@ class Form implements ComponentInterface
     /** Session key of the secret that signs the field list */
     const SIGNING_KEY_SESSION_KEY = '_laf_form_key';
 
+    /** A many-to-many picker's entry in the signed field list: prefix + relation name */
+    const RELATION_KEY_PREFIX = '_rel_';
+
     /** @var array<string, string[]> field groups for layout (label => [fieldNames]) */
     protected array $fieldGroups = [];
 
@@ -114,6 +117,11 @@ class Form implements ComponentInterface
 
     /** @var array<string, string[]> field name => messages, from the last applySubmittedValues()/validate() */
     protected array $errors = [];
+
+    /** @var array<string, array<int, string>> relation name => keys posted for it, from the last applySubmittedValues() */
+    protected array $relationValues = [];
+
+    private ?int $lookupStatus = null;
 
     /** @var array|null request data set with setRequest(); null reads the superglobals */
     private ?array $requestData = null;
@@ -188,8 +196,6 @@ class Form implements ComponentInterface
         }
 
         $object = $this->getObject();
-        $pk = $object->getTable()->getPrimaryKey();
-        $pkField = $pk->getFirstField();
 
         // the form has just run the same rules: the write does not repeat them
         $validateOnStore = $object->getValidateOnStore();
@@ -197,14 +203,14 @@ class Form implements ComponentInterface
             $object->setValidateOnStore(false);
         }
         try {
-            if ($pk->hasValue()) {
-                if ($pkField !== null && !$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
-                    $object->insert();
-                } else {
-                    $object->update();
-                }
+            if ($this->relationValues === []) {
+                $this->writeObject();
             } else {
-                $object->insert();
+                // the row and its links (linker tables) are stored together or not at all
+                BaseObject::transaction(function () {
+                    $this->writeObject();
+                    $this->syncRelations();
+                });
             }
         } catch (UniqueFieldDuplicateValueException | MissingFieldValueException $ex) {
             throw $this->validationExceptionFromWrite($ex);
@@ -216,38 +222,96 @@ class Form implements ComponentInterface
         }
 
         $object->reload();
+        foreach ($this->getRelationElements() as $element) {
+            $relation = $element->getRelation();
+            if ($relation !== null && array_key_exists($element->getRelationName(), $this->relationValues)) {
+                $element->setSelectedIds($relation->ids());
+            }
+        }
         return $object->getRecordId();
+    }
+
+    /**
+     * insert() or update() of the form's object, as the draw mode and the key say
+     * @throws \Exception
+     */
+    protected function writeObject(): void
+    {
+        $object = $this->getObject();
+        $pk = $object->getTable()->getPrimaryKey();
+        $pkField = $pk->getFirstField();
+        if ($pk->hasValue()) {
+            if ($pkField !== null && !$pkField->isAutoIncrement() && $this->getDrawMode() == DrawMode::INSERT) {
+                $object->insert();
+            } else {
+                $object->update();
+            }
+        } else {
+            $object->insert();
+        }
+    }
+
+    /**
+     * Writes the keys posted for each many-to-many picker into its linker table (after the row
+     * itself, inside processForm()'s transaction); a refused write becomes the picker's error
+     * @throws FormValidationException
+     */
+    protected function syncRelations(): void
+    {
+        foreach ($this->getRelationElements() as $element) {
+            $name = $element->getRelationName();
+            $relation = $element->getRelation();
+            if ($relation === null || !array_key_exists($name, $this->relationValues)) {
+                continue;
+            }
+            try {
+                $relation->sync($this->relationValues[$name]);
+            } catch (\Throwable $ex) {
+                $label = $element->getLabel() ?: $name;
+                throw new FormValidationException([$name => [sprintf('%s: the choice could not be saved', $label)]], $ex->getMessage(), 0, $ex);
+            }
+        }
     }
 
     /**
      * Answers the search of an Autocomplete on this form (?laf_lookup=table.field&laf_q=text) with
      * JSON {"results": [{"value", "label"}], "more": bool} and exits; call it before any output, after
-     * the form is built (generated pages do). Only autocomplete fields on this form are answered.
+     * the form is built (generated pages do). Only autocomplete fields on this form are answered,
+     * and the many-to-many pickers (ManyToManyAutocomplete, key "linker_table.column").
+     *
+     * With &laf_create=1 it is a create instead (Autocomplete::setAllowCreate()): POST only, the text in
+     * laf_q and the form's CSRF token in the body, the element must allow it and the form must be an
+     * edit form. Answers {"value", "label", "created"} (200), {"error"} with the reason (422), 403 for a
+     * bad token or a field that cannot create, 404 for an unknown key, 405 for GET.
      * @param array<string, mixed>|null $query the request parameters (default $_GET)
      * @param bool $terminate false = print the answer and return instead of exiting (tests)
+     * @param array<string, mixed>|null $post the request body of a create (default $_POST when the method is POST)
      * @return bool false when the request is not a lookup
      */
-    public function handleLookupRequest(?array $query = null, bool $terminate = true): bool
+    public function handleLookupRequest(?array $query = null, bool $terminate = true, ?array $post = null): bool
     {
         $query = $query ?? $_GET;
         $key = $query[Autocomplete::REQUEST_KEY] ?? null;
         if (!is_string($key) || $key === '') {
             return false;
         }
-        $term = $query[Autocomplete::REQUEST_TERM] ?? '';
-        $term = is_string($term) ? $term : '';
 
         $element = null;
-        foreach ($this->getFieldElements() as $candidate) {
+        foreach (array_merge($this->getFieldElements(), $this->getRelationElements()) as $candidate) {
             if ($candidate instanceof Autocomplete && $candidate->getLookupKey() === $key) {
                 $element = $candidate;
                 break;
             }
         }
-        if ($element === null) {
+
+        if (!empty($query[Autocomplete::REQUEST_CREATE])) {
+            [$status, $body] = $this->answerCreate($element, $post);
+        } elseif ($element === null) {
             $status = 404;
             $body = ['results' => [], 'more' => false, 'error' => 'Unknown lookup'];
         } else {
+            $term = $query[Autocomplete::REQUEST_TERM] ?? '';
+            $term = is_string($term) ? $term : '';
             try {
                 $status = 200;
                 $body = $element->search($term);
@@ -262,6 +326,7 @@ class Form implements ComponentInterface
                 ob_end_clean();
             }
         }
+        $this->lookupStatus = $status;
         if (!headers_sent()) {
             http_response_code($status);
             header('Content-Type: application/json; charset=utf-8');
@@ -272,6 +337,50 @@ class Form implements ComponentInterface
             $this->terminateRequest();
         }
         return true;
+    }
+
+    /**
+     * Status and JSON body of a create request (see handleLookupRequest())
+     * @param array<string, mixed>|null $post
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    private function answerCreate(?Autocomplete $element, ?array $post): array
+    {
+        if ($post === null) {
+            if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+                return [405, ['error' => 'Use POST']];
+            }
+            $post = $_POST;
+        }
+        if ($this->csrfProtection) {
+            $token = $post[$this->getCsrfSessionKey()] ?? null;
+            if (!$this->isValidCsrfToken(is_string($token) ? $token : null)) {
+                return [403, ['error' => 'The form is out of date; reload the page and try again']];
+            }
+        }
+        if ($element === null) {
+            return [404, ['error' => 'Unknown lookup']];
+        }
+        if (!$element->isCreateAllowed() || (string)$this->getDrawMode() === DrawMode::VIEW || !$this->isEditableElement($element)) {
+            return [403, ['error' => 'New entries cannot be added here']];
+        }
+        $term = $post[Autocomplete::REQUEST_TERM] ?? '';
+        try {
+            return [200, $element->create(is_string($term) ? $term : '')];
+        } catch (InvalidValueException $ex) {
+            return [422, ['error' => $ex->getMessage()]];
+        } catch (\Throwable $ex) {
+            return [500, ['error' => 'The entry could not be added']];
+        }
+    }
+
+    /**
+     * HTTP status of the last lookup or create answered by handleLookupRequest() (null before one),
+     * for callers that pass $terminate = false
+     */
+    public function getLookupStatus(): ?int
+    {
+        return $this->lookupStatus;
     }
 
     /** End of a lookup request; overridable */
@@ -314,6 +423,7 @@ class Form implements ComponentInterface
     public function applySubmittedValues(?string $documentHandlerClass = null): void
     {
         $this->errors = [];
+        $this->relationValues = [];
         $request = $this->getRequestData();
         $listed = $this->verifiedFieldList();
         if ($listed === null && $this->restrictToRenderedFields) {
@@ -363,6 +473,70 @@ class Form implements ComponentInterface
                 }
             }
         }
+
+        $this->applySubmittedRelations($request, $listed);
+    }
+
+    /**
+     * Reads the keys posted for the many-to-many pickers (name[] under the relation's name) into
+     * the pickers and relationValues; processForm() writes them after the row. A picker the request
+     * does not carry is left alone (its links stay as they are).
+     * @param array<string, mixed> $request
+     * @param string[]|null $listed the verified field list
+     */
+    protected function applySubmittedRelations(array $request, ?array $listed): void
+    {
+        $this->relationValues = [];
+        foreach ($this->getRelationElements() as $element) {
+            $name = $element->getRelationName();
+            $isEditable = $listed === null ? $this->isEditableElement($element) : in_array(self::RELATION_KEY_PREFIX . $name, $listed, true);
+            if (!$isEditable && ($this->restrictToRenderedFields || $listed !== null)) {
+                continue;
+            }
+            if (!array_key_exists($name, $request)) {
+                continue;
+            }
+            $ids = \Laf\Database\ManyToMany::cleanIds(is_array($request[$name]) ? $request[$name] : [$request[$name]]);
+            $element->setSelectedIds($ids);
+            $this->relationValues[$name] = $ids;
+        }
+    }
+
+    /**
+     * Checks the keys posted for the many-to-many pickers: at least one when required, at most
+     * getMaxItems(), every key a row of the other table
+     */
+    protected function validateRelations(): void
+    {
+        foreach ($this->getRelationElements() as $element) {
+            $name = $element->getRelationName();
+            if (!array_key_exists($name, $this->relationValues)) {
+                continue;
+            }
+            $ids = $this->relationValues[$name];
+            $label = $element->getLabel() ?: $name;
+            if ($ids === []) {
+                if ($element->isRequired()) {
+                    $this->addError($name, sprintf('%s: choose at least one', $label));
+                }
+                continue;
+            }
+            $max = $element->getMaxItems();
+            if ($max !== null && count($ids) > $max) {
+                $this->addError($name, sprintf('%s: choose at most %d', $label, $max));
+            }
+            $relation = $element->getRelation();
+            if ($relation !== null) {
+                try {
+                    $unknown = array_diff($ids, $relation->validIds($ids));
+                } catch (\Throwable $ex) {
+                    $unknown = [];
+                }
+                if ($unknown !== []) {
+                    $this->addError($name, sprintf('%s: unknown value', $label));
+                }
+            }
+        }
     }
 
     /**
@@ -383,6 +557,7 @@ class Form implements ComponentInterface
                 $this->addError($name, $message);
             }
         }
+        $this->validateRelations();
         // the model's own rules (BaseObject::validateRecord()), once the fields are valid
         if (!$this->hasErrors()) {
             foreach (self::formErrors($this->getObject()->recordErrors()) as $name => $messages) {
@@ -446,7 +621,7 @@ class Form implements ComponentInterface
     public function addError(string $fieldName, string $message): static
     {
         $this->errors[$fieldName][] = $message;
-        $element = $this->getFieldElement($fieldName);
+        $element = $this->getFieldElement($fieldName) ?? $this->getRelationElement($fieldName);
         if ($element !== null) {
             $element->setErrors($this->errors[$fieldName]);
         }
@@ -749,6 +924,7 @@ class Form implements ComponentInterface
             $html .= $this->drawErrorSummary();
         }
 
+        $this->prepareCreatingAutocompletes();
         $html .= $this->drawComponents();
 
         $html .= "<input type='hidden' name='{$name}_draw_mode' id='{$id}_draw_mode' value='" . Util::e($this->getDrawMode()) . "' />";
@@ -1057,6 +1233,28 @@ class Form implements ComponentInterface
     }
 
     /**
+     * Every many-to-many picker among the components, recursively through containers
+     * @return RelationElementInterface[]
+     */
+    public function getRelationElements(): array
+    {
+        return $this->collectRelationElements($this->getComponents());
+    }
+
+    /**
+     * The many-to-many picker of a relation (its linker table name), null when it is not on the form
+     */
+    public function getRelationElement(string $name): ?RelationElementInterface
+    {
+        foreach ($this->getRelationElements() as $element) {
+            if ($element->getRelationName() === $name) {
+                return $element;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Names of the fields whose elements are on the form (searched recursively through containers)
      * @return string[]
      */
@@ -1305,6 +1503,10 @@ class Form implements ComponentInterface
                 $key = $table->getField($name)->getNameRot13();
                 $keys[] = $key;
                 $request[$key] = $value;
+            } elseif ($table->hasManyToMany($name)) {
+                // a many-to-many picker: the list of keys of the other table
+                $keys[] = self::RELATION_KEY_PREFIX . $name;
+                $request[$name] = is_array($value) ? array_values($value) : ($value === null || $value === '' ? [] : [$value]);
             } else {
                 $request[$name] = $value;
             }
@@ -1381,6 +1583,11 @@ class Form implements ComponentInterface
             $field = $element->getField();
             if ($field !== null && $this->isEditableElement($element)) {
                 $keys[] = $field->getNameRot13();
+            }
+        }
+        foreach ($this->getRelationElements() as $element) {
+            if ($this->isEditableElement($element)) {
+                $keys[] = self::RELATION_KEY_PREFIX . $element->getRelationName();
             }
         }
         return array_values(array_unique($keys));
@@ -1525,6 +1732,12 @@ class Form implements ComponentInterface
                 $element->setErrors($messages);
             }
         }
+        foreach ($this->getRelationElements() as $element) {
+            $messages = $this->errors[$element->getRelationName()] ?? [];
+            if ($messages !== [] || $clearOthers) {
+                $element->setErrors($messages);
+            }
+        }
     }
 
     /**
@@ -1562,6 +1775,41 @@ class Form implements ComponentInterface
             }
         }
         return $elements;
+    }
+
+    /**
+     * Every many-to-many picker among the components, recursively
+     * @param ComponentInterface[] $components
+     * @return RelationElementInterface[]
+     */
+    protected function collectRelationElements(array $components): array
+    {
+        $elements = [];
+        foreach ($components as $component) {
+            if ($component instanceof RelationElementInterface) {
+                $elements[] = $component;
+            }
+            foreach ($this->collectRelationElements($component->getComponents()) as $element) {
+                $elements[] = $element;
+            }
+        }
+        return $elements;
+    }
+
+    /**
+     * Hands the CSRF token to the autocompletes that may create rows (their script posts it)
+     */
+    protected function prepareCreatingAutocompletes(): void
+    {
+        foreach (array_merge($this->getFieldElements(), $this->getRelationElements()) as $element) {
+            if ($element instanceof Autocomplete && $element->isCreateAllowed()) {
+                if ($this->csrfProtection) {
+                    $element->setCreateCsrfToken($this->getCsrfSessionKey(), $this->generateCsrfToken());
+                } else {
+                    $element->setCreateCsrfToken(null, null);
+                }
+            }
+        }
     }
 
     /**

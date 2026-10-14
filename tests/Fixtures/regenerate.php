@@ -29,7 +29,7 @@ $config = [
 ];
 @mkdir($config['base_class_dir'], 0777, true);
 
-foreach (['dummy_table', 'code_table', 'link_table', 'document'] as $tableName) {
+foreach (['dummy_table', 'code_table', 'link_table', 'document', 'm2m_person', 'm2m_group', 'm2m_person_group'] as $tableName) {
     if (!Db::getInstance()->tableExists($tableName)) {
         echo "skipped {$tableName}: table not found\n";
         continue;

@@ -896,6 +896,9 @@ class Field
         if ($element->getField() === null) {
             $element->setField($this);
         }
+        if ($element instanceof \Laf\UI\Form\Input\Autocomplete && $this->getFormOption('create') === true) {
+            $element->setAllowCreate(true);
+        }
         $this->formElement = $element;
         return $element;
     }

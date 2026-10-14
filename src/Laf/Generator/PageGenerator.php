@@ -351,9 +351,7 @@ PHP;
     }
 
     /**
-     * Checks if a table is a junction/pivot table for a many-to-many relationship: exactly
-     * two foreign keys to two different tables and at most two other columns besides keys
-     * and row metadata.
+     * The many-to-many relation a referencing table gives the current table (JunctionDetector rule)
      *
      * @param string $tableName the referencing table to check
      * @param string $currentTable the current/parent table name
@@ -362,49 +360,7 @@ PHP;
      */
     private function detectJunctionTable(string $tableName, string $currentTable, ?string $viaColumn = null): ?array
     {
-        $inspector = $this->inspector($tableName);
-        $metadataColumns = ['id', 'created_on', 'created_by', 'updated_on', 'updated_by', 'is_deleted', 'deleted', 'record_status_id'];
-
-        $foreignKeys = [];
-        $extraColumns = 0;
-        foreach ($inspector->getColumns() as $column) {
-            if (self::columnIsForeignKey($column)) {
-                $foreignKeys[] = $column;
-                continue;
-            }
-            if (in_array($column['COLUMN_NAME'], $metadataColumns, true) || ($column['COLUMN_KEY'] ?? '') === 'PRI') {
-                continue;
-            }
-            $extraColumns++;
-        }
-        if (count($foreignKeys) !== 2 || $extraColumns > 2) {
-            return null;
-        }
-
-        $fkToCurrent = null;
-        $fkToOther = null;
-        foreach ($foreignKeys as $fk) {
-            $pointsAtCurrent = $fk['FOREIGN_KEY']['referenced_table_name'] === $currentTable
-                && ($viaColumn === null || $fk['COLUMN_NAME'] === $viaColumn);
-            if ($pointsAtCurrent && $fkToCurrent === null) {
-                $fkToCurrent = $fk;
-            } else {
-                $fkToOther = $fk;
-            }
-        }
-        if ($fkToCurrent === null || $fkToOther === null) {
-            return null;
-        }
-        if ($fkToOther['FOREIGN_KEY']['referenced_table_name'] === $currentTable) {
-            // both keys point here (from/to on the same parent): a plain child table, one tab per key
-            return null;
-        }
-        return [
-            'junction_table' => $tableName,
-            'other_table' => (string)$fkToOther['FOREIGN_KEY']['referenced_table_name'],
-            'fk_to_current' => (string)$fkToCurrent['COLUMN_NAME'],
-            'fk_to_other' => (string)$fkToOther['COLUMN_NAME'],
-        ];
+        return JunctionDetector::detect($this->inspector($tableName), $currentTable, $viaColumn);
     }
 
     /**
