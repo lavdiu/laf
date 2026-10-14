@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Laf\UI\Form\Input;
 
+use Laf\Database\BaseObject;
 use Laf\Database\Db;
 use Laf\Database\Field\Field;
 use Laf\Database\Query;
 use Laf\Database\Table;
+use Laf\Exception\DatabaseException;
+use Laf\Exception\InvalidForeignKeyValue;
+use Laf\Exception\InvalidValueException;
+use Laf\Exception\MissingFieldValueException;
+use Laf\Exception\UniqueFieldDuplicateValueException;
+use Laf\Exception\ValidationException;
 use Laf\UI\Form\FormElementInterface;
 use Laf\Util\Settings;
 use Laf\Util\Util;
@@ -28,11 +35,21 @@ use Laf\Util\Util;
  *
  * The script (vanilla, no dependencies, Bootstrap 5 dropdown markup) is printed inline once per
  * request; setInlineScript(false) leaves it out for pages that load getScriptPath() themselves.
+ *
+ * setAllowCreate(true) (column comment {"form":{"create":true}}) ends the list with
+ * '+ Create "typed text"' when nothing matches exactly: the script POSTs the text with the form's
+ * CSRF token to the same lookup URL and the new row is chosen. The default stores a row of the
+ * referenced table with the display field set to the text (and the field's db selection criteria);
+ * setCreateCallback() takes over for tables with other required columns or rules.
+ *
+ * Always one value: a foreign key column holds one key. Several values come from a linker table
+ * (ManyToManyAutocomplete).
  */
 class Autocomplete extends Select implements FormElementInterface
 {
     public const REQUEST_KEY = 'laf_lookup';
     public const REQUEST_TERM = 'laf_q';
+    public const REQUEST_CREATE = 'laf_create';
 
     /** Longest search term taken from the request */
     public const MAX_TERM_LENGTH = 100;
@@ -60,6 +77,16 @@ class Autocomplete extends Select implements FormElementInterface
     private ?string $lookupUrl = null;
 
     private string $noResultsText = 'No matches';
+
+    private bool $allowCreate = false;
+
+    private string $createText = 'Create "%s"';
+
+    /** @var callable|null fn(string $term, Autocomplete $element): BaseObject|array|string|null */
+    private $createCallback = null;
+
+    /** @var array{0: string, 1: string}|null CSRF input name and token the script posts a create with */
+    private ?array $createCsrf = null;
 
     /* ───────────── configuration ───────────── */
 
@@ -137,6 +164,57 @@ class Autocomplete extends Select implements FormElementInterface
     public function setNoResultsText(string $text): static
     {
         $this->noResultsText = $text;
+        return $this;
+    }
+
+    public function getNoResultsText(): string
+    {
+        return $this->noResultsText;
+    }
+
+    /**
+     * Offer '+ Create "text"' when the typed text matches no row exactly (default false)
+     */
+    public function setAllowCreate(bool $allow): static
+    {
+        $this->allowCreate = $allow;
+        return $this;
+    }
+
+    public function isCreateAllowed(): bool
+    {
+        return $this->allowCreate || $this->createCallback !== null;
+    }
+
+    /** Text of the create entry; %s is the typed text */
+    public function setCreateText(string $text): static
+    {
+        $this->createText = $text;
+        return $this;
+    }
+
+    public function getCreateText(): string
+    {
+        return $this->createText;
+    }
+
+    /**
+     * Builds the row for a typed text instead of the default (implies setAllowCreate(true)):
+     * fn(string $term, Autocomplete $el) returns the stored BaseObject, ['value' => ..., 'label' => ...],
+     * or a string = the reason it was refused (shown in the list); null refuses without a reason.
+     */
+    public function setCreateCallback(?callable $callback): static
+    {
+        $this->createCallback = $callback;
+        return $this;
+    }
+
+    /**
+     * The CSRF input name and token the script sends with a create (Form sets them when it draws)
+     */
+    public function setCreateCsrfToken(?string $inputName, ?string $token): static
+    {
+        $this->createCsrf = ($inputName === null || $token === null) ? null : [$inputName, $token];
         return $this;
     }
 
@@ -272,10 +350,10 @@ class Autocomplete extends Select implements FormElementInterface
     }
 
     /**
-     * The referenced table, its key column and its display column, or nulls without a usable foreign key
+     * The table searched, its key column and its display column, or nulls without a usable foreign key
      * @return array{0: ?Table, 1: string, 2: string}
      */
-    private function referencedColumns(): array
+    protected function referencedColumns(): array
     {
         $field = $this->getField();
         if ($field === null || !$field->hasTable()) {
@@ -292,15 +370,110 @@ class Autocomplete extends Select implements FormElementInterface
 
     private function applySelectionCriteria(Query $query, Table $meta): void
     {
-        $field = $this->getField();
-        if ($field === null || !$field->hasDbSelectionCriteria()) {
-            return;
-        }
-        foreach ($field->getDbSelectionCriteria() as $column => $value) {
+        foreach ($this->selectionCriteria() as $column => $value) {
             if ($meta->hasField((string)$column)) {
                 $query->where((string)$column, $value);
             }
         }
+    }
+
+    /* ───────────── create ───────────── */
+
+    /**
+     * Store a row for a typed text, or find the row that already carries it
+     * @return array{value: string, label: string, created: bool}
+     * @throws InvalidValueException when the row is refused (the message says why, for the user)
+     */
+    public function create(string $term): array
+    {
+        $term = trim(mb_substr($term, 0, self::MAX_TERM_LENGTH));
+        if ($term === '') {
+            throw new InvalidValueException('Type a name first');
+        }
+        if ($this->createCallback !== null) {
+            return $this->createResult(($this->createCallback)($term, $this), $term);
+        }
+
+        [$meta, $key, $display] = $this->referencedColumns();
+        $class = $this->createClass();
+        if ($meta === null || $class === null || !class_exists($class)) {
+            throw new InvalidValueException('New entries cannot be added here');
+        }
+        foreach ($this->searchReferencedTable($term, 100) as $row) {
+            if (mb_strtolower($row['label']) === mb_strtolower($term)) {
+                return ['value' => $row['value'], 'label' => $row['label'], 'created' => false];
+            }
+        }
+
+        /** @var BaseObject $object */
+        $object = new $class();
+        try {
+            $object->setFieldValue($display, $term);
+            foreach ($this->selectionCriteria() as $column => $value) {
+                if ($meta->hasField((string)$column)) {
+                    $object->setFieldValue((string)$column, $value);
+                }
+            }
+            $object->setValidateOnStore(true);
+            $object->insert();
+        } catch (MissingFieldValueException $ex) {
+            throw new InvalidValueException(sprintf('"%s" cannot be added here: more details are required', $term), 0, $ex);
+        } catch (UniqueFieldDuplicateValueException $ex) {
+            throw new InvalidValueException(sprintf('"%s" already exists', $term), 0, $ex);
+        } catch (ValidationException $ex) {
+            throw new InvalidValueException(implode(' ', $ex->getMessages()) ?: sprintf('"%s" is not valid', $term), 0, $ex);
+        } catch (DatabaseException | InvalidForeignKeyValue $ex) {
+            throw new InvalidValueException(sprintf('"%s" could not be added', $term), 0, $ex);
+        }
+        return $this->createResult($object, $term);
+    }
+
+    /**
+     * The model class a created row belongs to: the referenced table's model
+     */
+    protected function createClass(): ?string
+    {
+        $field = $this->getField();
+        if ($field === null || !$field->hasTable()) {
+            return null;
+        }
+        $fk = $field->getTable()->getForeignKey((string)$field->getName());
+        return $fk !== null ? $fk->getReferencedClassName() : null;
+    }
+
+    /**
+     * @return array<string, mixed> the field's db selection criteria (column => value)
+     */
+    protected function selectionCriteria(): array
+    {
+        $field = $this->getField();
+        return $field !== null && $field->hasDbSelectionCriteria() ? (array)$field->getDbSelectionCriteria() : [];
+    }
+
+    /**
+     * @param mixed $result what the create callback or the default produced
+     * @return array{value: string, label: string, created: bool}
+     * @throws InvalidValueException
+     */
+    private function createResult(mixed $result, string $term): array
+    {
+        if ($result instanceof BaseObject) {
+            [, $key, $display] = $this->referencedColumns();
+            $value = $key !== '' && $result->getTable()->hasField($key) ? $result->getFieldValue($key) : $result->getRecordId();
+            $label = $display !== '' && $result->getTable()->hasField($display) ? $result->getFieldValue($display) : $term;
+            $value = static::valueToString(is_array($value) ? null : $value);
+            if ($value === null || $value === '') {
+                throw new InvalidValueException(sprintf('"%s" could not be added', $term));
+            }
+            return ['value' => $value, 'label' => (string)(static::valueToString($label) ?? $term), 'created' => true];
+        }
+        if (is_array($result) && array_key_exists('value', $result) && is_scalar($result['value']) && (string)$result['value'] !== '') {
+            return ['value' => (string)$result['value'], 'label' => (string)($result['label'] ?? $term), 'created' => (bool)($result['created'] ?? true)];
+        }
+        if (is_string($result) && $result !== '') {
+            throw new InvalidValueException($result);
+        }
+        throw new InvalidValueException(sprintf('"%s" cannot be added here', $term));
     }
 
     /* ───────────── labels ───────────── */
@@ -366,14 +539,31 @@ class Autocomplete extends Select implements FormElementInterface
             'data-min-chars' => (string)$this->minChars,
             'data-url' => $this->lookupUrl,
             'data-no-results' => $this->noResultsText,
-        ];
+        ] + $this->createAttributes();
         $box = "<div class=\"laf-autocomplete position-relative\"" . $this->renderAttributes($data) . ">"
             . "\n\t\t\t\t" . $hidden . "\n\t\t\t\t" . $input . "\n\t\t\t\t" . $menu . "\n\t\t\t\t</div>";
 
         return $this->renderWrapper($box, ['suggestions' => false]) . $this->drawScriptOnce();
     }
 
-    private function drawScriptOnce(): string
+    /**
+     * data-* attributes of the create entry (none when creating is off)
+     * @return array<string, string>
+     */
+    protected function createAttributes(): array
+    {
+        if (!$this->isCreateAllowed()) {
+            return [];
+        }
+        $attributes = ['data-create' => '1', 'data-create-text' => $this->createText];
+        if ($this->createCsrf !== null) {
+            $attributes['data-csrf-name'] = $this->createCsrf[0];
+            $attributes['data-csrf-token'] = $this->createCsrf[1];
+        }
+        return $attributes;
+    }
+
+    protected function drawScriptOnce(): string
     {
         if (!self::$inlineScript || self::$scriptDrawn) {
             return '';

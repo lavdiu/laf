@@ -40,6 +40,9 @@ class ClassGenerator
     /** @var string[] */
     private array $warnings = [];
 
+    /** @var array<string, TableInspectorInterface|null> inspectors of the other tables (linker tables), by name; null = could not be inspected */
+    private array $inspectors = [];
+
     /**
      * @param array<string, mixed> $config namespace, base_class_dir, class_dir, rewrite_class
      * @param TableInspectorInterface|null $tableInspector inspected lazily; null = TableInspectorFactory::create()
@@ -64,6 +67,7 @@ class ClassGenerator
         $file = $this->renderBaseClassHeader();
         $file .= $this->generateFields();
         $file .= $this->generateForeignKeys();
+        $file .= $this->generateManyToMany();
         $file .= "\n\t}\n";
         foreach ($this->getTableColumns() as $column) {
             $file .= $this->renderAccessors((string)$column['COLUMN_NAME']);
@@ -247,6 +251,132 @@ PHP;
 		);\n";
         }
         return $tmp;
+    }
+
+    /**
+     * The many-to-many relations of buildClass(): one addManyToMany() per linker table that points at
+     * this table (JunctionDetector), configured by the comment of the linker's column that points at
+     * the other table; empty when there is none, so older output stays byte-identical
+     */
+    public function generateManyToMany(): string
+    {
+        $tmp = '';
+        foreach ($this->detectManyToMany() as $junction => $definition) {
+            $tmp .= "\n\t\t\$this->getTable()->addManyToMany(" . self::stringLiteral($junction) . ", " . self::exportArray($definition) . ");";
+        }
+        return $tmp === '' ? '' : "\n\t\t/**\n\t\t * Many-to-many relations through linker tables\n\t\t */" . $tmp . "\n";
+    }
+
+    /**
+     * The linker tables that connect this table to another one
+     * @return array<string, array<string, mixed>> linker table => definition (Table::addManyToMany())
+     */
+    public function detectManyToMany(): array
+    {
+        $inspector = $this->inspector();
+        if (!$inspector->hasReferencingTables()) {
+            return [];
+        }
+        $table = (string)$this->getTable()->getName();
+        $relations = [];
+        foreach ($inspector->getReferencingTables() as $reference) {
+            $junctionName = (string)$reference['table_name'];
+            if (isset($relations[$junctionName]) || $junctionName === $table) {
+                continue;
+            }
+            $junctionInspector = $this->inspectorFor($junctionName);
+            if ($junctionInspector === null) {
+                continue;
+            }
+            $junction = JunctionDetector::detect($junctionInspector, $table, (string)$reference['column_name']);
+            if ($junction === null) {
+                continue;
+            }
+            $comment = isset($junction['other_column']['COLUMN_COMMENT']) ? (string)$junction['other_column']['COLUMN_COMMENT'] : null;
+            $formOptions = ColumnComment::formOptions($comment, $this->warnings) ?? [];
+            if (($formOptions['multi'] ?? true) === false) {
+                continue;
+            }
+            unset($formOptions['multi']);
+            if (!$junction['insertable']) {
+                $this->warnings[] = sprintf('table %s: linker table %s has a required column without a default, no multi-value picker', $table, $junctionName);
+                continue;
+            }
+            $fields = ColumnComment::parse($comment)['fields'] ?? [];
+            $fields = is_array($fields) ? $fields : [];
+            $definition = [
+                'owner' => $junction['fk_to_current'],
+                'other' => $junction['fk_to_other'],
+                'table' => $junction['other_table'],
+                'label' => isset($fields['setLabel']) && is_scalar($fields['setLabel']) && trim((string)$fields['setLabel']) !== ''
+                    ? trim((string)$fields['setLabel'])
+                    : self::pluralLabel(Util::tableFieldNameToLabel($junction['other_table'])),
+            ];
+            if (isset($fields['setHint']) && is_scalar($fields['setHint']) && trim((string)$fields['setHint']) !== '') {
+                $definition['hint'] = trim((string)$fields['setHint']);
+            }
+            if (!empty($fields['setRequired'])) {
+                $definition['required'] = true;
+            }
+            if ($formOptions !== []) {
+                $definition['form'] = $formOptions;
+            }
+            $relations[$junctionName] = $definition;
+        }
+        return $relations;
+    }
+
+    /**
+     * Inspector of another table: one added with addTableInspector(), else TableInspectorFactory;
+     * null (with a warning) when the table cannot be inspected
+     */
+    private function inspectorFor(string $tableName): ?TableInspectorInterface
+    {
+        if (array_key_exists($tableName, $this->inspectors) && $this->inspectors[$tableName] === null) {
+            return null;
+        }
+        if (!isset($this->inspectors[$tableName])) {
+            $this->inspectors[$tableName] = TableInspectorFactory::create($tableName);
+        }
+        $inspector = $this->inspectors[$tableName];
+        try {
+            if ($inspector instanceof AbstractTableInspector ? !$inspector->isInspected() : $inspector->getColumns() === []) {
+                $inspector->inspect();
+            }
+        } catch (\Throwable $ex) {
+            // reported once, not once per foreign key that comes from the table
+            $this->warnings[] = sprintf('table %s: cannot inspect %s (%s)', $this->getTable()->getName(), $tableName, $ex->getMessage());
+            $this->inspectors[$tableName] = null;
+            return null;
+        }
+        return $inspector;
+    }
+
+    /**
+     * Metadata of another table (a linker table) without a database: tests, or a generator run that
+     * already inspected it
+     */
+    public function addTableInspector(TableInspectorInterface $inspector): static
+    {
+        $this->inspectors[$inspector->getTable()] = $inspector;
+        return $this;
+    }
+
+    /**
+     * "Group" gives "Groups", "Category" "Categories", "Address" "Addresses"; the label of a multi-value picker
+     */
+    private static function pluralLabel(string $label): string
+    {
+        if ($label === '') {
+            return $label;
+        }
+        if (preg_match('/[^aeiou]y$/i', $label)) {
+            return substr($label, 0, -1) . 'ies';
+        }
+        if (preg_match('/(s|x|z|ch|sh)$/i', $label)) {
+            return $label . 'es';
+        }
+        return $label . 's';
     }
 
     /**

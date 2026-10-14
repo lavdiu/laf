@@ -117,6 +117,24 @@ class Select extends Text implements FormElementInterface
         return $this->emptyOptionLabel;
     }
 
+    /**
+     * Several selections only on a column that stores a list: a foreign key holds one key
+     * (several keys come from a linker table, see ManyToManyCheckboxes / ManyToManyAutocomplete)
+     */
+    public function isMultiple(): bool
+    {
+        return parent::isMultiple() && !$this->isForeignKeyBound();
+    }
+
+    /**
+     * Whether the element is bound to a foreign-key column
+     */
+    protected function isForeignKeyBound(): bool
+    {
+        $field = $this->getField();
+        return $field !== null && $field->hasTable() && $field->isForeignKey();
+    }
+
     public function setInline(bool $inline): static
     {
         $this->inline = $inline;

@@ -15,19 +15,26 @@ use Laf\UI\Form\FormLayout;
  *   {"fields": {"setLabel": "Customer", "setHint": "Billing contact", "setRequired": false,
  *               "setType": "uuid", "setDisplayField": "label_al"},
  *    "form":   {"hidden": true, "readonly": "update", "exclude": ["view"], "group": "Address",
- *               "tab": "Pricing", "order": 20, "element": "TextArea"}}
+ *               "tab": "Pricing", "order": 20, "element": "TextArea", "create": true, "multi": false}}
  *
  * "fields" names Field setters with their argument (a list = several arguments);
  * "setType" takes a type name and "setDisplayField" the display column of the
  * table (or anything truthy for the commented column). "form" holds the hints
  * FormLayout::auto() reads (exclude/readonly/hidden take true, one draw mode or
  * a list of modes) and the element class (short name under Laf\UI\Form\Input or
- * a fully qualified class).
+ * a fully qualified class). "create" lets an autocomplete add a missing row of the
+ * referenced table. On a column of a linker table (person_group.group_id) the comment
+ * configures the multi-value picker the generator adds to the other side's form (the
+ * Person form's "Groups"): setLabel / setHint / setRequired and the form hints above;
+ * "multi": false leaves the picker out.
  */
 final class ColumnComment
 {
     public const FORM_MODE_KEYS = ['exclude', 'readonly', 'hidden'];
-    public const FORM_KEYS = ['exclude', 'readonly', 'hidden', 'group', 'tab', 'order', 'element'];
+    public const FORM_KEYS = ['exclude', 'readonly', 'hidden', 'group', 'tab', 'order', 'element', 'create', 'multi'];
+
+    /** Form options that take true or false */
+    public const FORM_BOOL_KEYS = ['create', 'multi'];
 
     /**
      * The decoded comment, null when it is not a JSON object
@@ -128,6 +135,8 @@ final class ColumnComment
                 if (is_numeric($value)) {
                     $options[$key] = (int)$value;
                 }
+            } elseif (in_array($key, self::FORM_BOOL_KEYS, true)) {
+                $options[$key] = is_string($value) ? !in_array(strtolower(trim($value)), ['', '0', 'false', 'no'], true) : (bool)$value;
             } elseif ($key === 'element') {
                 try {
                     $options[$key] = FormLayout::resolveElementClass((string)$value);

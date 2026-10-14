@@ -50,6 +50,13 @@ Settings `form.select_autocomplete_threshold`, demo `sample_files/autocomplete_d
 asm's 26 jQuery UI autocompletes (app work; they keep working), a "create new" entry in the list, multi-value
 autocomplete.
 
+Fifth pass (2026-10-14): the "create new" entry (`Autocomplete::setAllowCreate()` / `setCreateCallback()`, POST with
+the form's CSRF token) and multi-value selection only through a linker table (X11 for pickers): the generator turns
+every linker table into `Table::addManyToMany()` on both sides, forms show `ManyToManyCheckboxes` or chips
+(`ManyToManyAutocomplete`) by themselves, `processForm()` stores the row and the links in one transaction; a plain
+foreign key stays single. Notes `agent/2026-10-14-autocomplete-create-m2m-notes.md`. Still open from X11: editing
+linker data columns.
+
 | # | Defect | Evidence | Effect |
 |---|---|---|---|
 | D1 | `softDelete()` writes `record_status_id = 0` unconditionally | `BaseObject.php:923`; asm `RecordStatus::DELETED = 5`, its `record_status` table holds ids 1-7 (migration 2020-01-19), asm calls `softDelete()` in 128 files and has a foreign key on the column in 5 tables; routerarena uses `DELETED = 0` | On asm's FK-constrained tables `setFieldValue()` throws `InvalidForeignKeyValue` (`BaseObject.php:153-157`); on the others a status asm never treats as deleted is written. Same code in asm's vendor copy. |

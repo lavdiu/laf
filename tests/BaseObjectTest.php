@@ -19,6 +19,8 @@ use Laf\Util\Settings;
 use LafShell\CodeTable;
 use LafShell\DummyTable;
 use LafShell\LinkTable;
+use LafShell\M2mGroup;
+use LafShell\M2mPerson;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -100,6 +102,25 @@ class BaseObjectTest extends TestCase
 			  updated_on TIMESTAMP DEFAULT NULL,
 			  updated_by INTEGER DEFAULT NULL
 			);
+			DROP TABLE IF EXISTS m2m_person_group;
+			DROP TABLE IF EXISTS m2m_person;
+			DROP TABLE IF EXISTS m2m_group;
+			CREATE TABLE m2m_person (
+			  id SERIAL PRIMARY KEY,
+			  name VARCHAR(50) NOT NULL
+			);
+			CREATE TABLE m2m_group (
+			  id SERIAL PRIMARY KEY,
+			  name VARCHAR(50) NOT NULL,
+			  CONSTRAINT m2m_group_name_unique UNIQUE (name)
+			);
+			CREATE TABLE m2m_person_group (
+			  id SERIAL PRIMARY KEY,
+			  person_id INTEGER NOT NULL,
+			  group_id INTEGER NOT NULL,
+			  CONSTRAINT m2m_person_group_person_fk FOREIGN KEY (person_id) REFERENCES m2m_person (id) ON DELETE CASCADE,
+			  CONSTRAINT m2m_person_group_group_fk FOREIGN KEY (group_id) REFERENCES m2m_group (id)
+			);
 			DROP TABLE IF EXISTS audit_log;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table_postgres.sql');
 		} else {
@@ -157,6 +178,30 @@ class BaseObjectTest extends TestCase
 			  `updated_by` int(11) DEFAULT NULL,
 			  PRIMARY KEY (`id`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+			DROP TABLE IF EXISTS `m2m_person_group`;
+			DROP TABLE IF EXISTS `m2m_person`;
+			DROP TABLE IF EXISTS `m2m_group`;
+			CREATE TABLE `m2m_person` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `name` varchar(50) NOT NULL,
+			  PRIMARY KEY (`id`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+			CREATE TABLE `m2m_group` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `name` varchar(50) NOT NULL,
+			  PRIMARY KEY (`id`),
+			  UNIQUE KEY `m2m_group_name_unique` (`name`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+			CREATE TABLE `m2m_person_group` (
+			  `id` int(11) NOT NULL AUTO_INCREMENT,
+			  `person_id` int(11) NOT NULL,
+			  `group_id` int(11) NOT NULL,
+			  PRIMARY KEY (`id`),
+			  KEY `m2m_person_group_person_fk` (`person_id`),
+			  KEY `m2m_person_group_group_fk` (`group_id`),
+			  CONSTRAINT `m2m_person_group_person_fk` FOREIGN KEY (`person_id`) REFERENCES `m2m_person` (`id`) ON DELETE CASCADE,
+			  CONSTRAINT `m2m_person_group_group_fk` FOREIGN KEY (`group_id`) REFERENCES `m2m_group` (`id`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 			DROP TABLE IF EXISTS `audit_log`;
 			" . file_get_contents(__DIR__ . '/../migrations/create_audit_logs_table.sql');
 		}
@@ -173,6 +218,9 @@ class BaseObjectTest extends TestCase
 		$db->execute("DELETE FROM dummy_table");
 		$db->execute("DELETE FROM audit_log");
 		$db->execute("DELETE FROM status_table");
+		$db->execute("DELETE FROM m2m_person_group");
+		$db->execute("DELETE FROM m2m_person");
+		$db->execute("DELETE FROM m2m_group");
 		AuditLog::setEnabled(true);
 		AuditLog::setStrict(false);
 		AuditLog::setTableName('audit_log');
@@ -1513,6 +1561,154 @@ class BaseObjectTest extends TestCase
 		$row->setValidateOnStore(false);
 		$this->assertTrue($row->store(), 'validation off: the write goes through');
 		$this->assertSame('Not Valid', Db::getInstance()->getOne('SELECT varchar_field45 FROM dummy_table WHERE id = :id', [':id' => $id]));
+	}
+
+	/* ───────────── many-to-many through a linker table (m2m_person ⇄ m2m_group) ───────────── */
+
+	/** @return array<string, string> group name => id */
+	private function seedGroups(string ...$names): array
+	{
+		$ids = [];
+		foreach ($names as $name) {
+			$group = new M2mGroup();
+			$group->auditLogDisable();
+			$group->setFieldValue('name', $name);
+			$group->insert();
+			$ids[$name] = (string)$group->getFieldValue('id');
+		}
+		return $ids;
+	}
+
+	/** @return string[] the group ids linked to a person, sorted */
+	private function linkedGroups($personId): array
+	{
+		$ids = array_map('strval', Db::getInstance()->getColumn('SELECT group_id FROM m2m_person_group WHERE person_id = :p', [':p' => (int)$personId]));
+		sort($ids);
+		return $ids;
+	}
+
+	public function testManyToManySyncAddsAndRemovesLinksThroughTheLinkerModel()
+	{
+		$groups = $this->seedGroups('Admins', 'Staff', 'Guests');
+		$person = new M2mPerson();
+		$person->setFieldValue('name', 'Ann');
+		$person->insert();
+		$relation = $person->manyToMany('m2m_person_group');
+
+		$this->assertSame(['added' => [$groups['Admins'], $groups['Staff']], 'removed' => []], $relation->sync([$groups['Admins'], $groups['Staff'], $groups['Admins']]));
+		$this->assertSame([$groups['Admins'], $groups['Staff']], $this->linkedGroups($person->getRecordId()));
+		$this->assertSame([$groups['Admins'] => 'Admins', $groups['Staff'] => 'Staff'], $relation->labels($relation->ids()));
+		$this->assertSame(['Admins', 'Staff'], array_map(fn($g) => $g->getFieldValue('name'), $relation->objects()));
+		$this->assertSame(['Admins', 'Guests', 'Staff'], array_values($relation->options()), 'every group, by name');
+
+		$this->assertSame(['added' => [$groups['Guests']], 'removed' => [$groups['Admins']]], $relation->sync([$groups['Staff'], $groups['Guests']]));
+		$this->assertSame([$groups['Staff'], $groups['Guests']], $this->linkedGroups($person->getRecordId()), 'sorted by id');
+		$this->assertSame(['added' => [], 'removed' => []], $relation->sync([$groups['Guests'], $groups['Staff']]), 'nothing to do');
+
+		$audit = Db::getInstance()->getAllAssoc("SELECT action FROM audit_log WHERE table_name = 'm2m_person_group' ORDER BY id");
+		$this->assertSame(['INSERT', 'INSERT', 'DELETE', 'INSERT'], array_column($audit, 'action'), 'every link is audited');
+		$this->assertSame([$groups['Staff']], $relation->validIds([$groups['Staff'], '999999']));
+
+		$this->expectException(\LogicException::class);
+		(new M2mPerson())->manyToMany('m2m_person_group')->sync([$groups['Staff']]);
+	}
+
+	public function testAFormStoresThePersonAndItsGroupsTogether()
+	{
+		$_SESSION = [];
+		$groups = $this->seedGroups('Admins', 'Staff', 'Guests');
+
+		$person = new M2mPerson();
+		$form = $person->getForm(\Laf\UI\Form\DrawMode::INSERT);
+		$this->assertInstanceOf(\Laf\UI\Form\Input\ManyToManyCheckboxes::class, $form->getRelationElement('m2m_person_group'), 'on the generated form by itself');
+		$this->assertStringContainsString('>Guests</label>', $form->draw());
+		$form->setRequest($form->buildRequest(['name' => 'Ann', 'm2m_person_group' => [$groups['Admins'], $groups['Staff']]], \Laf\UI\Form\DrawMode::INSERT));
+		$id = $form->processForm();
+		$this->assertSame([$groups['Admins'], $groups['Staff']], $this->linkedGroups($id));
+
+		$loaded = new M2mPerson($id);
+		$edit = $loaded->getForm(\Laf\UI\Form\DrawMode::UPDATE);
+		$this->assertSame([$groups['Admins'], $groups['Staff']], $edit->getRelationElement('m2m_person_group')->getSelectedIds(), 'the edit form shows the stored links');
+		$edit->setRequest($edit->buildRequest(['name' => 'Ann', 'm2m_person_group' => [$groups['Staff']]], \Laf\UI\Form\DrawMode::UPDATE));
+		$edit->processForm();
+		$this->assertSame([$groups['Staff']], $this->linkedGroups($id), 'only the groups changed: the person row is clean, the links still sync');
+
+		$auditRows = (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM audit_log');
+		$again = (new M2mPerson($id))->getForm(\Laf\UI\Form\DrawMode::UPDATE);
+		$again->setRequest($again->buildRequest(['name' => 'Ann', 'm2m_person_group' => [$groups['Staff']]], \Laf\UI\Form\DrawMode::UPDATE));
+		$again->processForm();
+		$this->assertSame($auditRows, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM audit_log'), 'an unchanged submission writes nothing');
+
+		$view = (new M2mPerson($id))->getForm(\Laf\UI\Form\DrawMode::VIEW);
+		$this->assertStringContainsString('Staff', $view->draw());
+	}
+
+	public function testAnUnknownGroupIsRefusedAndAFailedLinkRollsThePersonBack()
+	{
+		$_SESSION = [];
+		$groups = $this->seedGroups('Admins');
+
+		$form = (new M2mPerson())->getForm(\Laf\UI\Form\DrawMode::INSERT);
+		$form->setRequest($form->buildRequest(['name' => 'Bob', 'm2m_person_group' => [$groups['Admins'], '999999']], \Laf\UI\Form\DrawMode::INSERT));
+		try {
+			$form->processForm();
+			$this->fail('expected a FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$this->assertSame(['M2m Groups: unknown value'], $ex->getErrors()['m2m_person_group']);
+		}
+		$this->assertSame(0, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM m2m_person'));
+
+		// without the form's check the foreign key refuses the link: the person insert is undone too
+		$unchecked = (new M2mPerson())->getForm(\Laf\UI\Form\DrawMode::INSERT)->setValidateOnSubmit(false);
+		$unchecked->setRequest($unchecked->buildRequest(['name' => 'Bob', 'm2m_person_group' => ['999999']], \Laf\UI\Form\DrawMode::INSERT));
+		try {
+			$unchecked->processForm();
+			$this->fail('expected a FormValidationException');
+		} catch (\Laf\Exception\FormValidationException $ex) {
+			$this->assertSame(['M2m Groups: the choice could not be saved'], $ex->getErrors()['m2m_person_group']);
+		}
+		$this->assertSame(0, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM m2m_person'), 'rolled back with the link');
+	}
+
+	public function testQuickCreateAddsARowOrFindsTheExistingOne()
+	{
+		$_SESSION = [];
+		$this->seedGroups('Admins');
+		$person = new M2mPerson();
+		$layout = \Laf\UI\Form\FormLayout::auto($person->getTable())->element('m2m_person_group', 'Autocomplete');
+		$form = $person->getForm(\Laf\UI\Form\DrawMode::INSERT, $layout);
+		/** @var \Laf\UI\Form\Input\ManyToManyAutocomplete $picker */
+		$picker = $form->getRelationElement('m2m_person_group');
+		$picker->setAllowCreate(true);
+
+		$created = $picker->create('Drivers');
+		$this->assertTrue($created['created']);
+		$this->assertSame('Drivers', $created['label']);
+		$this->assertSame('Drivers', Db::getInstance()->getOne('SELECT name FROM m2m_group WHERE id = :id', [':id' => (int)$created['value']]));
+
+		$found = $picker->create('  admins ');
+		$this->assertFalse($found['created'], 'an exact match (any case) is reused');
+		$this->assertSame('Admins', $found['label']);
+		$this->assertSame(2, (int)Db::getInstance()->getOne('SELECT COUNT(*) FROM m2m_group'));
+
+		ob_start();
+		$form->handleLookupRequest(['laf_lookup' => 'm2m_person_group.group_id', 'laf_create' => '1'], false, ['laf_q' => 'Guests', $form->getCsrfSessionKey() => $form->getCsrfToken()]);
+		$answer = json_decode((string)ob_get_clean(), true);
+		$this->assertSame(200, $form->getLookupStatus());
+		$this->assertSame('Guests', $answer['label']);
+
+		// dummy_table needs required_field too: the default create is refused with a reason
+		$row = new DummyTable();
+		$row->getParentIdFld()->setFormElementClass('Autocomplete');
+		/** @var \Laf\UI\Form\Input\Autocomplete $parent */
+		$parent = $row->getParentIdFld()->getFormElement();
+		$parent->setAllowCreate(true);
+		try {
+			$parent->create('New parent');
+			$this->fail('expected an InvalidValueException');
+		} catch (InvalidValueException $ex) {
+			$this->assertSame('"New parent" cannot be added here: more details are required', $ex->getMessage());
+		}
 	}
 }
 

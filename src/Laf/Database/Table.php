@@ -29,6 +29,9 @@ class Table
 
     private ?Field $displayField;
 
+    /** @var array<string, array<string, mixed>> linker table => many-to-many definition (addManyToMany()) */
+    private array $manyToMany = [];
+
     /**
      * Table constructor.
      * @param string|null $name
@@ -224,6 +227,58 @@ class Table
     public function getForeignKeys(): array
     {
         return $this->foreignKey;
+    }
+
+    /**
+     * A linker (junction) table that connects this table to another one, so a row of this
+     * table can be linked to several rows of the other (person ⇄ group through person_group).
+     * The generator adds one per linker table it finds; forms show it as a multi-value picker.
+     *
+     *   $table->addManyToMany('person_group', ['owner' => 'person_id', 'other' => 'group_id',
+     *       'table' => 'group', 'label' => 'Groups', 'form' => ['element' => 'Autocomplete']]);
+     *
+     * @param string $junction the linker table, also the relation's name on forms and layouts
+     * @param array<string, mixed> $definition owner (linker column pointing here), other (linker column
+     *        pointing at the other table), table (the other table), label, hint, required, form (layout
+     *        hints like a column comment's "form": order, group, tab, exclude, readonly, hidden, element, create)
+     */
+    public function addManyToMany(string $junction, array $definition): static
+    {
+        foreach (['owner', 'other'] as $key) {
+            if (!isset($definition[$key]) || !is_string($definition[$key]) || $definition[$key] === '') {
+                throw new \InvalidArgumentException(sprintf('Table %s: the many-to-many definition of %s needs "%s"', $this->name, $junction, $key));
+            }
+        }
+        $definition['form'] = isset($definition['form']) && is_array($definition['form']) ? $definition['form'] : [];
+        $this->manyToMany[$junction] = $definition;
+        return $this;
+    }
+
+    public function removeManyToMany(string $junction): static
+    {
+        unset($this->manyToMany[$junction]);
+        return $this;
+    }
+
+    public function hasManyToMany(string $junction): bool
+    {
+        return isset($this->manyToMany[$junction]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getManyToManyDefinition(string $junction): ?array
+    {
+        return $this->manyToMany[$junction] ?? null;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>> linker table => definition
+     */
+    public function getManyToManyDefinitions(): array
+    {
+        return $this->manyToMany;
     }
 
     /**

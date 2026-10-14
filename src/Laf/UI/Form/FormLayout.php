@@ -326,13 +326,14 @@ final class FormLayout
     }
 
     /**
-     * A fully qualified form element class from a short name (under Laf\UI\Form\Input) or a class name
+     * A fully qualified form element class from a short name (under Laf\UI\Form\Input, or a many-to-many
+     * picker without its ManyToMany prefix: "DualList") or a class name
      * @throws \InvalidArgumentException
      */
     public static function resolveElementClass(string $name): string
     {
         $name = ltrim(trim($name), '\\');
-        foreach ([$name, 'Laf\\UI\\Form\\Input\\' . $name] as $candidate) {
+        foreach ([$name, 'Laf\\UI\\Form\\Input\\' . $name, 'Laf\\UI\\Form\\Input\\ManyToMany' . $name] as $candidate) {
             if ($candidate !== '' && class_exists($candidate) && is_a($candidate, FormElementInterface::class, true)) {
                 return $candidate;
             }
@@ -361,9 +362,18 @@ final class FormLayout
 
         $all = [];
         $index = 0;
+        $entries = [];
         foreach ($table->getFields() as $field) {
-            $name = (string)$field->getName();
-            $formOptions = $field->getFormOptions();
+            $entries[(string)$field->getName()] = $field->getFormOptions();
+        }
+        // the many-to-many pickers (linker tables) follow the columns unless their comment orders them
+        foreach ($table->getManyToManyDefinitions() as $junction => $definition) {
+            if (!isset($entries[$junction])) {
+                $entries[(string)$junction] = (array)($definition['form'] ?? []);
+            }
+        }
+        foreach ($entries as $name => $formOptions) {
+            $name = (string)$name;
             $all[$name] = [
                 'index' => $index,
                 'order' => is_numeric($formOptions['order'] ?? null) ? (int)$formOptions['order'] : ($index + 1) * 10,
@@ -464,11 +474,19 @@ final class FormLayout
             }
             $elements = [];
             foreach ($section['fields'] as $name) {
-                if (isset($placed[$name]) || !$table->hasField($name) || $this->isExcluded($name, $drawMode)) {
+                if (isset($placed[$name]) || $this->isExcluded($name, $drawMode)) {
+                    continue;
+                }
+                if ($table->hasField($name)) {
+                    $element = $this->prepareElement($table->getField($name), $drawMode);
+                } else {
+                    $element = $this->prepareRelationElement($form, $name, $drawMode);
+                }
+                if ($element === null) {
                     continue;
                 }
                 $placed[$name] = true;
-                $elements[] = $this->prepareElement($table->getField($name), $drawMode);
+                $elements[] = $element;
             }
             if ($elements === []) {
                 continue;
@@ -502,6 +520,17 @@ final class FormLayout
                 if (!isset($placed[$name]) && !$this->isExcluded($name, $drawMode)) {
                     $placed[$name] = true;
                     $top[] = $this->prepareElement($field, $drawMode);
+                }
+            }
+            foreach (array_keys($table->getManyToManyDefinitions()) as $name) {
+                $name = (string)$name;
+                if (isset($placed[$name]) || $this->isExcluded($name, $drawMode)) {
+                    continue;
+                }
+                $element = $this->prepareRelationElement($form, $name, $drawMode);
+                if ($element !== null) {
+                    $placed[$name] = true;
+                    $top[] = $element;
                 }
             }
         }
@@ -541,6 +570,32 @@ final class FormLayout
             $field->setFormElementClass($class);
         }
         $element = $field->getFormElement();
+        $element->setDrawMode($this->isReadOnly($name, $drawMode) ? DrawMode::VIEW : null);
+        if (method_exists($element, 'setHidden')) {
+            $element->setHidden($this->isHidden($name, $drawMode));
+        }
+        return $element;
+    }
+
+    /**
+     * The cached picker of a many-to-many relation of the form's object (a linker table the
+     * generator found) with the layout-owned state applied; null when $name is no usable relation
+     */
+    private function prepareRelationElement(Form $form, string $name, string $drawMode): ?FormElementInterface
+    {
+        $object = $form->getObject();
+        if (!$object->getTable()->hasManyToMany($name)) {
+            return null;
+        }
+        try {
+            $relation = $object->manyToMany($name);
+            if (!$relation->isAvailable()) {
+                return null;
+            }
+            $element = $relation->getFormElement($this->getElementClass($name));
+        } catch (\Throwable $ex) {
+            return null;
+        }
         $element->setDrawMode($this->isReadOnly($name, $drawMode) ? DrawMode::VIEW : null);
         if (method_exists($element, 'setHidden')) {
             $element->setHidden($this->isHidden($name, $drawMode));

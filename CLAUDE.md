@@ -57,8 +57,16 @@ same shape on both engines (upper-case information_schema keys + `FOREIGN_KEY`; 
 `COMMENT ON COLUMN`, identity columns as auto-increment, single-column unique indexes as `UNI`). JSON column comments
 drive the generated field: `{"fields":{"setLabel":"Customer","setHint":"...","setRequired":false,"setType":"uuid",
 "setDisplayField":"label_al"},"form":{"readonly":"update","hidden":true,"exclude":["view"],"group":"Address",
-"tab":"Pricing","order":20,"element":"TextArea"}}` (see `Laf\Generator\ColumnComment`; `form` lands in
-`Field::setFormOptions()` and is read by `FormLayout::auto()`). Generated pages get the form from
+"tab":"Pricing","order":20,"element":"TextArea","create":true}}` (see `Laf\Generator\ColumnComment`; `form` lands in
+`Field::setFormOptions()` and is read by `FormLayout::auto()`; `"create"` lets an FK autocomplete add rows). Linker
+tables (`Laf\Generator\JunctionDetector`: exactly two foreign keys to two different tables, at most two data columns
+besides the key and row metadata, e.g. asm's `person_group(id, person_id, group_id)`) become
+`$this->getTable()->addManyToMany('person_group', ['owner' => 'person_id', 'other' => 'group_id', 'table' => 'group',
+'label' => 'Groups'])` in both sides' Base classes, so their forms get a multi-value picker by themselves; the comment
+of the linker column that points at the picked table configures it (`setLabel`/`setHint`/`setRequired`, the form hints,
+`"element":"Autocomplete"`, `"create":true`) and `"form":{"multi":false}` leaves it out. A linker with a required data
+column without a default gets no picker (warning). `ClassGenerator::addTableInspector()` injects other tables' metadata
+(tests). Generated pages get the form from
 `$obj->getForm($drawMode)` (laid out by the model, see Forms), one related-records tab per foreign key column that
 points at the table (a junction table shows the table behind it), quoted identifiers in the grid SQL, flash messages
 through `Laf\UI\Flash` (`Flash::success()` / `error()` / `warning()` / `info()` / `html()` queue in the session, or for the
@@ -183,7 +191,8 @@ All components support fluent interfaces and CSS/attribute management.
 
 #### 3. Code Generators (`src/Laf/Generator/`)
 
-- **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options)
+- **ClassGenerator**: Generates Base and main class files from database schema (JSON column comments → field setters and form options; linker tables → `Table::addManyToMany()`)
+- **JunctionDetector**: the linker-table rule shared by ClassGenerator (many-to-many pickers) and PageGenerator (junction tabs)
 - **PageGenerator**: Creates complete CRUD pages with action-based routing (model-driven form layout, per-FK related tabs, CSRF-protected delete)
 - **DatabaseGenerator**: Orchestrates generation for entire database (table selection, output callback, file list)
 - **MysqlTableInspector** / **PostgresTableInspector** (via **TableInspectorFactory**; `TableInspector` is a deprecated alias of the MySQL one): same-shaped table metadata on both engines; **ColumnComment** parses the JSON comment
@@ -370,7 +379,31 @@ Bootstrap 5 dropdown, keyboard + ARIA combobox, labels as text) is printed inlin
 `Autocomplete::setInlineScript(false)` + `getScriptPath()` for pages that serve it. Typed text that was not chosen
 reverts on blur, an emptied box clears the key, Enter never submits while the list is open; the hidden input fires
 `change` and the box `laf:autocomplete:select` ({value, label}); `LafAutocomplete.set(box, value, label)` / `.clear(box)`.
-Demo: `sample_files/autocomplete_demo.php`.
+A foreign key always holds one value: `Select::setMultiple()` is ignored and `CheckboxCollection` draws radios on an FK.
+"Create new": `setAllowCreate(true)` (or comment `"create": true`) ends the list with `+ Create "text"` when no label
+matches exactly; the script POSTs `laf_q` + the form's CSRF token (Form puts it on the element at draw) to
+`?laf_lookup=key&laf_create=1`; `handleLookupRequest()` answers `{value, label, created}` 200, `{error}` 422 (the reason,
+shown in the list), 403 (bad token, field not editable, VIEW form), 404, 405 (GET); `getLookupStatus()`. The default
+stores a row of the referenced table with the display field = the text (+ the field's db selection criteria,
+`setValidateOnStore(true)`; an exact case-insensitive match is reused); `setCreateCallback(fn ($term, $el) =>
+BaseObject|['value', 'label']|'refusal')` for tables with other required columns.
+Several values come only from a linker table: `Laf\Database\ManyToMany` (`$person->manyToMany('person_group')`: `ids()`,
+`objects()`, `labels($ids)`, `options()`, `validIds()`, `sync($ids)` = adds/removes links through the linker's generated
+model in one transaction, audited, `diff()`), and its picker `getFormElement()`: `Input\ManyToManyCheckboxes` (default)
+or `Input\ManyToManyAutocomplete` (chips with remove buttons, Backspace removes the last, chosen rows left out of the
+results, events `laf:autocomplete:add/remove`, `LafAutocomplete.add/remove/values`) when the other table has more rows
+than `form.select_autocomplete_threshold` or the definition / `FormLayout::element()` says `Autocomplete`, or
+`Input\ManyToManyDualList` (`"element":"DualList"` / `TransferList`: "Available" and "Selected" lists with Add / Add all /
+Remove / Remove all, double click, Enter / Delete, a filter box, a "New entry" box with `setAllowCreate()`, `setTexts()`,
+`setSize()` rows; lists every row of the other table, side by side from md, stacked on phones). All three implement
+`Laf\UI\Form\RelationElementInterface` (no Field; posted as `relation[]` after a hidden `''`; `setMaxItems()`,
+`setRequired()` = at least one). `FormLayout::auto()` places pickers after the columns (or by the definition's
+order/group/tab), sections and `exclude()/readOnly()/hidden()/element()` take the linker table name; `Form`:
+`getRelationElements()`, `getRelationElement($name)`, `buildRequest(['person_group' => [3, 7]])`, the signed list carries
+`_rel_{name}`, `processForm()` checks the keys (required, max, unknown) and stores the row plus every `sync()` in one
+`BaseObject::transaction()` (a refused link rolls the row back and becomes the picker's error); a picker the request
+does not carry leaves the links alone.
+Demo: `sample_files/autocomplete_demo.php` (person ⇄ group checkboxes, chips with create, a single FK).
 Every input takes `setPrefix()` / `setSuffix()` (text addons, an input group; `*Html` variants are raw), `setSuggestions()`
 (a `<datalist>`), and the element's `setErrors()` is announced with `aria-describedby` / `aria-invalid`; `Checkbox::setSwitch(true)`
 draws a toggle; a checkbox never carries `required` (the hidden `0` satisfies NOT NULL). Opt-in inputs `Number` (type=number),
@@ -506,9 +539,11 @@ Each type provides:
   `GeneratorCliIntegrationTest`)
 - `tests/bootstrap.php` configures Settings from the `LAF_DB_*` environment variables; integration tests skip
   themselves when no connection can be made, and create their own tables (`dummy_table`, `code_table`, `link_table`,
-  `status_table`, `audit_log`, `document`)
+  `status_table`, `audit_log`, `document`, `m2m_person`, `m2m_group`, `m2m_person_group`)
 - `tests/Fixtures/LafShell/` holds the models the unit suite uses without a database (`DummyTable`, `CodeTable`,
-  `LinkTable`, `Document`): the `Base/` classes are `ClassGenerator` output (`tests/Fixtures/regenerate.php` writes
+  `LinkTable`, `Document`, `M2mPerson`, `M2mGroup`, `M2mPersonGroup`; `link_table` and `m2m_person_group` are linker
+  tables, so `DummyTable`/`CodeTable` and `M2mPerson`/`M2mGroup` carry many-to-many definitions and their forms draw
+  pickers that read the database: give unit tests static options or exclude the picker): the `Base/` classes are `ClassGenerator` output (`tests/Fixtures/regenerate.php` writes
   them to `tests/Fixtures/generated/<engine>/` from the integration tables; copy them over after a generator change),
   the leaf classes are hand-kept
 - CI (`.github/workflows/ci.yml`): unit suite on PHP 8.1–8.5, PHPStan, integration suite on MariaDB and PostgreSQL

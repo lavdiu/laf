@@ -136,6 +136,22 @@ class BaseObject implements \JsonSerializable
         return $object;
     }
 
+    /** @var array<string, ManyToMany> linker table => relation of this row */
+    private array $manyToManyRelations = [];
+
+    /**
+     * A many-to-many relation of this row through a linker table the generator found
+     * (Table::addManyToMany()), cached per object: $person->manyToMany('person_group')->ids()
+     * @throws \InvalidArgumentException when the table has no such relation
+     */
+    public function manyToMany(string $junction): ManyToMany
+    {
+        if (!isset($this->manyToManyRelations[$junction])) {
+            $this->manyToManyRelations[$junction] = new ManyToMany($this, $junction);
+        }
+        return $this->manyToManyRelations[$junction];
+    }
+
     /* ------------------------------------------------------------------ */
     /* table and metadata                                                  */
     /* ------------------------------------------------------------------ */
@@ -1551,6 +1567,7 @@ class BaseObject implements \JsonSerializable
         $this->recordSelected = false;
         $this->affectedRows = 0;
         $this->lastSql = null;
+        $this->manyToManyRelations = [];
     }
 
     /* ------------------------------------------------------------------ */
